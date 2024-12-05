@@ -1,4 +1,5 @@
 name: Use Custom Action
+run-name: runName
 on: [push]
 
 jobs:
