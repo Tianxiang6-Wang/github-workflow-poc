@@ -1,5 +1,8 @@
 name: Use Custom Action
 run-name: Deploy by @${{ github.actor }}
+concurrency:
+  group: ${{github.ref}}
+  cancel-in-progress: true
 on: 
   pull_request:
     branches:
@@ -7,7 +10,7 @@ on:
       - '!*wtx*'
   push:
     branches:
-      - main
+      - '*'
   issues:
     types:
       - opened
