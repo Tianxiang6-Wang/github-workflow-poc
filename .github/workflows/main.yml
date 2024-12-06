@@ -1,6 +1,16 @@
 name: Use Custom Action
 run-name: Deploy by @${{ github.actor }}
-on: [push]
+on: 
+  pull_request:
+    branches:
+      - 'mian'
+      - '!*wtx*'
+  push:
+    branches:
+      - main
+  issues:
+    types:
+      - opened
 
 jobs:
   hello_world_job:
