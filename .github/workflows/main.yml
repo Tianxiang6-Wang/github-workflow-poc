@@ -5,6 +5,12 @@ concurrency:
   cancel-in-progress: true
   
 on: 
+  workflow_dispatch:
+    inputs:
+      env-name:
+        description: Environment Name (27 characters max)
+        type: string
+        required: false
   pull_request:
     branches:
       - 'mian'
