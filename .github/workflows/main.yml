@@ -11,6 +11,10 @@ on:
         description: Environment Name (27 characters max)
         type: string
         required: false
+      env-name2:
+        description: Environment Name2 (27 characters max)
+        type: string
+        required: false
   pull_request:
     branches:
       - 'mian'
