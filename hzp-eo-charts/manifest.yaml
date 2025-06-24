@@ -1,0 +1,831 @@
+global:
+  repository: isgedge.artifactory.cec.lab.emc.com/isgedge-docker-virtual/
+  components:
+  - image: pgadmin4
+    name: pgadmin4
+    version: 6.14
+    project: dpage/
+  - image: vault
+    name: vault
+    version: 1.18.4
+    project: hashicorp/
+    gitrepo: null
+    commithash: null
+  - image: busybox
+    name: busybox
+    version: 1.37.0
+    project: ''
+    gitrepo: null
+    commithash: null
+  - image: postgresql
+    name: postgresql
+    version: 15.10.0-debian-12-r2
+    project: bitnami/
+    gitrepo: null
+    commithash: null
+  - image: kubectl
+    name: kubectl
+    version: 1.30.5
+    project: bitnami/
+    gitrepo: null
+    commithash: null
+  - image: nats
+    name: nats
+    version: 2.10.25
+    project: ''
+    gitrepo: null
+    commithash: null
+  - image: dell-ese
+    name: dell-ese
+    version: 4.12.4.7
+    project: hzp/
+    gitrepo: null
+    commithash: null
+  - image: hzp-util
+    name: hzp-util
+    version: 0.1.3
+    project: hzp/
+    gitrepo: null
+    commithash: null
+  - image: seaweedfs
+    name: seaweedfs
+    version: 3.85
+    project: chrislusf/
+    gitrepo: null
+    commithash: null
+  - image: fluent-bit
+    name: fluent-bit
+    version: 3.2.6
+    project: fluent/
+    gitrepo: null
+    commithash: null
+  - image: delco-svc-init
+    name: delco-svc-init
+    version: 1.0.0.0
+    project: hzp/
+    gitrepo: null
+    commithash: null
+  - image: fusion-nginx
+    name: fusion-nginx
+    version: 1.27.4
+    project: fusion/
+    gitrepo: null
+    commithash: null
+  - image: registry
+    name: registry
+    version: 3.0.0-rc.3
+    project: ''
+    gitrepo: null
+    commithash: null
+  - image: nginx-lua
+    name: nginx-lua
+    version: 1.25-ubuntu22.04
+    project: fusion/
+    gitrepo: null
+    commithash: null
+  - image: nats-box
+    name: nats-box
+    version: 0.6.0
+    project: synadia/
+    gitrepo: null
+    commithash: null
+  - image: keycloak-login
+    name: keycloak-login
+    version: 26.0.7-edb27d5-152
+    project: hzp/
+    gitrepo: hzp-login
+    commithash: edb27d59179ed67d09a311b428929a6d8c8dd434
+  - image: vault-bootstrap-svc
+    name: vault-bootstrap-svc
+    version: 3.2.0.0-69b4cbb-c09a3aeb
+    project: hzp/
+    gitrepo: hzp-vault-bootstrap
+    commithash: 69b4cbba333996a8d8bdd14931ab60e0f458b19e
+  - image: catalog-svc
+    name: catalog-svc
+    version: 3.2.0.0-17505b0-549e53a1
+    project: hzp/
+    gitrepo: hzp-catalog-svc
+    commithash: 17505b0116c60d09aa1fab209ede620c23d36f48
+  - image: datacollection-svc
+    name: datacollection-svc
+    version: 3.2.0.0-b9011ed41-d0af9715
+    project: hzp/
+    gitrepo: hzp-datacollection-svc
+    commithash: b9011ed41bd6e060136d7755bf417fe62ca8c36e
+  - image: event-svc
+    name: event-svc
+    version: 3.2.0.0-7ca1bc6-51b957f2
+    project: hzp/
+    gitrepo: hzp-event-svc
+    commithash: 7ca1bc670e3ba3cc4b11e18943a93ad5fb659a2e
+  - image: hzp-fido-rv
+    name: fido-rv
+    version: 3.2.0.0-b4b9619-cefa9ea5
+    project: hzp/
+    gitrepo: hzp-fido-rv
+    commithash: b4b96193152bb0aacebbde74b3525255864660a9
+  - image: hzp-fido-owner-reseller
+    name: fido-owner-reseller
+    version: 3.2.0.0-5da9fae-57021a56
+    project: hzp/
+    gitrepo: hzp-fido-owner-reseller
+    commithash: 5da9faefd2d1b62290f9d638cb4e91519256bd9d
+  - image: health-check-svc
+    name: health-check-svc
+    version: 3.2.0.0-4f91a733b-5d9f7e77
+    project: hzp/
+    gitrepo: hzp-health-check-svc
+    commithash: 4f91a733b02420d59b630636408c00213e028a0d
+  - image: iam-svc
+    name: iam
+    version: 3.2.0.0-6c9292a94-99de2d2c
+    project: hzp/
+    gitrepo: hzp-iam
+    commithash: 6c9292a949e670e8e4b42352bb6490c6748a1505
+  - image: iam-configuration-svc
+    name: iam-configuration
+    version: 3.2.0.0-941045865-70af1b7c
+    project: hzp/
+    gitrepo: hzp-iam-configuration
+    commithash: 941045865b07f7652f467e38a05d6087977364dd
+  - image: hzp-iam-proxy
+    name: iam-proxy
+    version: 3.2.0.0-15d7f85-3c7d40c5
+    project: hzp/
+    gitrepo: hzp-iam-proxy
+    commithash: 15d7f85f5dc36d2b020addfd8185ed670482a878
+  - image: iam-webhook-svc
+    name: iam-webhook-svc
+    version: 3.2.0.0-84e313c-27be3ca9
+    project: hzp/
+    gitrepo: hzp-iam-webhook-svc
+    commithash: 84e313cee15dedfe2439e7b8fe93ae08681009b4
+  - image: inventory-svc
+    name: inventory
+    version: 3.2.0.0-ffa9c831-937de735
+    project: hzp/
+    gitrepo: hzp-inventory
+    commithash: ffa9c831ced45310905f924b56cb852d5946cb23
+  - image: job-svc
+    name: job-svc
+    version: 3.2.0.0-31e42dd-505cf18f
+    project: hzp/
+    gitrepo: hzp-job-svc
+    commithash: 31e42ddb1d8ffb625ef6c807edea680b7afffe21
+  - image: oe-template-mgr-svc
+    name: oe-template-mgr
+    version: 3.2.0.0-37af33c-dd4ba5b5
+    project: hzp/
+    gitrepo: hzp-oe-template-mgr
+    commithash: 37af33cb86ab77cf9c1f4b4181f65648d2cf007a
+  - image: firmware-update-svc
+    name: firmware-update-svc
+    version: 3.2.0.0-9355f2c-d97b8695
+    project: hzp/
+    gitrepo: hzp-firmware-update-svc
+    commithash: 9355f2cd721f4306da0d05e404ddb4addbd21482
+  - image: fido-onboarding-svc
+    name: fido-onboarding-svc
+    version: 3.2.0.0-9077bbe-6f795c3e
+    project: hzp/
+    gitrepo: hzp-fido-onboarding-svc
+    commithash: 9077bbe3c4496c9d501f8022a868ddb9e597b94e
+  - image: upgrade-svc
+    name: upgrade-svc
+    version: 3.2.0.0-25c9d80-b9b4c1fc
+    project: hzp/
+    gitrepo: hzp-upgrade-svc
+    commithash: 25c9d808d8512270ff841d298fc0354d3d6aa99d
+  - image: eo-proxy-svc
+    name: eo-proxy
+    version: 3.2.0.0-071de56-4d3e4f73
+    project: hzp/
+    gitrepo: hzp-eo-proxy
+    commithash: 071de56e6107b544d617b05fb8d8c02c858459f6
+  - image: delco-svc
+    name: delco-svc
+    version: 3.1.0.0-194a235-9c1540c0
+    project: hzp/
+    gitrepo: hzp-delco-svc
+    commithash: 194a235133ff31489d405bdab4c1ef4ff842894b
+  - image: hzp-fido-manufacturer
+    name: fido-manufacturer
+    version: 3.2.0.0-90e45d6-ca9e7d8c
+    project: hzp/
+    gitrepo: hzp-fido-manufacturer
+    commithash: 90e45d6dc4043b00fcdca909badec64545611ce5
+  - image: certificate-svc
+    name: certificate-svc
+    version: 3.2.0.0-ba1f06c-1bdc09ee
+    project: hzp/
+    gitrepo: hzp-certificate-svc
+    commithash: ba1f06c884a185f511c04ee29c4def8934226c29
+  - image: recovery-svc
+    name: recovery-svc
+    version: 3.2.0.0-e25fb27-148feac7
+    project: hzp/
+    gitrepo: hzp-recovery-svc
+    commithash: e25fb274a0847ac264ca10c5d9be0ea8653f9f4e
+  - image: fru-cru-svc
+    name: fru-cru-svc
+    version: 3.2.0.0-0f3f3d7-315113ef
+    project: hzp/
+    gitrepo: hzp-fru-cru-svc
+    commithash: 0f3f3d701123f3fb460c684dbfccd0e5d02d62d2
+  - image: eo-initialization-svc
+    name: eo-initialization-svc
+    version: 3.2.0.0-42eb89b-d8c59d62
+    project: hzp/
+    gitrepo: hzp-eo-initialization-svc
+    commithash: 42eb89bbb9fa3413ba07e6533a7e2717400c26a9
+  - image: ingress-authz-svc
+    name: ingress-authz-svc
+    version: 3.2.0.0-4fff730-3af79238
+    project: hzp/
+    gitrepo: hzp-ingress-authz-svc
+    commithash: 4fff730c1fa3262a897ea8ebb331356f61489d84
+  - image: product-svc
+    name: product-svc
+    version: 3.2.0.0-87b35f3-968f615b
+    project: hzp/
+    gitrepo: hzp-product-svc
+    commithash: 87b35f3fe61ea5a89b12712a6b3d131df2994e9d
+  - image: time-svc
+    name: time-svc
+    version: 3.2.0.0-8fa8ee0-f018a107
+    project: hzp/
+    gitrepo: hzp-time-svc
+    commithash: 8fa8ee0ebb524441fab3d2887247dee31f699c2f
+  - image: hzp-iam-proxy-init
+    name: iam-proxy
+    version: 3.2.0.0-15d7f85-2cc55045
+    project: hzp/
+    gitrepo: hzp-iam-proxy
+    commithash: 15d7f85f5dc36d2b020addfd8185ed670482a878
+  - image: iam-proxy-test-service
+    name: iam-proxy
+    version: 3.2.0.0-15d7f85-f6d3dc1c
+    project: hzp/
+    gitrepo: hzp-iam-proxy
+    commithash: 15d7f85f5dc36d2b020addfd8185ed670482a878
+  - image: hzp-host-configuration-exe
+    name: host-configuration-executable
+    version: 3.2.0.0-7bbb2d2-2392
+    project: hzp/
+    gitrepo: hzp-host-configuration-executable
+    commithash: 7bbb2d2384a31d4bfbb1f3d7d6028fe169b0e236
+  - image: hzp-delco-operator
+    name: delco-operator
+    version: 3.1.0.0-7ff084f-76218c5e
+    project: hzp/
+    gitrepo: hzp-delco-operator
+    commithash: 7ff084f7730407403d16c7488a2ce35b22c98d7b
+  - image: hzp-ece-factory-reset
+    name: ece-factory-reset
+    version: 3.2.0.0-f3b8f6e-234
+    project: hzp/
+    gitrepo: hzp-ece-factory-reset
+    commithash: f3b8f6ebc9a92d8dbab2bf6d657728156d5dc4b8
+  - image: hzp-ece-factory-os
+    name: ece-factory-os
+    version: 3.2.0.0-8504b50d-910
+    project: hzp/
+    gitrepo: hzp-ece-factory-os
+    commithash: 8504b50d57cbbea13b104cbf21f07cf5720c5d83
+  - image: hzp-iam-proxy-debug
+    name: iam-proxy
+    version: 3.2.0.0-15d7f85-3b031883
+    project: hzp/
+    gitrepo: hzp-iam-proxy
+    commithash: 15d7f85f5dc36d2b020addfd8185ed670482a878
+  - image: iam-policy-svc
+    name: iam-policy-svc
+    version: 3.2.0.0-5b06bb3-1a914661
+    project: hzp/
+    gitrepo: hzp-iam-policy-svc
+    commithash: 5b06bb3624f3dd7d9bb92cf641b04b79fa0b07aa
+  - image: hzp-host-configuration-exe-staging
+    name: host-configuration-executable
+    version: 3.2.0.0-7bbb2d2-2392
+    project: hzp/
+    gitrepo: hzp-host-configuration-executable
+    commithash: 7bbb2d2384a31d4bfbb1f3d7d6028fe169b0e236
+  - image: compute-svc
+    name: compute-svc
+    version: 3.2.0.0-205f990-6a2d514d
+    project: hzp/
+    gitrepo: hzp-compute-svc
+    commithash: 205f990ee9d6c2496a04fda5aa24c3a3f451111f
+  - image: hzp-event-display
+    name: sigsaly-messaging-playground
+    version: 0.1.0-cc42c2a-20
+    project: hzp/
+    gitrepo: hzp-messaging-playground
+    commithash: cc42c2a5ba204a1519c86d3d2bf9b5711a457d1c
+  - image: hzp-ece-simulator
+    name: sigsaly-messaging-playground
+    version: 0.1.0-cc42c2a-20
+    project: hzp/
+    gitrepo: hzp-messaging-playground
+    commithash: cc42c2a5ba204a1519c86d3d2bf9b5711a457d1c
+  - image: iam-session-svc
+    name: iam-session-svc
+    version: 3.2.0.0-75cedd0-377ca8c4
+    project: hzp/
+    gitrepo: hzp-iam-session-svc
+    commithash: 75cedd01744b92aa400786b5debdb45ae28e8a66
+  - image: rules-svc
+    name: rules-svc
+    version: 3.2.0.0-99eae61-9bf6c7ec
+    project: hzp/
+    gitrepo: hzp-rules-svc
+    commithash: 99eae61e6adf1d7a349e1bf777829941d9addf54
+  - image: fru-cru-smoke-test
+    name: fru-cru-svc
+    version: 3.2.0.0-0f3f3d7-2b490d00
+    project: hzp/
+    gitrepo: hzp-fru-cru-svc
+    commithash: 0f3f3d701123f3fb460c684dbfccd0e5d02d62d2
+  - image: catalog-smoke-test
+    name: catalog-svc
+    version: 3.2.0.0-17505b0-2e279497
+    project: hzp/
+    gitrepo: hzp-catalog-svc
+    commithash: 17505b0116c60d09aa1fab209ede620c23d36f48
+  - image: inventory-smoke-test
+    name: inventory
+    version: 3.2.0.0-ffa9c831-9575c17c
+    project: hzp/
+    gitrepo: hzp-inventory
+    commithash: ffa9c831ced45310905f924b56cb852d5946cb23
+  - image: health-check-smoke-test
+    name: health-check-svc
+    version: 3.2.0.0-4f91a733b-b5f56456
+    project: hzp/
+    gitrepo: hzp-health-check-svc
+    commithash: 4f91a733b02420d59b630636408c00213e028a0d
+  - image: datacollection-smoke-test
+    name: datacollection-svc
+    version: 3.2.0.0-b9011ed41-d3172a6d
+    project: hzp/
+    gitrepo: hzp-datacollection-svc
+    commithash: b9011ed41bd6e060136d7755bf417fe62ca8c36e
+  - image: iam-proxy-smoke-test
+    name: iam-proxy
+    version: 3.2.0.0-15d7f85-372a394c
+    project: hzp/
+    gitrepo: hzp-iam-proxy
+    commithash: 15d7f85f5dc36d2b020addfd8185ed670482a878
+  - image: iam-configuration-smoke-test
+    name: iam-configuration
+    version: 3.2.0.0-941045865-55eea97a
+    project: hzp/
+    gitrepo: hzp-iam-configuration
+    commithash: 941045865b07f7652f467e38a05d6087977364dd
+  - image: event-smoke-test
+    name: event-svc
+    version: 3.2.0.0-7ca1bc6-55b893ac
+    project: hzp/
+    gitrepo: hzp-event-svc
+    commithash: 7ca1bc670e3ba3cc4b11e18943a93ad5fb659a2e
+  - image: vault-bootstrap-smoke-test
+    name: vault-bootstrap
+    version: 3.2.0.0-69b4cbb-341e5bd2
+    project: hzp/
+    gitrepo: hzp-vault-bootstrap
+    commithash: 69b4cbba333996a8d8bdd14931ab60e0f458b19e
+  - image: time-smoke-test
+    name: time-svc
+    version: 3.2.0.0-8fa8ee0-ec069a8f
+    project: hzp/
+    gitrepo: hzp-time-svc
+    commithash: 8fa8ee0ebb524441fab3d2887247dee31f699c2f
+  - image: certificate-smoke-test
+    name: certificate-svc
+    version: 3.2.0.0-ba1f06c-20656914
+    project: hzp/
+    gitrepo: hzp-certificate-svc
+    commithash: ba1f06c884a185f511c04ee29c4def8934226c29
+  - image: job-smoke-test
+    name: job-svc
+    version: 3.2.0.0-31e42dd-1d31a7e0
+    project: hzp/
+    gitrepo: hzp-job-svc
+    commithash: 31e42ddb1d8ffb625ef6c807edea680b7afffe21
+  - image: eo-initialization-smoke-test
+    name: eo-initialization-svc
+    version: 3.2.0.0-42eb89b-ef97555b
+    project: hzp/
+    gitrepo: hzp-eo-initialization-svc
+    commithash: 42eb89bbb9fa3413ba07e6533a7e2717400c26a9
+  - image: oe-template-mgr-smoke-test
+    name: oe-template-mgr
+    version: 3.2.0.0-37af33c-51058615
+    project: hzp/
+    gitrepo: hzp-oe-template-mgr
+    commithash: 37af33cb86ab77cf9c1f4b4181f65648d2cf007a
+  - image: events-forwarder-svc
+    name: events-forwarder
+    version: 2.1.0.d432d8e
+    project: hzp/
+    gitrepo: hzp-events-forwarder
+    commithash: d432d8e24c15047cbd6ecf928ebba25eb722ae76
+  - image: iam-smoke-test
+    name: iam
+    version: 3.2.0.0-6c9292a94-2254d706
+    project: hzp/
+    gitrepo: hzp-iam
+    commithash: 6c9292a949e670e8e4b42352bb6490c6748a1505
+  - image: fido-onboarding-smoke-test
+    name: fido-onboarding-svc
+    version: 3.2.0.0-9077bbe-2a19e2c4
+    project: hzp/
+    gitrepo: hzp-fido-onboarding-svc
+    commithash: 9077bbe3c4496c9d501f8022a868ddb9e597b94e
+  - image: eo-proxy-smoke-test
+    name: eo-proxy
+    version: 3.2.0.0-071de56-4e04b7f5
+    project: hzp/
+    gitrepo: hzp-eo-proxy
+    commithash: 071de56e6107b544d617b05fb8d8c02c858459f6
+  - image: scheduler-svc
+    name: scheduler-svc
+    version: 3.2.0.0-10a216a-8483cb7b
+    project: hzp/
+    gitrepo: hzp-scheduler-svc
+    commithash: 10a216a07c9d22ed8c3b2e207fd9b35c85f31a15
+  - image: nativeedge-events-forwarder-svc
+    name: nativeedge-events-forwarder-svc
+    version: 2.1.0.d432d8e
+    project: hzp/
+    gitrepo: hzp-nativeedge-events-forwarder-svc
+    commithash: d432d8e24c15047cbd6ecf928ebba25eb722ae76
+  - image: product-smoke-test
+    name: product-svc
+    version: 3.2.0.0-87b35f3-67fc9585
+    project: hzp/
+    gitrepo: hzp-product-svc
+    commithash: 87b35f3fe61ea5a89b12712a6b3d131df2994e9d
+  - image: common-locales-bundle
+    name: common-locales-bundle
+    version: 3.2.0.0-8c871a4-14b45f3a
+    project: hzp/
+    gitrepo: common-locales-bundle
+    commithash: 8c871a49a6b314c0a64b51a7f9cf86d3902e6e16
+  - image: security-policy-svc
+    name: security-policy-svc
+    version: 3.1.0.0-f2dfe32-6d73f01e
+    project: hzp/
+    gitrepo: hzp-security-policy-svc
+    commithash: f2dfe32bcc0deabaf90213486cafcfed3a944eb5
+  - image: upgrade-smoke-test
+    name: upgrade-svc
+    version: 3.2.0.0-25c9d80-41f053cb
+    project: hzp/
+    gitrepo: hzp-upgrade-svc
+    commithash: 25c9d808d8512270ff841d298fc0354d3d6aa99d
+  - image: compute-smoke-test
+    name: compute-svc
+    version: 3.2.0.0-205f990-d6b5cbbf
+    project: hzp/
+    gitrepo: hzp-compute-svc
+    commithash: 205f990ee9d6c2496a04fda5aa24c3a3f451111f
+  - image: tags-svc
+    name: tags-svc
+    version: 3.2.0.0-4456f5a-b68a543d
+    project: hzp/
+    gitrepo: hzp-tags-svc
+    commithash: 4456f5a0326e3d5808a7461eff9249a7ae134497
+  - image: ingress-authz-smoke-test
+    name: ingress-authz-svc
+    version: 3.2.0.0-4fff730-db45dcc9
+    project: hzp/
+    gitrepo: hzp-ingress-authz-svc
+    commithash: 4fff730c1fa3262a897ea8ebb331356f61489d84
+  - image: hzp-qa-svc
+    name: qa-svc
+    version: 0.1.0.f7b6d63
+    project: hzp/
+    gitrepo: hzp-qa-svc
+    commithash: f7b6d63009a76f5de32b44c3929603da456a1208
+  - image: attestation-svc
+    name: attestation-svc
+    version: 3.2.0.0-198cab3-072f5ae0
+    project: hzp/
+    gitrepo: hzp-attestation-svc
+    commithash: 198cab303ab137444e8f86c63450c564a6effe3e
+  - image: ece-agent-smoke-test
+    name: ece-agent
+    version: 3.2.0.0-c72dec6b-ba822efa
+    project: hzp/
+    gitrepo: hzp-ece-agent
+    commithash: c72dec6b753178526e54748c05e5b261f012b2a9
+  - image: rules-smoke-test
+    name: rules-svc
+    version: 3.2.0.0-99eae61-dd403cec
+    project: hzp/
+    gitrepo: hzp-rules-svc
+    commithash: 99eae61e6adf1d7a349e1bf777829941d9addf54
+  - image: torrent-svc
+    name: torrent-svc
+    version: 3.1.0.0-7e5ea37-ad441e0f
+    project: hzp/
+    gitrepo: hzp-torrent-svc
+    commithash: 7e5ea37e06c575f7d9613013d3011e16cfe7a099
+  - image: messaging-sidecar-svc
+    name: messaging-sidecar-svc
+    version: 3.1.0.0-40520b9-aa6ec407
+    project: hzp/
+    gitrepo: hzp-messaging-sidecar-svc
+    commithash: 40520b93ed253fa68013322cc9ab2089b4703119
+  - image: tags-smoke-test
+    name: tags-svc
+    version: 3.2.0.0-4456f5a-72a62d7e
+    project: hzp/
+    gitrepo: hzp-tags-svc
+    commithash: 4456f5a0326e3d5808a7461eff9249a7ae134497
+  - image: vm-cluster-poc-svc
+    name: vm-cluster-poc
+    version: 2.1.0.9903a4b
+    project: hzp/
+    gitrepo: hzp-vm-cluster-poc
+    commithash: 9903a4b71020c4ef0cfd5749b87e1552e9eee0b3
+  - image: api-gateway-svc
+    name: api-gateway
+    version: 3.2.0.0-19229bc9-d352c099
+    project: hzp/
+    gitrepo: hzp-api-gateway-svc
+    commithash: 19229bc91967bd64e53371cb363b6259d2d0c53a
+  - image: data-migration-svc
+    name: data-migration
+    version: 3.1.0.0-6521242-59e83a3d
+    project: hzp/
+    gitrepo: hzp-data-migration
+    commithash: 6521242e1616c716177ef968daffd2955a1d7cd6
+  - image: api-gateway-smoke-test
+    name: api-gateway-svc
+    version: 3.2.0.0-19229bc9-b6f9ba69
+    project: hzp/
+    gitrepo: hzp-api-gateway-svc
+    commithash: 19229bc91967bd64e53371cb363b6259d2d0c53a
+  - image: hzp-qa-robot-framework
+    name: qa-robot-framework
+    version: 0.1.0.cdc7ac6
+    project: hzp/
+    gitrepo: hzp-qa-robot-framework
+    commithash: cdc7ac6e8f90b0de4640e31c46c8e812ebc457e3
+  - image: notification-svc
+    name: notification-svc
+    version: 3.2.0.0-45a704f-71c3c663
+    project: hzp/
+    gitrepo: hzp-notification-svc
+    commithash: 45a704f99b41a563d570c42e2acd901083e98de4
+  - image: iam-policy-smoke-test
+    name: iam-policy-svc
+    version: 3.2.0.0-5b06bb3-6a829c64
+    project: hzp/
+    gitrepo: hzp-iam-policy-svc
+    commithash: 5b06bb3624f3dd7d9bb92cf641b04b79fa0b07aa
+  - image: keycloak-smoke-tests
+    name: login
+    version: 26.0.7-edb27d5-152
+    project: hzp/
+    gitrepo: hzp-login
+    commithash: edb27d59179ed67d09a311b428929a6d8c8dd434
+  - image: notification-smoke-test
+    name: notification-svc
+    version: 3.2.0.0-45a704f-a1d1d1f2
+    project: hzp/
+    gitrepo: hzp-notification-svc
+    commithash: 45a704f99b41a563d570c42e2acd901083e98de4
+  - image: ece-upgrade-svc
+    name: ece-upgrade-svc
+    version: 3.1.0.0-f0994a1-0da5a3b3
+    project: hzp/
+    gitrepo: hzp-ece-upgrade-svc
+    commithash: f0994a12c23d1670d8ca1d8a197345791c52fa9c
+  - image: portal
+    name: mist-portal
+    version: bcea3fe4ea304f091199137e3231733d01c8c670
+    project: hzp/
+    gitrepo: mist-portal
+    commithash: bcea3fe4ea304f091199137e3231733d01c8c670
+  - image: scheduler-smoke-test
+    name: scheduler-svc
+    version: 3.2.0.0-10a216a-093038b5
+    project: hzp/
+    gitrepo: hzp-scheduler-svc
+    commithash: 10a216a07c9d22ed8c3b2e207fd9b35c85f31a15
+  - image: metrics-svc
+    name: metrics-svc
+    version: 3.2.0.0-b5bbcb7-2e9d8562
+    project: hzp/
+    gitrepo: hzp-metrics-svc
+    commithash: b5bbcb734656a2042962bd707766a03346431af3
+  - image: fusion-plugin-loader-svc
+    name: plugin-loader
+    version: main-3.2.0.0.1830-590e885-1886
+    project: hzp/
+    gitrepo: hzp-plugin-loader
+    commithash: 590e885a0cb1395b61d6a3b292bcb2a6b055a791
+  - image: fusion-manager-plugins-service
+    name: fusion-manager-plugins-service
+    version: 25-06-12_12-33_main_6db8462
+    project: fusion/
+    gitrepo: fusion-plugins-service
+    commithash: 6db84624d5c2abb52bed71a0cdc03148f8a96227
+  - image: fusion-manager-restservice
+    name: fusion-manager-restservice
+    version: 25-06-19_07-05_main_f860b51c6
+    project: fusion/
+    gitrepo: fusion-manager
+    commithash: f860b51c6e4c9dca59ff41fbae6f550fdceda135
+  - image: fusion-manager-apiservice
+    name: fusion-manager-apiservice
+    version: 25-06-19_07-05_main_f860b51c6
+    project: fusion/
+    gitrepo: fusion-manager
+    commithash: f860b51c6e4c9dca59ff41fbae6f550fdceda135
+  - image: fusion-manager-execution-scheduler
+    name: fusion-manager-execution-scheduler
+    version: 25-06-19_07-05_main_f860b51c6
+    project: fusion/
+    gitrepo: fusion-manager
+    commithash: f860b51c6e4c9dca59ff41fbae6f550fdceda135
+  - image: fusion-manager-mgmtworker
+    name: fusion-manager-mgmtworker
+    version: 25-06-19_07-05_main_f860b51c6
+    project: fusion/
+    gitrepo: fusion-manager
+    commithash: f860b51c6e4c9dca59ff41fbae6f550fdceda135
+  - image: fusion-manager-resource-uploader
+    name: fusion-manager-resource-uploader
+    version: 25-06-19_07-05_main_f860b51c6
+    project: fusion/
+    gitrepo: fusion-manager
+    commithash: f860b51c6e4c9dca59ff41fbae6f550fdceda135
+  - image: fusion-manager-secrets-service
+    name: fusion-manager-secrets-service
+    version: 25-06-18_23-48_main_6712aff
+    project: fusion/
+    gitrepo: fusion-secrets-service
+    commithash: 6712affd0d2eef94f393d8b92b191ed08c598a47
+  - image: fusion-manager-blueprint-service
+    name: fusion-manager-blueprint-service
+    version: 25-06-19_07-05_main_563d4c0
+    project: fusion/
+    gitrepo: fusion-blueprint-service
+    commithash: 563d4c0982f972faf2d2a507c6bbf56935f2c072
+  - image: fusion-manager-stage-frontend
+    name: fusion-manager-stage-frontend
+    version: 25-06-17_14-14_main_19cea8c85
+    project: fusion/
+    gitrepo: fusion-stage
+    commithash: 19cea8c851d8bda7c416209db16f4d9f9b270dea
+  - image: fusion-manager-stage-backend
+    name: fusion-manager-stage-backend
+    version: 25-06-17_14-14_main_19cea8c85
+    project: fusion/
+    gitrepo: fusion-stage
+    commithash: 19cea8c851d8bda7c416209db16f4d9f9b270dea
+  - image: gocky-svc
+    name: mist-gocky
+    version: 3.2.0.0-14bf39e-dbd5b8d6
+    project: hzp/
+    gitrepo: mist-gocky
+    commithash: 14bf39ea015c1f81da3af98a8c2c942346e7b1f3
+  - image: fusion-manager-composer-frontend
+    name: ''
+    version: 24-10-18_02-59_master_a078738b
+    project: fusion/
+    gitrepo: ''
+    commithash: ''
+  - image: qa-e2e-automation
+    name: qa-e2e-automation
+    version: 3.1.0.0.2f444993
+    project: hzp/
+    gitrepo: hzp-qa-e2e-automation
+    commithash: 2f444993cd0851ecec840c2c931a71f08dc686fd
+  - image: qa-e2e-automation-ui
+    name: qa-e2e-automation
+    version: 3.1.0.0.2f444993
+    project: hzp/
+    gitrepo: hzp-qa-e2e-automation
+    commithash: 2f444993cd0851ecec840c2c931a71f08dc686fd
+  - image: drift-svc
+    name: drift-svc
+    version: 3.2.0.0-d5ebcc1-53b9f5cf
+    project: hzp/
+    gitrepo: hzp-drift-svc
+    commithash: d5ebcc12d823b6477dafa52ea2e806969d5925b9
+  - image: hzp-bootos-executable-exe-staging
+    name: bootos-executable
+    version: 3.2.0.0.973217d-212
+    project: hzp/
+    gitrepo: hzp-bootos-executable
+    commithash: 973217d130e96b970cb9fe68673dce696e765682
+  - image: mist-opensearch-manage
+    name: mist-opensearch-manage
+    version: 3.2.0.0-9ee8377-a9efafb1
+    project: hzp/
+    gitrepo: hzp-container-images
+    commithash: 9ee8377162cc1d3450c26d67d77f204bb9840259
+  - image: mist-vminsert
+    name: mist-vminsert
+    version: 3.2.0.0-9ee8377-796d5ed2
+    project: hzp/
+    gitrepo: hzp-container-images
+    commithash: 9ee8377162cc1d3450c26d67d77f204bb9840259
+  - image: mist-rabbitmq
+    name: mist-rabbitmq
+    version: 3.2.0.0-9ee8377-8dfcf9c4
+    project: hzp/
+    gitrepo: hzp-container-images
+    commithash: 9ee8377162cc1d3450c26d67d77f204bb9840259
+  - image: mist-vmstorage
+    name: mist-vmstorage
+    version: 3.2.0.0-9ee8377-5fa6dfcb
+    project: hzp/
+    gitrepo: hzp-container-images
+    commithash: 9ee8377162cc1d3450c26d67d77f204bb9840259
+  - image: mist-opensearch
+    name: mist-opensearch
+    version: 3.2.0.0-9ee8377-7316aa64
+    project: hzp/
+    gitrepo: hzp-container-images
+    commithash: 9ee8377162cc1d3450c26d67d77f204bb9840259
+  - image: mist-vmselect
+    name: mist-vmselect
+    version: 3.2.0.0-9ee8377-0aff96fe
+    project: hzp/
+    gitrepo: hzp-container-images
+    commithash: 9ee8377162cc1d3450c26d67d77f204bb9840259
+  - image: iam-org-svc
+    name: iam-org-svc
+    version: 3.2.0.0-7c40a0f-67582d8b
+    project: hzp/
+    gitrepo: hzp-iam-org-svc
+    commithash: 7c40a0fbee932bda0ec19eb4772142c094b9f4c6
+  - image: hzp-device-models
+    name: device-models
+    version: 3.2.0.0-3b9debe6
+    project: hzp/
+    gitrepo: hzp-device-models
+    commithash: 2d145b62e85478df14b9c69f523b5e23cdd31fb4
+  - image: flag-manager-svc
+    name: flag-manager-svc
+    version: 3.2.0.0.922e3be
+    project: hzp/
+    gitrepo: hzp-flag-manager-svc
+    commithash: 922e3bee4d67a01bd3049361b9172d5d6046af68
+  - image: iam-token-svc
+    name: iam-token-svc
+    version: 3.2.0.0-49f3f35-d90eca5c
+    project: hzp/
+    gitrepo: hzp-iam-token-svc
+    commithash: 49f3f351793632faf542684a0e3c8151fee24999
+  - image: dap-iam-svc
+    name: dap-iam-svc
+    version: 3.2.0.0-297064e-299c2eaa
+    project: hzp/
+    gitrepo: hzp-dap-iam-svc
+    commithash: 297064e61315c5aa1b820eaae945c08fefb036d9
+  - image: iam-mgmt-svc
+    name: iam-mgmt-svc
+    version: 3.2.0.0-6e58e60-dfa40f29
+    project: hzp/
+    gitrepo: hzp-iam-mgmt-svc
+    commithash: 6e58e609d6c5229c3fc24428ab541b06f1c6a3fe
+  - image: iam-bootstrap-job-svc
+    name: iam-bootstrap-job
+    version: 3.2.0.0-e7711cd-a379edd1
+    project: dsp/
+    gitrepo: hzp-iam-bootstrap-job
+    commithash: e7711cdd83e597e8e22bb5110b082d369cbe531d
+  - image: iam-data-migration-svc
+    name: iam-data-migration
+    version: 3.2.0.0-f1599a0-3107ba1c
+    project: hzp/
+    gitrepo: hzp-iam-data-migration
+    commithash: f1599a0a93f51458e5c4309c0284141e69a4f603
+  - image: fusion-manager-deployments-service
+    name: ''
+    version: 25-06-18_14-05_main_164c1e0
+    project: fusion/
+    gitrepo: fusion-deployments-service
+    commithash: 164c1e0775e500860c60b0467fcb0ccbf1b6ecfd
+fusion-services-helm:
+  rabbitmq:
+    image:
+      registry: isgedge.artifactory.cec.lab.emc.com/isgedge-docker-virtual
+      repository: hzp/mist-rabbitmq
+      tag: 3.2.0.0-9ee8377-8dfcf9c4
+manifest_eo_version: main-3.2.0.0.5276
+eo_helmchart:
+  version: 1.0.0-0-2328
+  name: native-edge-orchestrator-dev
+  commithash: 7fdbad90deeb0a89986e6daf0551059a68b5bbdd
+fusion_helmchart:
+  version: 0.1.203
+  name: fusion-services-helm

@@ -1,0 +1,34 @@
+{{- $svc := .Values.svc -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $svc.rbac.name }}
+{{- include "images.pullSecrets" . }}
+
+---
+
+kind: Role
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: {{ $svc.rbac.clusterRole }}
+rules:
+- apiGroups: [""]
+  resources: ["services"]
+  verbs: ["delete", "get", "update", "create", "list"]
+- apiGroups: ["networking.istio.io"]
+  resources: ["virtualservices"]
+  verbs: ["delete", "get", "update", "create", "list"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $svc.rbac.clusterRoleBinding }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $svc.rbac.clusterRole }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ $svc.rbac.name }}
+    namespace: {{ .Release.Namespace }}

@@ -1,0 +1,4 @@
+global:
+  eventSvc:
+    deploy: true
+    smoketestEnabled: true

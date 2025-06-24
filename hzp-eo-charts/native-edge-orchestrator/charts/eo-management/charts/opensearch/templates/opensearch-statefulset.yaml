@@ -1,0 +1,71 @@
+{{ if .Values.global.opensearch.deploy -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "opensearch.fullname" . }}-opensearch
+  labels: &labels
+{{- tpl (toYaml .Values.global.opensearch.statefulset.labels) . | replace "'" "" | nindent 8 }}
+spec:
+  serviceName: opensearch
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opensearch
+      release: {{ include "opensearch.fullname" . }}
+  template:
+    metadata:
+      labels:
+{{- tpl (toYaml .Values.global.opensearch.statefulset.podLabels) . | replace "'" "" | nindent 8 }}
+      annotations:
+        hzp.iam.webhook/authentication-enabled: "false"
+        hzp.iam.webhook/authorization-enabled: "false"
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.sts $ ) | trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.sts $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.sts $ ) | trim | nindent 8 }}
+      containers:
+      - name: opensearch
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "mist-opensearch" ) "repo" .Values.global.repository "tag" .Values.image.tag) }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+        env:
+          - name: OPENSEARCH_JAVA_OPTS
+            value: {{ .Values.global.opensearch.heapSize | default "-Xms1g -Xmx1g" }}
+          - name: discovery.type
+            value: single-node
+        resources:
+          requests:
+            memory: {{ .Values.global.opensearch.resources.requests.memory | default "1024Mi" }}
+            cpu: {{ .Values.global.opensearch.resources.requests.cpu | default "50m" }}
+          limits:
+            memory: {{ .Values.global.opensearch.resources.limits.memory | default "1536Mi" }}
+            cpu: {{ .Values.global.opensearch.resources.limits.cpu | default "2000m" }}
+        volumeMounts:
+        - mountPath: /opensearch/opensearch/data
+          name: {{ include "opensearch.fullname" . }}-opensearch
+        - name: certs
+          mountPath: /opensearch/opensearch/config/certs
+      volumes:
+      - name: {{ include "opensearch.fullname" . }}-opensearch
+        persistentVolumeClaim:
+          claimName: mist-ee-opensearch-mist-ee-opensearch-0
+      - name: certs
+        secret:
+          secretName: {{ include "opensearch.fullname" . }}-opensearch-secret
+          items:
+            - key: node1.crt
+              path: node1.crt
+            - key: node1.key
+              path: node1.key
+            - key: ca.crt
+              path: ca.crt
+      securityContext:
+        runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+        fsGroup: 1001
+        runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+        seccompProfile:
+          type: RuntimeDefault
+{{- end }}

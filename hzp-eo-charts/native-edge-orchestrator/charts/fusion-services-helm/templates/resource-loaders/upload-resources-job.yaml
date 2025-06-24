@@ -1,0 +1,116 @@
+{{- if (.Values.resources).upload -}}
+{{- $hook_annotations := dict "helm.sh/hook" "post-install,post-upgrade" "helm.sh/hook-weight" "1" "helm.sh/hook-delete-policy" "before-hook-creation" }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "fusion-services.name" . }}-resource-uploader-job
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations $hook_annotations ) | nindent 4 }}
+spec:
+  template:
+    metadata:
+      labels:
+      {{ with .Values.resources.podLabels }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      annotations:
+        {{- include "fusion-services.merge" ( list .Values.commonAnnotations .Values.resources.podAnnotations ) | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- if .Values.rest_service.irsa_service_account }}
+      serviceAccount: {{ .Values.rest_service.irsa_service_account }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.resources $ )| trim | nindent 8 }}
+      tolerations: {{- include "fusion-services.tolerations" ( list .Values.resources $ ) | trim | nindent 8 }}
+      affinity: {{- include "fusion-services.affinity" ( list .Values.resources $ ) | trim | nindent 8 }}
+      {{- include "fusion-services.images.pullSecrets" . | nindent 6 }}
+      {{- if .Values.seaweedfs.enabled }}
+      initContainers:
+        - name: wait-for-fileserver
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-resource-uploader" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-resource-uploader" ).pullPolicy }}
+          command: ['timeout', {{ .Values.resources.fileserverWaitTimeout | quote }}, 'sh', '-c', "until aws s3 ls; do sleep 1; done"]
+          env:
+            - name: HOME
+              value: "/tmp"
+            {{- include "fusion-services.s3_env_vars" . | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: {{ .Values.resources.initContainerSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.resources.initContainerSecurityContext.runAsGroup }}
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 100Mi
+              cpu: 0.1
+            limits:
+              memory: 100Mi
+              cpu: 0.5
+        - name: fileserver-create-resources-bucket
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-resource-uploader" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-resource-uploader" ).pullPolicy }}
+          command: ['sh', '-c', "aws s3 ls s3://{{ .Values.rest_service.config.manager.s3_resources_bucket }} || aws s3 mb s3://{{ .Values.rest_service.config.manager.s3_resources_bucket }}"]
+          env:
+            - name: HOME
+              value: "/tmp"
+            {{- include "fusion-services.s3_env_vars" . | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: {{ .Values.resources.initContainerSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.resources.initContainerSecurityContext.runAsGroup }}
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 100Mi
+              cpu: 0.1
+            limits:
+              memory: 100Mi
+              cpu: 0.5
+      {{- end }}
+      containers:
+        - name: fileserver-upload-resources
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-resource-uploader" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-resource-uploader" ).pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: BUCKET_NAME
+              value: {{ .Values.rest_service.config.manager.s3_resources_bucket | quote }}
+            - name: HOME
+              value: "/tmp"
+            {{- include "fusion-services.s3_env_vars" . | nindent 12 }}
+          resources:
+            requests:
+              memory: 100Mi
+              cpu: 0.1
+              ephemeral-storage: 50Mi
+            limits:
+              memory: 100Mi
+              cpu: 0.5
+      restartPolicy: Never
+  backoffLimit: 5
+{{- end -}}

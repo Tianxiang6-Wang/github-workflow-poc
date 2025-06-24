@@ -1,0 +1,134 @@
+{{- if $.Values.global.ingress.enableNetworkPolicies }}
+{{- $endpoint := (lookup "v1" "Endpoints" "default" "kubernetes") }}
+{{- $namespace := .Release.Namespace -}}
+{{- $smokeTest := .Values.global.ingress.enableNetworkPoliciesForSmokeTest -}}
+{{- $netPolList := list }}
+{{- range $.Values.networkPolicies.apps }}
+ {{- $netPolList = append $netPolList . }}
+{{- end }}
+{{- if $smokeTest }}
+ {{- range $.Values.networkPolicies.testApps }}
+  {{- $netPolList = append $netPolList . }}
+ {{- end }}
+{{- end }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: {{ $namespace }}
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+{{- range $netPolList}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .service }}-network-policy
+  namespace: {{ $namespace }}
+spec:
+  podSelector:
+    {{- if not .podSelector }}
+    matchLabels:
+      hzp-app: {{ .service }}
+    {{- else }}
+      {{- tpl (toYaml .podSelector) $ | replace "'" "" | nindent 4 }}
+    {{- end }}
+  policyTypes:
+  {{- if .outboundRequests }}
+    - Egress
+  {{- end }}
+  {{- if or .inboundRequests (eq .k8sEndpoint "inbound") (eq .k8sEndpoint "bidirectional") }}
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              hzp-role: eo-gateway
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $.Values.global.dsp.portal.namespace | default "dapp" }}
+      {{- if eq (include "enable.inbound.external.access" (dict "netpol" . "global" $.Values.global)) "true" }}
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      {{- end }}
+      {{- if or (eq .k8sEndpoint "inbound") (eq .k8sEndpoint "bidirectional") }}
+      {{- if not (empty $.Values.networkPolicies.kubeEndpointsCidrs) }}
+      {{- range $.Values.networkPolicies.kubeEndpointsCidrs }}
+        - ipBlock:
+            cidr: {{ . }}
+      {{- end }}
+      {{- else }}
+        - ipBlock:
+            cidr: {{ (first (first $endpoint.subsets).addresses).ip }}/32
+      {{- end }}
+      {{- end }}
+      {{- if or (eq .nats "inbound") (eq .nats "bidirectional") }}
+        - podSelector:
+            matchLabels:
+              hzp-role: nats
+      {{- end }}
+      {{- range .inboundRequests }}
+        - podSelector:
+            matchLabels: {{- tpl (toYaml .) $ | replace "'" "" | nindent 15 }}
+      {{- end }}
+      {{ if $smokeTest }}
+        - podSelector:
+            matchLabels:
+              hzp-role: smoke-test
+      {{ end }}
+    {{- if $.Values.global.ingress.enableNetworkPoliciesControlAtPorts }}
+    {{- if .ports }}
+      ports:
+      {{- range .ports }}
+        - protocol: TCP
+          port: {{ . }}
+      {{- end }}
+    {{- end }}
+    {{- end }}
+{{- end }}
+{{- if or .outboundRequests (eq .k8sEndpoint "outbound") (eq .k8sEndpoint "bidirectional") }}
+  egress:
+    - to:
+      {{- range .outboundRequests }}
+        - podSelector:
+            matchLabels: {{- tpl (toYaml .) $ | replace "'" "" | nindent 15 }}
+      {{- end }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $.Values.global.dsp.portal.namespace | default "dapp" }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      {{- if or (eq .k8sEndpoint "outbound") (eq .k8sEndpoint "bidirectional") }}
+      {{- if not (empty $.Values.networkPolicies.kubeEndpointsCidrs) }}
+      {{- range $.Values.networkPolicies.kubeEndpointsCidrs }}
+        - ipBlock:
+            cidr: {{ . }}
+      {{- end }}
+      {{- else }}
+        - ipBlock:
+            cidr: {{ (first (first $endpoint.subsets).addresses).ip }}/32
+      {{- end }}
+      {{- end }}
+      {{- if or (eq .nats "outbound") (eq .nats "bidirectional") }}
+        - podSelector:
+            matchLabels:
+              hzp-role: nats
+      {{- end }}
+      {{ if $smokeTest }}
+        - podSelector:
+            matchLabels:
+              hzp-role: smoke-test
+      {{ end }}
+        - podSelector:
+            matchLabels:
+              hzp-role: eo-gateway
+{{- end }}
+{{- end }}
+{{- end }}

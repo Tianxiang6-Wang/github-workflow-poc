@@ -1,0 +1,164 @@
+{{- if or (.Values.global.regressionEnabled) (.Values.global.inventorySvc.smoketestEnabled) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: inventory-smoke-test
+spec:
+  template:
+    metadata:
+      name: inventory-smoke-test
+      labels:
+{{- tpl (toYaml .Values.test.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+     {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+      - name: inventory-smoke-test-container
+        env:
+          - name: BASE_URL
+            value: "http://{{ .Values.test.inventory.service.fullname }}.{{ .Release.Namespace }}.svc.cluster.local"
+          - name: INVENTORY_SUBSCRIPTION_URL
+            value: "ws://{{ .Values.test.inventory.service.fullname }}.{{ .Release.Namespace }}.svc.cluster.local/api/v1/eceinventory"
+          - name: ONBOARDING_SVC_BASE_URL
+            value: "http://hzp-security-svc.{{ .Release.Namespace }}.svc.cluster.local"
+          - name: JOB_SVC_BASE_URL
+            value: "http://hzp-job-svc.{{ .Release.Namespace }}.svc.cluster.local"
+          - name: OE_TEMPLATE_MANAGER_BASE_URL
+            value: "http://hzp-oe-template-mgr-svc.{{ .Release.Namespace }}.svc.cluster.local"
+          - name: CATALOG_SVC_BASE_URL
+            value: "http://hzp-catalog-svc.{{ .Release.Namespace }}.svc.cluster.local"
+          - name: COMPUTE_SVC_BASE_URL
+            value: "http://hzp-compute-svc.{{ .Release.Namespace }}.svc.cluster.local"
+          - name: MESSAGING_URL
+            value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local"
+          - name: ECE_SIMULATOR_URL
+            value: "http://hzp-ece-simulator.{{ .Release.Namespace }}.svc.cluster.local/api/v1/simulated-ece"
+          - name: EDGE_VAULT_URL
+            value: "http://edgevault.{{ .Release.Namespace }}.svc.cluster.local:8200"
+          - name: ISTIO_INGRESS_GATEWAY_URL
+          {{- if $.Values.global.istio.deploy }}
+            value: "https://istio-ingressgateway.istio-system.svc.cluster.local"
+          {{- else if $.Values.global.nginx_gw.enabled }}
+            value: "https://nginx-gw.{{ .Release.Namespace }}.svc.cluster.local"
+          {{- else }}
+            {{- fail ".Values.global.istio.deploy or .Values.global.nginx_gw.enabled should be true" }}
+          {{- end }}
+          - name: IAM_SVC_BASE_URL
+            value: "http://hzp-iam-svc.{{ .Release.Namespace }}.svc.cluster.local"
+          - name: SESSION_SVC_BASE_URL
+            value: "http://hzp-iam-session-svc.{{ .Release.Namespace }}.svc.cluster.local"
+          - name: EO_INITIALIZATION_SVC_BASE_URL
+            value: "http://hzp-eo-initialization-svc.{{.Release.Namespace }}.svc.cluster.local"
+          - name: RP_ENDPOINT
+            value: "{{ .Values.test.reportportal.rpendpoint }}"
+          - name: RP_API_KEY
+            value: "{{ .Values.test.reportportal.rpuuid }}"
+          - name: RP_MODE
+            value: default
+          - name: DOCKER_CONFIG_JSON
+            valueFrom:
+              secretKeyRef:
+                name: docker-secret
+                key: .dockerconfigjson
+          - name: RP_PROJECT
+            value: HZP_EO_SERVICES
+          - name: RP_LAUNCH
+            value: "{{ .Values.test.inventory.service.fullname }}"
+          - name: RP_ATTRIBUTES
+            value: "RELEASE_VERSION:{{ .Values.test.reportportal.release }};EO_IP:{{ .Values.test.reportportal.eourl }};EO_MANIFEST:{{ .Values.test.reportportal.manifest }};ECE_MANIFEST:{{ .Values.test.reportportal.ecemanifest }};TEST_GROUP:{{ .Values.test.reportportal.suite }};RP_LAUNCH_KEY_ATTRIBUTE:{{ .Values.test.reportportal.runid }};;RELEASE_VERSION:{{ .Values.test.reportportal.release }};"
+          - name: EXTERNAL_INFRA_ENV
+            value: "qa"
+          - name: UPGRADE_SVC_BASE_URL
+            value: "http://hzp-upgrade-svc.{{ .Release.Namespace }}.svc.cluster.local"
+        {{- toYaml .Values.test.env | nindent 10 }}
+        image: "{{ include "manifest.image.name" (dict "data" (index .Values.components .Values.test.image.name ) "repo" .Values.global.repository) }}"
+        imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+        command: ['/bin/sh', '-c']
+        # Sleep before test to allow netpol and istio-proxy to take effect
+        # Sleep after the test is to enable pipeline to copy the test result when pod is running state
+        args:
+          - |
+            sleep 60; echo All dependent components are running. Start testing!;
+            java -jar tests.jar {{ .Values.test.testsuite }}; sleep 60;
+            curl --max-time 5 --retry 3 -s -XPOST http://127.0.0.1:15020/quitquitquit
+            if [ $? -eq 0 ]; then
+                echo -e "\nTerminated istio-proxy."
+            else
+                echo -e "\nFailed to terminate istio-proxy"
+            fi
+      initContainers:
+      - name: init-postgres
+        image: "{{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}"
+        imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for Hzp Inventory to become ready...'
+
+            until printf "." && nc -z -w 2 {{ .Values.test.postgresql.service.fullname }} {{ .Values.test.postgresql.service.port }}; do
+                sleep 2;
+            done;
+
+            echo 'PostgreSQL OK ✓' 
+      - name: init-inventory
+        image: "{{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}"
+        imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for hzp-inventory to become ready...'
+
+            until printf "." && nc -z -w 2 {{ .Values.test.inventory.service.fullname }} {{ .Values.test.inventory.service.port }}; do
+                sleep 2;
+            done;
+
+            echo 'Hzp-inventory OK ✓'   
+      serviceAccountName: {{ .Values.test.rbac.namePrefix }}-sa
+      restartPolicy: Never
+
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.test.rbac.namePrefix }}-sa
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ .Values.test.rbac.namePrefix }}-role"
+  labels:
+    env: "{{ .Release.Namespace }}"
+    name: "{{ .Values.test.rbac.namePrefix }}-role"
+    globalName: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ .Values.test.rbac.namePrefix }}-role"
+rules:
+  - apiGroups: [ "" ]
+    resources: [ "*" ]
+    verbs: [ "*" ]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ .Values.test.rbac.namePrefix }}-rolebinding"
+  labels:
+    env: "{{ .Release.Namespace }}"
+    name: "{{ .Values.test.rbac.namePrefix }}-rolebinding"
+    globalName: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ .Values.test.rbac.namePrefix }}-rolebinding"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ .Values.test.rbac.namePrefix }}-role"
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.test.rbac.namePrefix }}-sa
+    namespace: {{ .Release.Namespace }}
+{{- end }}

@@ -1,0 +1,180 @@
+{{- if .Values.global.ingress.enableNetworkPolicies }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mist-ee-portal
+  labels:
+    app: portal
+    chart: {{ include "chart.chart" . }}
+    release: mist-ee
+    heritage: {{ .Release.Service }}
+    namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      release: mist-ee
+      app: portal
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - {}
+  egress:
+    {{- include "netpol.to-istiod" . | nindent 4 }}
+    {{- include "netpol.to-istio-system" . | nindent 4 }}
+    {{- include "netpol.to-kube-system" . | nindent 4 }}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mist-ee-vminsert
+  labels:
+    app: vminsert
+    chart: {{ include "chart.chart" . }}
+    release: mist-ee
+    heritage: {{ .Release.Service }}
+    namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      release: mist-ee
+      app: vminsert
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.global.dsp.portal.namespace | default "dapp" }}
+    - podSelector:
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - gocky
+    ports:
+    - port: 8480
+      protocol: TCP
+  egress:
+    {{- include "netpol.to-istiod" . | nindent 4 }}
+    {{- include "netpol.to-vmstorage" . | nindent 4 }}
+    {{- include "netpol.to-istio-system" . | nindent 4 }}
+    {{- include "netpol.to-kube-system" . | nindent 4 }}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mist-ee-vmselect
+  labels:
+    app: vminsert
+    chart: {{ include "chart.chart" . }}
+    release: mist-ee
+    heritage: {{ .Release.Service }}
+    namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      release: mist-ee
+      app: vmselect
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.global.dsp.portal.namespace | default "dapp" }}
+    - podSelector:
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - gocky
+    - podSelector:
+        matchLabels:
+          hzp-app: hzp-metrics-svc      
+    ports:
+    - port: 8481
+      protocol: TCP
+  egress:
+    {{- include "netpol.to-istiod" . | nindent 4 }}
+    {{- include "netpol.to-vmstorage" . | nindent 4 }}
+    {{- include "netpol.to-istio-system" . | nindent 4 }}
+    {{- include "netpol.to-kube-system" . | nindent 4 }}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mist-ee-vmstorage
+  labels:
+    app: vmstorage
+    chart: {{ include "chart.chart" . }}
+    release: mist-ee
+    heritage: {{ .Release.Service }}
+    namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      release: mist-ee
+      app: vmstorage
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: {{ .Values.global.dsp.portal.namespace | default "dapp" }}
+    - podSelector:
+        matchExpressions:
+        - key: app
+          operator: In
+          values:
+          - vmselect
+          - vminsert
+    ports:
+    - protocol: TCP
+      port: 8400
+    - protocol: TCP
+      port: 8401
+    - protocol: TCP
+      port: 8482
+  egress:
+    {{- include "netpol.to-istiod" . | nindent 4 }}
+    {{- include "netpol.to-istio-system" . | nindent 4 }}
+    {{- include "netpol.to-kube-system" . | nindent 4 }}
+
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: mist-ee-gocky
+  labels:
+    app: gocky
+    chart: {{ include "chart.chart" . }}
+    release: mist-ee
+    heritage: {{ .Release.Service }}
+    namespace: {{ .Release.Namespace }}
+spec:
+  podSelector:
+    matchLabels:
+      release: mist-ee
+      app: gocky
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - {}
+  egress:
+    {{- include "netpol.to-istiod" . | nindent 4 }}
+    {{- include "netpol.to-vminsert" . | nindent 4 }}
+    {{- include "netpol.to-istio-system" . | nindent 4 }}
+    {{- include "netpol.to-kube-system" . | nindent 4 }}
+    {{- include "netpol.to-nats" . | nindent 4 }}
+
+{{- end }}

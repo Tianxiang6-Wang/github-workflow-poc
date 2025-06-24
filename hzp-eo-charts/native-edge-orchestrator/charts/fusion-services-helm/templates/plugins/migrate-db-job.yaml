@@ -1,0 +1,79 @@
+{{- if .Values.plugins.enabled -}}
+{{- $hook_annotations := dict "helm.sh/hook" "post-upgrade" "helm.sh/hook-weight" "-6" "helm.sh/hook-delete-policy" "before-hook-creation" }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  labels:
+    app: plugins
+  name: {{ template "fusion-services.name" . }}-plugins-migrate-db
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations $hook_annotations ) | nindent 4 }}
+spec:
+  backoffLimit: 5
+  parallelism: 1
+  template:
+    metadata:
+      labels:
+        app: plugins
+      {{ with .Values.plugins.dbMigrator.podLabels }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      annotations:
+        {{- include "fusion-services.merge" ( list .Values.commonAnnotations ((.Values.plugins).dbMigrator).podAnnotations ) | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- if .Values.rest_service.irsa_service_account }}
+      serviceAccountName: {{ .Values.rest_service.irsa_service_account }}
+      {{- end }}
+      securityContext:
+        runAsUser: {{ .Values.plugins.migrateDbJobSecurityContext.runAsUser }}
+        runAsGroup: {{ .Values.plugins.migrateDbJobSecurityContext.runAsGroup }}
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.plugins $ )| trim | nindent 8 }}
+      tolerations: {{- include "fusion-services.tolerations" ( list .Values.plugins $ ) | trim | nindent 8 }}
+      affinity: {{- include "fusion-services.affinity" ( list .Values.plugins $ ) | trim | nindent 8 }}
+      containers:
+        - name: plugins-db-migrator
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-plugins-service" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-plugins-service" ).pullPolicy }}
+          command:
+            - /usr/local/bin/python
+            - -m
+            - plugins.db_migrator.migrate
+          env:
+            {{- include "fusion-services.s3_env_vars" . | nindent 12 }}
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.plugins "root" $) | nindent 12 }}
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.plugins.dbMigrator "root" $ "envPrefix" "SRC_") | nindent 12 }}
+            - name: BATCH_SIZE
+              value: {{ .Values.plugins.dbMigrator.batchSize | quote }}
+            - name: LOGGING_LEVEL_CONFIGURATION_PATH
+              value: {{ tpl .Values.plugins.logging.configMountPath $}}
+            - name: LOGGING_LEVEL_GLOBAL_PATH
+              value: {{ tpl .Values.plugins.logging.configMountPath $ }}/{{ tpl .Values.plugins.logging.globalConfigFile $ }}
+            - name: LOGGING_LEVEL_SERVICE_PATH
+              value: {{ tpl .Values.plugins.logging.configMountPath $ }}/{{ tpl .Values.plugins.logging.serviceConfigFile $ }}
+          volumeMounts:
+            - name: logging
+              mountPath: {{ tpl .Values.plugins.logging.configMountPath $ }}
+              readOnly: true
+          envFrom:
+            - configMapRef:
+                name: {{ template "fusion-services.name" . }}-plugins-envvars
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources: {{- toYaml .Values.plugins.resources | nindent 12 }}
+      restartPolicy: OnFailure
+      {{- include "fusion-services.images.pullSecrets" . | nindent 6 }}
+      volumes:
+        - name: logging
+          configMap:
+            name: {{ include "fusion-loglevel-configmap.name" $ }}
+{{- end }}

@@ -1,0 +1,73 @@
+{{- if (.Values.global.inventorySvc.initJobEnabled) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: device-models-init-job
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "hzp.iam.webhook/bootstrap-client-name": hzp-inventory-svc
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      name: device-models-init-job
+      labels:
+{{- tpl (toYaml .Values.svc.job.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.deviceModelsInit $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.deviceModelsInit $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.deviceModelsInit $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.deviceModelsInit.image.name ) "repo" .Values.global.repository) }}
+          name: device-models-init-job
+          imagePullPolicy: Always
+          resources:
+            {{- toYaml .Values.svc.job.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: INVENTORY_SVC_URL
+              value: "http://hzp-inventory-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: ENVIRONMENT
+              value: {{ if eq .Values.global.k8s.distro "eks" }}{{ "SAAS" }}{{ else }}{{ "ON_PREM" }}{{ end }}
+          command:
+            - /bin/sh
+            - -c
+            - |
+              echo 'Waiting for sidecar proxy to become ready...'
+              until printf "." && nc -z -w 2 127.0.0.1 15006; do
+                  sleep 2;
+              done;
+              echo 'Sidecar proxy is ready ✓'
+              echo 'Sleeping for 10 seconds'
+              sleep 10
+              ./init.sh
+              curl http://localhost:15022/quitquitquit 2>/dev/null || true
+              echo "Terminated sidecar proxy."
+      initContainers:
+      - name: init-dependencies
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          seccompProfile:
+              type: RuntimeDefault
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for hzp-inventory-svc to become ready...'
+            until printf "." && nc -z -w 2 hzp-inventory-svc 80; do
+                sleep 2;
+            done;
+            echo 'hzp-inventory-svc OK ✓'
+      restartPolicy: OnFailure
+---
+{{- end }}

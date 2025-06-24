@@ -1,0 +1,4 @@
+global:
+  metricsSvc:
+    deploy: true
+    smoketestEnabled: false

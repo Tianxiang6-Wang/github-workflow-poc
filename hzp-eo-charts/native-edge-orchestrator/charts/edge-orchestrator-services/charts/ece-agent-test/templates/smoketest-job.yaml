@@ -1,0 +1,111 @@
+{{- if or (.Values.global.regressionEnabled) (.Values.global.eceAgentTest.smoketestEnabled) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ece-agent-smoke-test
+spec:
+  template:
+    metadata:
+      labels:
+{{- tpl (toYaml .Values.test.jobLabels) . | replace "'" "" | nindent 8 }}
+      name: ece-agent-smoke-test
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.test $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.test $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.test $ ) | trim | nindent 8 }}
+      containers:
+      - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.test.image.name ) "repo" .Values.global.repository) }}
+        env:
+          - name: SSH_REMOTE_HOST
+            value: "{{ .Values.global.eceAgentTest.env.sshRemoteHost }}"
+          - name: SERVICE_TAG
+            value: "{{ .Values.global.eceAgentTest.env.serviceTag }}"
+          - name: BASE_URL
+            value: "http://{{ .Values.test.eventsvc.service.fullname }}.{{ .Release.Namespace }}.svc.cluster.local"
+          - name: RP_ENDPOINT
+            value: "{{ .Values.test.reportportal.rpendpoint }}"
+          - name: RP_API_KEY
+            value: "{{ .Values.test.reportportal.rpuuid }}"
+          - name: RP_MODE
+            value: default
+          - name: RP_PROJECT
+            value: HZP_EO_SERVICES
+          - name: RP_LAUNCH
+            value: "hzp-ece-agent-test"
+          - name: RP_ATTRIBUTES
+            value: "RELEASE_VERSION:{{ .Values.test.reportportal.release }};EO_IP:{{ .Values.test.reportportal.eourl }};EO_MANIFEST:{{ .Values.test.reportportal.manifest }};ECE_MANIFEST:{{ .Values.test.reportportal.ecemanifest }};TEST_GROUP:{{ .Values.test.reportportal.suite }};RP_LAUNCH_KEY_ATTRIBUTE:{{ .Values.test.reportportal.runid }};;RELEASE_VERSION:{{ .Values.test.reportportal.release }};"
+        {{- toYaml .Values.test.env | nindent 10 }}
+        name: ece-agent-smoke-test-container
+        imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+        command: [ '/bin/sh', '-c' ]
+        # Sleep before test to allow netpol and istio-proxy to take effect
+        args:
+          - |
+            sleep 60; echo All dependent components are running. Start testing!;
+            java -jar tests.jar {{ .Values.test.testsuite }}; sleep 60;
+            if wget -q --post-data='' -S -O /dev/null http://127.0.0.1:15020/quitquitquit 2>/dev/null; then
+                echo "Terminated istio-proxy."
+            fi
+      initContainers:
+        - name: init-postgres
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          env: 
+            {{- toYaml .Values.test.postgresql.service.env | nindent 12 }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for PostgreSQL to become ready...'
+
+              until printf "." && nc -z -w 2 $DB_HOST $DB_PORT; do
+                  sleep 2;
+              done;
+
+              echo 'PostgreSQL OK ✓'
+        - name: init-event-svc
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for Event-Svc to become ready...'
+
+              until printf "." && nc -z -w 2 {{ .Values.test.eventsvc.service.fullname }} {{ .Values.test.eventsvc.service.port }}; do
+                  sleep 2;
+              done;
+
+              echo 'Hzp-event-svc OK ✓'
+        - name: init-jetstream
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for jetstream to become ready...'
+
+              until printf "." && nc -z -w 2 {{ .Values.test.jetstream.service.fullname }} {{ .Values.test.jetstream.service.port }}; do
+                  sleep 2;
+              done;
+
+              echo 'jetstream OK ✓'
+        - name: init-inventory
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for Inventory to become ready...'
+
+              until printf "." && nc -z -w 2 {{ .Values.test.inventory.service.fullname }} 80; do
+                  sleep 2;
+              done;
+
+              echo 'inventory OK ✓'
+
+      restartPolicy: Never
+{{- end }}

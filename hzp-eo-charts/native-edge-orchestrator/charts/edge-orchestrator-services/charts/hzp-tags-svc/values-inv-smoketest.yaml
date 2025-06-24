@@ -1,0 +1,4 @@
+global:
+  tagsSvc:
+    deploy: true
+    smoketestEnabled: true

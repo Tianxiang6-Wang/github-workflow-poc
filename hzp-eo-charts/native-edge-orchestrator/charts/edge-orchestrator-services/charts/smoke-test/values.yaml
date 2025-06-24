@@ -1,0 +1,109 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  repository: isgedge.artifactory.cec.lab.emc.com/isgedge-docker-virtual/
+  project: hzp/
+  imagePullSecrets:
+    - docker-secret
+  ingress:
+    enableNetworkPoliciesForSmokeTest: true
+    fqdn: localhost
+  test:
+    enabled: false
+components:
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+# Subchart values
+test:
+  replicaCount: 1
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    hzp-app: smoke-test
+    hzp-role: smoke-test
+  eoEceRegression: false
+  testsuite: test-suites/smoke.xml
+  image:
+    name: eo-smoke-test
+    pullPolicy: Always
+    tag: latest
+  env:
+    - name: MESSAGING_URL
+      value: "nats://jetstream.hzp.svc.cluster.local"
+    - name: MESSAGING_STREAM_NAME
+      value: "K-ORDERS"
+    - name: DATABASE_URL
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresUrl
+    - name: DATABASE_USERNAME
+      value: "postgres"
+    - name: DATABASE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: hzpadmin-password
+    - name: SSH_USER_NAME
+      value: "eceuser"
+    - name: SSH_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: ssh-secret
+          key: ssh-password
+    - name: VAULT_ROOT_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: vault-secret
+          key: ROOT_TOKEN
+  cpu: 0.25
+  memory: 512Mi
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    ecemanifest: 1
+    runid: 1
+    release: 1
+    suite: 1
+
+  postgresql:
+    service:
+      fullname: postgres
+      port: 5432
+
+  eventsvc:
+    service:
+      fullname: hzp-events-svc
+      port: 80
+
+  jetstream:
+    service:
+      fullname: jetstream
+      port: 4222
+
+  frucrusvc:
+    service:
+      fullname: hzp-fru-cru-svc
+      port: 80
+
+  fidoOnboarding:
+    service:
+      fullname: hzp-security-svc
+      port: 80
+
+  fidoOwner:
+    service:
+      fullname: fido-owner
+      port: 80
+
+  inventory:
+    service:
+      fullname: hzp-inventory-svc
+      port: 80
+
+  upgrade:
+    service:
+      fullname: hzp-upgrade-svc
+      port: 80

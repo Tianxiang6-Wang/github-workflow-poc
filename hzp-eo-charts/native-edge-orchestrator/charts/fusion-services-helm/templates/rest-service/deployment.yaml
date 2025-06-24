@@ -1,0 +1,344 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: rest-service
+  {{ with .Values.rest_service.podLabels }}
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+  name: {{ template "fusion-services.name" . }}-rest-service
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  replicas: {{ .Values.rest_service.replicas }}
+  selector:
+    matchLabels:
+      app: rest-service
+  template:
+    metadata:
+      labels:
+        app: rest-service
+        fusion-name: fusion-restservice
+      {{ with .Values.rest_service.podLabels }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      annotations:
+        {{- include "fusion-services.merge" ( list .Values.commonAnnotations .Values.rest_service.podAnnotations ) | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- if .Values.rest_service.irsa_service_account }}
+      serviceAccountName: {{ .Values.rest_service.irsa_service_account }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.rest_service $ ) | trim | nindent 8 }}
+      tolerations: {{- include "fusion-services.tolerations" ( list .Values.rest_service $ ) | trim | nindent 8 }}
+      affinity: {{- include "fusion-services.affinity" ( list .Values.rest_service $ ) | trim | nindent 8 }}
+      initContainers:
+        - name: rest-service-init
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-restservice" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-restservice" ).pullPolicy }}
+          env:
+            {{- include "fusion-services.postgres_env_vars" (dict "root" $) | nindent 12 }}
+            {{- include "fusion-services.rabbitmq_env_vars" (dict "root" $) | nindent 12 }}
+            {{- if not .Values.rabbitmq.enabled }}
+            - name: RABBITMQ_CA_CERT_PATH
+              value: {{ .Values.externalRabbitmq.ca_cert }}
+            {{- end }}
+            {{- include "fusion-services.restservice_keys" . | nindent 12 }}
+          command:
+            - /usr/bin/env
+            - -S
+            - bash
+            - -exuc
+            - |
+              python -m manager_rest.configure_manager --db-wait {{ .Values.db.host }}
+
+              cd /opt/rest-service/migrations
+              alembic upgrade head
+
+              # setup config overrides based on the cluster state/values:
+              # - if using the builtin seaweedfs, set s3_server_url to its fully-qualified address
+              echo '{}'> /tmp/config-overrides.yaml
+              {{- if .Values.seaweedfs.enabled }}
+              cat >/tmp/config-overrides.yaml <<EOF
+              manager:
+                s3_server_url: "{{ include "fusion-services.s3_server_url" . }}"
+              EOF
+              {{- end }}
+
+              python -m manager_rest.configure_manager -c "{{ .Values.rest_service.configPath }}" -c "/tmp/config-overrides.yaml"
+          volumeMounts:
+            - mountPath: /etc/nativeedge/ssl
+              name: ssl
+              readOnly: true
+            - name: config
+              mountPath: {{ .Values.rest_service.configPath }}
+              subPath: config.yaml
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: "0.1"
+            limits:
+              memory: 512Mi
+              cpu: "1"
+      containers:
+        - name: rest-service
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-restservice" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-restservice" ).pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: FUSION_AUTH_PSK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fusion-services.name" . }}-auth-signing
+                  key: psk
+            {{- include "fusion-services.restservice_keys" . | nindent 12 }}
+            - name: APP_VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            - name: APP_NAME
+            {{- if (.Values.appName) }}
+              value: {{ .Values.appName | quote }}
+            {{- else }}
+              value: {{ .Release.Name | quote }}
+            {{- end }}
+            {{- if .Values.blueprint.enabled }}
+            - name: BLUEPRINT_HOST
+              value: {{ template "fusion-services.name" . }}-blueprint
+            - name: BLUEPRINT_PORT
+              value: {{ .Values.blueprint.port | quote }}
+            - name: BLUEPRINT_PROTOCOL
+              value: http
+            {{- end }}
+            {{- if .Values.plugins.enabled }}
+            - name: PLUGINS_HOST
+              value: {{ template "fusion-services.name" . }}-plugins
+            - name: PLUGINS_PORT
+              value: {{ .Values.plugins.port | quote }}
+            - name: PLUGINS_PROTOCOL
+              value: http
+            {{- end }}
+            {{- if .Values.deployments.enabled }}
+            - name: DEPLOYMENTS_HOST
+              value: {{ template "fusion-services.name" . }}-deployments
+            - name: DEPLOYMENTS_PORT
+              value: {{ .Values.deployments.port | quote }}
+            - name: DEPLOYMENTS_PROTOCOL
+              value: http
+            {{- end }}
+            {{- if .Values.agent.enabled }}
+            - name: AGENTS_HOST
+              value: {{ template "fusion-services.name" . }}-agent
+            - name: AGENTS_PORT
+              value: {{ .Values.agent.port | quote }}
+            - name: AGENTS_PROTOCOL
+              value: http
+            {{- end }}
+            {{- if .Values.secrets.enabled }}
+            - name: SECRET_HOST
+              value: {{ template "fusion-services.name" . }}-secrets
+            - name: SECRET_PORT
+              value: {{ .Values.secrets.port | quote }}
+            - name: SECRET_PROTOCOL
+              value: http
+            {{- end }}
+            {{- if (.Values.rest_service.eventing).stream_url }}
+            - name: NATS_URL
+              value: {{ tpl .Values.rest_service.eventing.stream_url $ | quote}}
+            {{- else if (.Values.nats).enabled }}
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            {{- end }}
+            {{- if (.Values.rest_service.logging).http_logs_sender_endpoint }}
+            - name: HTTP_LOGS_SENDER_ENDPOINT
+              value: {{ tpl .Values.rest_service.logging.http_logs_sender_endpoint $ | quote}}
+            {{- end }}
+            {{- if (.Values.rest_service.logging).audit_logs_subject }}
+            - name: AUDIT_LOGS_SUBJECT
+              value: {{ tpl .Values.rest_service.logging.audit_logs_subject $ | quote}}
+            {{- end }}
+            {{- include "fusion-services.postgres_env_vars" (dict "root" $) | nindent 12 }}
+            {{- include "fusion-services.rabbitmq_env_vars" (dict "root" $) | nindent 12 }}
+            {{- include "fusion-services.s3_env_vars" . | nindent 12 }}
+            - name: DEFAULT_SECRETS_BACKEND
+              value: {{ tpl .Values.rest_service.config.manager.default_secrets_backend . }}
+            {{- include "fusion-services.vault_env_vars" . | nindent 12 }}
+            - name: LOGGING_LEVEL_GLOBAL_PATH
+              value: {{ tpl .Values.rest_service.logging.configMountPath $ }}/{{ tpl .Values.rest_service.logging.globalConfigFile $ }}
+            - name: LOGGING_LEVEL_SERVICE_PATH
+              value: {{ tpl .Values.rest_service.logging.configMountPath $ }}/{{ tpl .Values.rest_service.logging.serviceConfigFile $ }}
+            {{- include "fusion-services.metrics_env_vars" . | nindent 12 }}
+            {{- if .Values.rest_service.inventory_url }}
+            - name: FUSION_INVENTORY_URL
+              value: {{ tpl .Values.rest_service.inventory_url $ | quote }}
+            {{- end }}
+            {{- if .Values.rest_service.config.manager.default_task_target }}
+            - name: DEFAULT_TASK_TARGET
+              value: {{ tpl .Values.rest_service.config.manager.default_task_target }}
+            {{- end }}
+            {{- if (.Values.global).useHzpMultitenancy }}
+            - name: "HZP_MULTITENANCY"
+              value: "true"
+            {{- end }}
+            {{- include "fusion-services.eo_env_vars" . | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ template "fusion-services.name" . }}-rest-service-envvars
+          ports:
+            - containerPort: {{ .Values.rest_service.port }}
+          resources: {{- toYaml .Values.rest_service.resources | nindent 12 }}
+          volumeMounts:
+            - name: logging
+              mountPath: {{ tpl .Values.rest_service.logging.configMountPath $ }}
+              readOnly: true
+          {{- if .Values.rest_service.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              port: {{ .Values.rest_service.port}}
+              path: /api/v3.1/ok
+            initialDelaySeconds: {{ .Values.rest_service.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.rest_service.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.rest_service.probes.liveness.timeoutSeconds }}
+            successThreshold: {{ .Values.rest_service.probes.liveness.successThreshold }}
+            failureThreshold: {{ .Values.rest_service.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.rest_service.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              port: {{ .Values.rest_service.port}}
+              path: /api/v3.1/ok
+            initialDelaySeconds: {{ .Values.rest_service.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.rest_service.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.rest_service.probes.readiness.timeoutSeconds }}
+            successThreshold: {{ .Values.rest_service.probes.readiness.successThreshold }}
+            failureThreshold: {{ .Values.rest_service.probes.readiness.failureThreshold }}
+          {{- end }}
+
+        {{- if or .Values.rest_service.eventing.stream_url (.Values.nats).enabled }}
+        - name: events-handler
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-restservice" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-restservice" ).pullPolicy }}
+          command: [ "/opt/rest-service/docker/entrypoint_events.sh" ]
+          volumeMounts:
+            - mountPath: /etc/nativeedge/ssl
+              name: ssl
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: FUSION_AUTH_PSK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fusion-services.name" . }}-auth-signing
+                  key: psk
+            {{- if .Values.rest_service.eventing.stream_url }}
+            - name: NATS_URL
+              value: {{ tpl .Values.rest_service.eventing.stream_url $ | quote}}
+            {{- else if (.Values.nats).enabled }}
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            {{- end }}
+            {{- include "fusion-services.restservice_keys" . | nindent 12 }}
+            {{- if .Values.blueprint.enabled }}
+            - name: BLUEPRINT_HOST
+              value: {{ template "fusion-services.name" . }}-blueprint
+            - name: BLUEPRINT_PORT
+              value: {{ .Values.blueprint.port | quote }}
+            - name: BLUEPRINT_PROTOCOL
+              value: http
+            {{- end }}
+            {{- include "fusion-services.postgres_env_vars" (dict "root" $) | nindent 12 }}
+            {{- include "fusion-services.rabbitmq_env_vars" (dict "root" $) | nindent 12 }}
+            {{- include "fusion-services.eo_env_vars" . | nindent 12 }}
+            {{- if (.Values.rest_service.logging).audit_logs_subject }}
+            - name: AUDIT_LOGS_SUBJECT
+              value: {{ tpl .Values.rest_service.logging.audit_logs_subject $ | quote}}
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ template "fusion-services.name" . }}-rest-service-envvars
+          resources: {{- toYaml .Values.rest_service.eventing.resources | nindent 12 }}
+        {{- end }}
+        - name: retention-scheduler
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-restservice" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-restservice" ).pullPolicy }}
+          command: [ "/opt/rest-service/docker/entrypoint_retention_scheduler.sh" ]
+          volumeMounts:
+            - mountPath: /etc/nativeedge/ssl
+              name: ssl
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          env:
+            - name: FUSION_AUTH_PSK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fusion-services.name" . }}-auth-signing
+                  key: psk
+            - name: LOGGING_LEVEL_GLOBAL_PATH
+              value: {{ tpl .Values.rest_service.logging.configMountPath $ }}/{{ tpl .Values.rest_service.logging.globalConfigFile $ }}
+            - name: LOGGING_LEVEL_SERVICE_PATH
+              value: {{ tpl .Values.rest_service.logging.configMountPath $ }}/{{ tpl .Values.rest_service.logging.serviceConfigFile $ }}
+            {{- if .Values.blueprint.enabled }}
+            - name: BLUEPRINT_HOST
+              value: {{ template "fusion-services.name" . }}-blueprint
+            - name: BLUEPRINT_PORT
+              value: {{ .Values.blueprint.port | quote }}
+            - name: BLUEPRINT_PROTOCOL
+              value: http
+            {{- end }}
+            {{- include "fusion-services.restservice_keys" . | nindent 12 }}
+            {{- include "fusion-services.postgres_env_vars" (dict "root" $) | nindent 12 }}
+            {{- include "fusion-services.rabbitmq_env_vars" (dict "root" $) | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ template "fusion-services.name" . }}-rest-service-envvars
+          resources: {{- toYaml .Values.rest_service.eventing.resources | nindent 12 }}
+
+      restartPolicy: Always
+      {{- include "fusion-services.images.pullSecrets" . | nindent 6 }}
+      volumes:
+        - name: ssl
+          secret:
+            secretName: {{ template "fusion-services.name" . }}-ssl-certs  # pragma: allowlist secret
+            optional: false
+        - name: packages
+          emptyDir:
+            sizeLimit: 500Mi
+        - name: config
+          configMap:
+            name: {{ template "fusion-services.name" . }}-rest-service-config
+        - name: logging
+          configMap:
+            name: {{ include "fusion-loglevel-configmap.name" $ }}

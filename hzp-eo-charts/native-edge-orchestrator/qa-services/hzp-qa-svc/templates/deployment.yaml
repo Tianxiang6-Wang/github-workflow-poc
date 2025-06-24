@@ -1,0 +1,90 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.svc.name }}
+  labels:
+    app.kubernetes.io/app: {{ .Values.svc.name }}
+spec:
+  replicas: {{ .Values.svc.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/app: {{ .Values.svc.name }}
+  template:
+    metadata:
+      name: {{ .Values.svc.name }}
+      annotations:
+        hzp.iam.webhook/authentication-enabled: "false"
+        hzp.iam.webhook/authorization-enabled: "false"
+        hzp.iam.webhook/exclude-outbound-ports: "443"
+      labels:
+        app.kubernetes.io/app: {{ .Values.svc.name }}
+        hzp-app: {{ .Values.svc.networkPolicyLabel.app }}
+        hzp-role: {{ .Values.svc.networkPolicyLabel.role }}
+        hzp.iam.webhook/active: "{{ .Values.global.nginx_gw.enabled }}"
+    spec:
+      imagePullSecrets:
+        {{- toYaml .Values.global.imagePullSecretsQA | nindent 8 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        {{- $image := include "qaSvc.image.name" (dict "name" .Values.svc.image.name "globals" .Values.global.components "repo" .Values.global.repository) }}
+        {{- if gt (len $image) 0 }}
+        {{- $image | trim | nindent 8 }}
+        {{- else }}
+        - image: "{{ .Values.global.repository | default (include "global.repo" .)}}{{ .Values.global.project }}{{ .Values.svc.image.name }}:{{ .Values.svc.image.tag | default .Chart.Annotations.Imagetag }}"
+        {{- end }}
+          name: {{ .Values.svc.name }}
+          imagePullPolicy: {{ .Values.svc.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.svc.port }}
+          args:
+            - --spring.profiles.active=prod
+          env:
+            - name: CM_NAMESPACE
+              value: {{ .Release.Namespace }}
+            - name: JAVA_OPTS
+              value: --spring.profiles.active=prod
+            - name: MANUFACTURING_SVC_URL
+              value: "http://fido-manufacturer.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: IAM_SVC_URL
+              value: "http://hzp-iam-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: IAM_SESSION_SVC_URL
+              value: "http://hzp-iam-session-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: INVENTORY_SVC_URL
+              value: "http://hzp-inventory-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: FUSION_SECRET_SVC_URL
+              value: "http://fusion-secrets.{{ .Release.Namespace }}.svc.cluster.local:8100"
+            - name: EVENT_SVC_URL
+              value: "http://hzp-events-svc.{{ .Release.Namespace }}.svc.cluster.local"
+          {{- toYaml .Values.svc.env | nindent 12 }}
+      dependencies:
+      - dependsOn:
+        - job:
+          name: qa-db-init-job
+          success: true
+      initContainers:
+      - name: init-check
+        image: {{ include "manifest.image.name" (dict "name" "busybox" "globals" .Values.global.components "repo" .Values.global.repository) }}
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+        env: 
+          {{- toYaml .Values.svc.env | nindent 12 }}
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for hzp-eo-initialization-svc to become ready...';
+            until printf "." && nc -z -w 2 {{ .Values.svc.dependency.eoinitialization.service.fullname }} {{ .Values.svc.dependency.eoinitialization.service.port }}; do
+              sleep 2;
+            done;
+            echo 'hzp-eo-initialization-svc OK ✓'
+            echo 'Waiting for mist to become ready...';
+            until printf "." && nc -z -w 2 {{ .Values.svc.dependency.mist.service.fullname }} {{ .Values.svc.dependency.mist.service.port }}; do
+              sleep 2;
+            done;
+            echo 'mist OK ✓'

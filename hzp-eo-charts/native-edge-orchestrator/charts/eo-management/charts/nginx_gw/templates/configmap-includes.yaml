@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-gw-conf-includes-main
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+data:
+{{ (tpl (.Files.Glob "files/config_includes/external_tls/*.template").AsConfig .) | indent 2 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-gw-conf-includes-fido
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+data:
+{{ (tpl (.Files.Glob "files/config_includes/external_fido/*.template").AsConfig .) | indent 2 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-gw-conf-includes-mtls
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+data:
+{{ (tpl (.Files.Glob "files/config_includes/external_mtls/*.template").AsConfig .) | indent 2 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-gw-conf-includes-mtls-recovery
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+data:
+{{ (tpl (.Files.Glob "files/config_includes/external_mtls_recovery/*.template").AsConfig .) | indent 2 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-gw-conf-includes-external-apigw
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+data:
+{{ (tpl (.Files.Glob "files/config_includes/external_apigateway/*.template").AsConfig .) | indent 2 }}

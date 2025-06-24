@@ -1,0 +1,222 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  fido:
+    global_rv_url: "rv.dell.com"
+  message:
+    type: nats
+    url: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+  ingress:
+    fqdn: localhost
+  eoName: "NativeEdge Orchestrator"
+  s3:
+    url: http://eo-management-seaweedfs-s3.{{ .Release.Namespace }}.svc.cluster.local:8333
+  fruCruSvc:
+    smoketestEnabled: false
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  instrumentation:
+    enabled: false
+components:
+  fru-cru-svc:
+    image: fru-cru-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  hzp-util:
+    image: hzp-util
+    version: 0.1.3
+    project: hzp/
+  fru-cru-smoke-test:
+    image: fru-cru-smoke-test
+    version: latest
+    project: hzp/
+# Subchart values
+svc:
+  name: &serviceName hzp-fru-cru-svc
+  replicaCount: 1
+  port: 8080
+  image:
+    name: fru-cru-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp.iam.webhook/active: "true"
+    hzp-role: eo-service
+    app.kubernetes.io/app: *serviceName
+  job:
+    podLabels:
+      hzp-app: *serviceName
+      hzp-role: eo-service
+  resources:
+    limits:
+      cpu: 1
+      memory: 4Gi
+    requests:
+      cpu: 5m
+      memory: 50Mi
+  env:
+    - name: GIN_MODE
+      value: "release"
+    - name: DB_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresHost
+    - name: DB_PORT
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresPort
+    - name: DB_USER
+      value: "hzp_fru_cru"
+    - name: DB_PA
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: hzp_fru_cru-password
+    - name: QUEUE_GROUP
+      value: "hzp-fru-cru-svc-queue"
+    - name: EVENTS_SUBJECT
+      value: "hzp.frucru.events"
+    - name: OPERATIONS_SUBJECT
+      value: "hzp.ece.frucru.operations"
+    - name: INVENTORY_SUBJECT
+      value: "hzp.inventory.events"
+    - name: API_USER
+      value: "apiUser"
+    - name: API_USER_PA
+      valueFrom:
+        secretKeyRef:
+          name: fido-secret
+          key: api-password
+    - name: VAULT_URL
+      value: "http://edgevault:8200"
+    - name: KV_APPROLE_PATH
+      value: "eo-approle"
+    - name: KV_ENGINE_PATH
+      value: "kv/eo/hzp-fru-svc"
+    - name: FACTORY_OS_IMAGE_NAME
+      value: "factory_os"
+    - name: RESET_FACTORY_OS_IMAGE_NAME
+      value: "factory_reset"
+    - name: KV_APPROLE_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-fru-svc-vault-secret
+          key: role-id
+          optional: false
+    - name: KV_APPROLE_SECRET_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-fru-svc-vault-secret
+          key: secret-id
+          optional: false
+    - name: SRV_MB_PUBLIC_KEY
+      valueFrom:
+        secretKeyRef:
+          name: eo-fru-secret
+          key: fru-public.key
+          optional: true
+  autoScaling:
+    enabled: false
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+
+hookjobs:
+  postEOUpgradeJobCmd: |
+    #!/bin/sh
+    set -e
+        
+    MFG_SERVICE_TCP_URL=${MFG_SERVICE_TCP_URL}
+    API_USER=${API_USER}
+    API_USER_PA=${API_USER_PA}
+    RV_INFO=${RV_INFO}
+    
+    # Make Digest Http call to mfg service to update RV_INFO post EO upgrade
+    curl  -D - --digest -u "$API_USER":"$API_USER_PA" --location --request POST \
+    "$MFG_SERVICE_TCP_URL/api/v1/rvinfo" \
+    --header 'Content-Type: text/plain' \
+    --data-raw "$RV_INFO"
+
+test:
+  # Subchart values
+  testsuite: test-suites/smoke.xml
+  replicaCount: 1
+  image:
+    name: fru-cru-smoke-test
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    hzp-app: hzp-fru-cru-svc-regression
+    hzp-role: smoke-test
+  env:
+    - name: DATABASE_URL
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresUrl
+    - name: DATABASE_USERNAME
+      value: "test"
+    - name: DATABASE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: test-password
+    - name: SSH_USER_NAME
+      value: "eceuser"
+    - name: SSH_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: ssh-secret
+          key: ssh-password
+    - name: VAULT_ROOT_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: vault-secret
+          key: ROOT_TOKEN
+  cpu: 0.25
+  memory: 512Mi
+  frucru:
+    service:
+      fullname: *serviceName
+      port: 80
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 632225
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    runid: 1
+    release: 1
+    suite: 1

@@ -1,0 +1,152 @@
+{{- $svc := .Values.svc -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+  labels:
+    hzp-app: {{ $svc.name }}
+    hzp.iam.webhook/active: 'true'
+spec:
+  replicas: {{ $svc.replicaCount }}
+  selector:
+    matchLabels:
+      hzp-app: {{ $svc.name }}
+  template:
+    metadata:
+      annotations:
+{{- tpl (toYaml .Values.svc.podAnnotations) . | replace "'" "" | nindent 8 }}
+{{- if .Values.global.instrumentation.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "{{ $svc.port }}"
+{{- end }} 		
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          imagePullPolicy: "Always"
+          {{ $_ := set .Values "iamProxyEntry" "./main" }}
+          {{ tpl (toYaml .Values.global.iamProxy.commandDecorator) . | nindent 10 }}
+          name: {{ $svc.name }}
+          ports:
+            - containerPort: {{ $svc.port }}
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          env:
+            - name: SIDECAR_INJECTED
+              value: "{{ .Values.global.iamProxy.sidecarEnabled }}"
+            - name: SERVICE_VERSION
+              value: {{ .Chart.Version }}
+            - name: VAULT_HOST
+              value: "{{ tpl .Values.global.vault.host . }}"
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            - name: NATS_SERVER_MONITORING_URL
+              value: "http://jetstream.{{ .Release.Namespace }}.svc.cluster.local:8222/varz"
+            - name: KEYCLOAK_URL
+              value: "{{ .Values.global.keycloak.scheme }}://{{ tpl .Values.global.keycloak.host . }}:{{ .Values.global.keycloak.port }}"
+            - name: EO_IP
+              value: {{ .Values.global.ingress.fqdn }}
+            - name: EO_NAME
+              value: {{ .Values.global.eoName }}
+            - name: COOKIE_ROOT_DOMAIN
+              value: {{ .Values.global.cookie_domain }}
+            - name: ENABLE_INSTRUMENTATION
+              value: {{ .Values.global.instrumentation.enabled | quote }}
+            - name: OIDC_ISSUER
+              valueFrom:
+                configMapKeyRef:
+                  name: iam-bootstrap-config
+                  key: PORTAL_URL
+            - name: PORTAL_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: iam-bootstrap-config
+                  key: PORTAL_URL
+            - name: USE_LATEST_LIB
+              value: "true"
+            - name: HZP_IAM_SVC_URL
+              value: "http://dsp-iam-mgmt-svc"
+            {{ if  (index .Values.global "is-saas-env") }}
+            - name: DSP_ON_PREM
+              value: "false"
+            - name: EXTERNAL_AUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: di-client-secret
+                  key: di-auth-client-name
+                  optional: true
+            - name: EXTERNAL_AUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: di-client-secret
+                  key: di-auth-client-password
+                  optional: true
+            - name: EXTERNAL_AUTH_BASE_URL
+              value: "https://www.dell.com"
+            - name: EXTERNAL_AUTH_TOKEN_ENDPOINT
+              value: "/di/v3/fp/oidc/token"
+            {{- else }}
+            - name: DSP_ON_PREM
+              value: "true"
+            - name: EXTERNAL_AUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: auth_client-name
+            - name: EXTERNAL_AUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: auth-client-pwd
+            - name: EXTERNAL_AUTH_BASE_URL
+              value: "http://dsp-iam-login-svc-http"
+            - name: EXTERNAL_AUTH_TOKEN_ENDPOINT
+              value: "{{ printf "/auth/realms/%s/protocol/openid-connect/token" .Values.global.staticOnPremOrgId }}"
+            - name: KEYCLOAK_ORG_NAME
+              value: {{ .Values.global.staticOnPremOrgId }}
+            {{- end }}
+            {{- toYaml $svc.env | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          readinessProbe:
+            httpGet:
+              path: /admin/health/dependency
+              port: 14000
+              scheme: HTTP
+          volumeMounts:
+            {{- include "logLevel.configMap.mount" $ | indent 12 }}
+      initContainers:
+        - name: dbchecker
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.dbchecker.image.pullPolicy }}
+          securityContext:
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+        {{- toYaml .Values.dbchecker.securityContext | nindent 12 }}
+          env:
+            {{- toYaml $svc.env | nindent 12 }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for PostgreSQL to become ready...'
+
+              until printf "." && nc -z -w 2 $DB_HOST $DB_PORT; do
+                  sleep 2;
+              done;
+
+              echo 'PostgreSQL OK ✓'
+      volumes:
+        {{- include "logLevel.configMap.volume" $ | indent 8 }}

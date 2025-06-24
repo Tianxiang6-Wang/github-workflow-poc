@@ -1,0 +1,51 @@
+global:
+  repository: isgedge.artifactory.cec.lab.emc.com/isgedge-docker-virtual/
+  components:
+    - image: pgadmin4
+      name: pgadmin4
+      version: 6.14
+      project: dpage/
+  imagePullSecrets:
+    - docker-secret
+  postgresql:
+    auth:
+      secretName: postgres-secret # pragma: allowlist secret
+  pgadmin:
+    auth:
+      secretName: pgadmin-secret # pragma: allowlist secret
+
+name: "pgadmin"
+
+image:
+  name: pgadmin4
+  repository: dpage/pgadmin4
+  pullPolicy: IfNotPresent
+  tag: "latest"
+svc:
+  podLabels:
+    hzp-app: pgadmin
+    hzp-role: eo-service
+persistence:
+  enabled: false
+  accessMode: ReadWriteOnce
+  size: 4Gi
+
+service:
+  type: NodePort
+  port: 80
+  targetPort: 80
+  nodePort: 30850
+
+## Configure servers.json: https://www.pgadmin.org/docs/pgadmin4/latest/import_export_servers.html
+servers:
+  enabled: true
+  config:
+    Servers:
+      1:
+        Name: "HZP Database"
+        Group: "HZP"
+        Port: 5432
+        Username: "postgres"
+        Host: "postgres"
+        SSLMode: "prefer"
+        MaintenanceDB: "postgres"

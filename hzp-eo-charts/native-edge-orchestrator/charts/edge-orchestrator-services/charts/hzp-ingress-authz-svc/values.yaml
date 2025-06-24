@@ -1,0 +1,109 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  message:
+    type: nats
+  ingress:
+    fqdn: localhost # for smoke/regression test
+  ingressAuthzSvc:
+    smoketestEnabled: false
+  nginx_gw:
+    enabled: false
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  instrumentation:
+    enabled: false
+components:
+  ingress-authz-svc:
+    image: ingress-authz-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  ingress-authz-smoke-test:
+    image: ingress-authz-smoke-test
+    version: latest
+    project: hzp/
+# Subchart values
+svc:
+  name: &serviceName hzp-ingress-authz-svc
+  port: 8080
+  image:
+    name: ingress-authz-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: 'true'
+  resources:
+    limits:
+      cpu: 100m
+      memory: 200Mi
+    requests:
+      cpu: 5m
+      memory: 25Mi
+  rbac:
+    namePrefix: ingress-authz-svc
+  env:
+    - name: PLACEHOLDER
+      value: ""
+  internalIngressNamespace: istio-system
+  autoScaling:
+    enabled: false
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+test:
+  # Subchart values
+  podLabels:
+    sidecar.istio.io/inject: "false"
+    hzp.iam.webhook/active: "false"
+    hzp-app: hzp-ingress-authz-svc-regression
+    hzp-role: smoke-test
+  testsuite: test-suites/smoke.xml
+  replicaCount: 1
+  image:
+    name: ingress-authz-smoke-test
+    pullPolicy: Always
+    tag: latest
+  cpu: 0.25
+  memory: 512Mi
+  service:
+    fullname: *serviceName
+    port: 80
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 761897
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    runid: 1
+    release: 1
+    suite: 1

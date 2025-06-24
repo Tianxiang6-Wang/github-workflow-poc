@@ -1,0 +1,4 @@
+global:
+  fido:
+    deploy: true
+    smoketestEnabled: true

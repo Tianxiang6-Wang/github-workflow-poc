@@ -1,0 +1,6 @@
+apiVersion: v1
+kind: ConfigMap
+data:
+{{ (.Files.Glob "files/healthCheck.sh").AsConfig | indent 2 }}
+metadata:
+  name: {{ .Values.svc.initConfigName }}

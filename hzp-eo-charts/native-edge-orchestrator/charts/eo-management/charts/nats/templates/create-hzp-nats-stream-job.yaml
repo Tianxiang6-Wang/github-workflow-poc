@@ -1,0 +1,129 @@
+{{- if .Values.nats.job.createStream.enabled }}
+{{- $createStreamJob := .Values.nats.job.createStream -}}
+{{- $name := "create-hzp-nats-stream-job"}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+{{- tpl (toYaml $createStreamJob.podAnnotations) . | replace "'" "" | nindent 4 }}
+spec:
+  template:
+    metadata:
+      labels:
+{{- tpl (toYaml $createStreamJob.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.nats.job $ ) | trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.nats.job $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.nats.job $ ) | trim | nindent 8 }}
+      initContainers:
+      - name: init-nats
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          allowPrivilegeEscalation: false
+        env:
+          - name: NATS_HOST
+            value: "jetstream.{{ .Release.Namespace }}.svc.cluster.local"
+          - name: NATS_MONITORING_PORT
+            value: "8222"
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for Jetstream NATS to become ready...'
+            command="wget -S ${NATS_HOST}:${NATS_MONITORING_PORT}/healthz  2>&1 | awk '/^  HTTP/{print $2}'"
+            status=$(eval "$command")
+            echo "status: $status"
+            while [[ "$status" != *"HTTP/1.1 200 OK"* ]]; do
+                sleep 2;
+                status=$(eval "$command")
+                echo "status: $status"
+            done;
+            echo 'Jetstream OK ✓'
+      containers:
+      - name: create-hzp-nats-stream-container
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "hzp-util" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: {{ $createStreamJob.pullPolicy }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          seccompProfile:
+              type: RuntimeDefault
+        command:
+        - /bin/sh
+        - -c
+        - |-
+          create_or_update_stream() {
+            STREAM_NAME="$1"
+            echo "Checking if [$STREAM_NAME] stream exists..."
+            nats stream info "$STREAM_NAME" --no-select
+            if [[ $? -ne 0 ]]; then
+              echo "[$STREAM_NAME] stream not found, creating stream..."
+              nats stream add --subjects="$2" --retention=limits --max-bytes="$3" --max-age="$4" --defaults "$STREAM_NAME"
+              if [[ $? -ne 0 ]]; then
+                echo "Fail to create [$STREAM_NAME] stream..."
+                exit 1;
+              fi
+            else
+              echo "[$STREAM_NAME] stream exists, updating stream..."
+              nats stream edit --force --subjects="$2" --max-bytes="$3" --max-age="$4" "$STREAM_NAME"
+              if [[ $? -ne 0 ]]; then
+                echo "Fail to update [$STREAM_NAME] stream..."
+                exit 1;
+              fi
+            fi
+          }
+
+          echo "Connecting to Nats..."
+          current_try_count=0
+          connect_nats_result="false"
+          until [ "$current_try_count" -ge "20" ]
+          do
+            context_add_result=$(nats context add eo-nats --server nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222 --select)
+            echo "Connection result: $context_add_result"
+            if [[ "$context_add_result" =~ "Connection: OK" ]]; then
+              connect_nats_result="true"
+              break
+            else
+              echo "Retry connecting to Nats..."
+              current_try_count=$((current_try_count+1))
+              sleep 15
+            fi
+          done
+
+          if [[ "$connect_nats_result" == "false" ]]; then
+            echo "Fail to connect to Nats..."
+            exit 1;
+          fi
+          
+          if [[ "{{ $createStreamJob.kOrderEnabled }}" == "true" ]]; then
+            create_or_update_stream "K-ORDERS" "K-ORDERS.>" "{{ $createStreamJob.maxMemory.kOrders }}" "{{ $createStreamJob.retention }}"
+          fi
+          create_or_update_stream "hzp" "hzp.>" "{{ $createStreamJob.maxMemory.hzp }}" "{{ $createStreamJob.retention }}"
+          create_or_update_stream "oxy" "oxy.*.dspo.>" "{{ $createStreamJob.maxMemory.oxy }}" "{{ $createStreamJob.retention }}"
+          create_or_update_stream "metrics" "metrics.>" "{{ $createStreamJob.maxMemory.metrics }}" "{{ $createStreamJob.retention }}"
+
+          kubectl patch configmap infra-status-config -n {{ .Release.Namespace }} --type='merge' -p='{"data": {"waiting_for_nats_to_be_initialized": "initialized"}}'
+          if [ $? -ne 0 ]; then
+            exit 1
+          fi
+
+          if wget -q --post-data='' -S -O /dev/null http://127.0.0.1:15020/quitquitquit 2>/dev/null; then
+            echo "Terminated istio-proxy."
+          else
+            echo "Fail to terminate istio-proxy..."
+          fi
+
+          echo "Nats stream create/update job completed ✓"
+      serviceAccount: infra-status-sa
+      serviceAccountName: infra-status-sa
+{{- end }}

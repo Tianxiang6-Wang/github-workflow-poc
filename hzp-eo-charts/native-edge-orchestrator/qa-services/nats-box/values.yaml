@@ -1,0 +1,36 @@
+global:
+  repository: isgedge.artifactory.cec.lab.emc.com/isgedge-docker-virtual/
+  components:
+    - image: nats-box
+      name: nats-box
+      version: 0.6.0
+      project: synadia/
+  imagePullSecrets:
+  - &dockerSecretName docker-secret
+  # Credentials for Artifactory
+  dockerSecret:
+    createSecret: true
+    name: *dockerSecretName # pragma: allowlist secret
+    dockerconfigjson:
+      # pragma: allowlist secret
+
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+
+svc:
+  resources:
+    limits:
+      cpu: 2
+      memory: 1Gi
+    requests:
+      cpu: 100m
+      memory: 125Mi
+  podLabels:
+    hzp-app: nats-box
+    hzp-role: nats
+  image:
+    name: nats-box
+    pullPolicy: Always
+    project: synadia/
+    tag: latest

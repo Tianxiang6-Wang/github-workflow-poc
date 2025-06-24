@@ -1,0 +1,33 @@
+annotations:
+  containerImages: |
+    - fusion-manager-resource-uploader
+    - fusion-manager-composer-backend
+    - fusion-manager-composer-frontend
+    - fusion-manager-execution-scheduler
+    - fusion-manager-mgmtworker
+    - fusion-nginx
+    - fusion-manager-restservice
+    - fusion-manager-apiservice
+    - fusion-manager-stage-backend
+    - fusion-manager-stage-frontend
+    - fusion-manager-blueprint-service
+    - fusion-manager-plugins-service
+    - fusion-manager-secrets-service
+    - fusion-manager-agent-service
+    - fusion-manager-deployments-service
+    - busybox
+    - curl
+    - kubectl
+    - fusion-plugin-loader-svc
+    - drift-svc
+apiVersion: v2
+appVersion: 1.1.0
+dependencies:
+- condition: rabbitmq.enabled
+  name: rabbitmq
+  repository: https://charts.bitnami.com/bitnami
+  version: 12.0.9
+description: A Helm chart for Kubernetes
+name: fusion-services-helm
+type: application
+version: 0.1.203

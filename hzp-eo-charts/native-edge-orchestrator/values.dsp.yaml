@@ -1,0 +1,36 @@
+global:
+  catalog:
+    auth:
+      dellDigitalMode: DEV
+      dellDigitalURL: 273c0b1d5da2c545dbc6f67bd7b0d91eeffa9dead484d8836c9f7a88dbea638c87a04cb07e17efd6c729bb09ea310284843a9e5fa1bedfc26ed3f198a75c16b740bc92fa855fdfe6d3ed605fe2af6175ce323aa5f6c93ce80803bb8e8e54be53dbb9914cf870913c649ac9803edab004ad8bb25100b00e3a934fcd09044ff49fb4132dac17fbaf23f49fcd732c1f809bcb7c91e9974d3eb625b03d1522979ca4aee6213a
+    public:
+      enabled: true # indicates if public catalog is integrated.
+      portal:
+        baseURL: "https://dsp-portal.dev.automation.dell.com"
+  dsp:
+    enabled: true
+    portal:
+      enabled: false
+      namespace: dsp-portal
+      url: ''
+      orgId: ''
+      orchId: 'af9eae0b-8530-4e2b-a6a2-ea4934c515d6'
+      token: ''
+  ova:
+    enabled: false
+  containerRegistry:
+    enabled: false # temporarily disable for McQueen
+  eoName: "Dell Automation Platform Orchestrator"
+  brandName: "Dell Automation Platform"
+edge-orchestrator-services:
+  hzp-catalog-svc:
+    bootosInit:
+      image:
+        name: hzp-bootos-executable-exe-staging
+fusion-services-helm:
+  mgmtworker:
+    env:
+      CATALOG_TLS_VERIFY: "false"
+  plugins:
+    env:
+      CATALOG_TLS_VERIFY: "false"

@@ -1,0 +1,65 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: post-eo-upgrade-job
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+{{- tpl (toYaml .Values.svc.job.podLabels) . | replace "'" "" | nindent 8 }}
+        hzp.iam.webhook/active: "false"
+        sidecar.istio.io/inject: "false"
+    spec:
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components "hzp-util" ) "repo" .Values.global.repository) }}
+          name: "post-eo-upgrade-job"
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          env:
+            - name: MFG_SERVICE_URL
+              value: "http://fido-manufacturer.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: MFG_SERVICE_TCP_URL
+              value: "fido-manufacturer-headless.{{ .Release.Namespace }}:8039"
+            - name: RV_INFO
+              value: '[[[5,"rv.local.edge"]],[[5,"rv.dell.fdo"]],[[5,"{{ .Values.global.fido.global_rv_url }}"]],[[5,"rv.internal.use.only"]],[[5,"rv1.local.edge"]],[[5,"rv1.dell.fdo"]],[[5,"rv2.local.edge"]],[[5,"rv2.dell.fdo"]],[[5,"rv3.local.edge"]],[[5,"rv3.dell.fdo"]],[[5,"rv4.local.edge"]],[[5,"rv4.dell.fdo"]],[[5,"rv5.local.edge"]],[[5,"rv5.dell.fdo"]],[[5,"rv6.dell.fdo"]],[[5,"rv7.dell.fdo"]],[[5,"rv8.dell.fdo"]],[[5,"rv9.dell.fdo"]],[[5,"rv10.dell.fdo"]],[[5,"rv11.dell.fdo"]],[[5,"rv12.dell.fdo"]],[[5,"rv13.dell.fdo"]],[[5,"rv14.dell.fdo"]],[[5,"rv15.dell.fdo"]],[[5,"rv16.dell.fdo"]],[[5,"rv17.dell.fdo"]],[[5,"rv18.dell.fdo"]],[[5,"rv19.dell.fdo"]],[[5,"rv20.dell.fdo"]],[[5,"fido-rv.hzp"],[3,80],[12,1],[4,80]]]'
+            - name: FRU_CRU_URL
+              value: "http://hzp-fru-cru-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            {{- toYaml .Values.svc.env | nindent 12 }}
+          command:
+            - "/bin/sh"
+            - "-c"
+            - {{ .Values.hookjobs.postEOUpgradeJobCmd | quote }}
+      initContainers:
+        - name: init-mfg-svc
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          env:
+            - name: MFG_SERVICE_URL
+              value: "fido-manufacturer.{{ .Release.Namespace }}.svc.cluster.local"
+            {{- toYaml .Values.svc.env | nindent 12 }}
+          imagePullPolicy: {{ .Values.svc.image.pullPolicy }}
+          securityContext:
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for fido-mfg-svc to become ready...';
+
+              until printf "." && nc -z -w 2 ${MFG_SERVICE_URL} 80; do
+                  sleep 2;
+              done;
+
+              echo 'fido-mfg-svc OK ✓';
+      restartPolicy: Never

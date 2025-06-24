@@ -1,0 +1,122 @@
+{{- $svc := .Values.svc -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svc.name }}
+  labels:
+    hzp-app: {{ $svc.name }}
+spec:
+  type: {{ $svc.service.type }}
+  ports:
+    - port: {{ $svc.service.port }}
+      targetPort: {{ $svc.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    hzp-app: {{ $svc.name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+  labels:
+    hzp-app: {{ $svc.name }}
+spec:
+  replicas: {{ $svc.replicaCount }}
+  selector:
+    matchLabels:
+      hzp-app: {{ $svc.name }}
+  template:
+    metadata:
+      annotations:
+        hzp.iam.webhook/authentication-enabled: "false"
+        hzp.iam.webhook/authorization-enabled: "false"
+        hzp.iam.webhook/resources-limits-memory: "2500Mi"
+{{- if .Values.global.instrumentation.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "{{ $svc.port }}"
+{{- end }}
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          imagePullPolicy: "Always"
+          name: {{ $svc.name }}
+          ports:
+            - containerPort: {{ $svc.port }}
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          env:
+            - name: EO_SVC_GW
+              {{- if and $.Values.global.istio.deploy $.Values.global.istio.ingressgateway.internal }}
+              value: "http://internal-ingress-gateway.istio-system.svc.cluster.local"
+              {{- else if $.Values.global.nginx_gw.enabled }}
+              value: "http://nginx-gw.{{ .Release.Namespace }}.svc.cluster.local"
+              {{- else }}
+                {{- fail ".Values.global.istio.deploy or .Values.global.nginx_gw.enabled should be true" }}
+              {{- end }}
+            - name: FUSION_SVC_GW
+              value: "http://fusion-entrypoint.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: IAM_SVC
+              value: "http://hzp-iam-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: IAM_CONFIGURATION_SVC
+              value: "http://hzp-iam-configuration-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: IAM_SESSION_SVC
+              value: "http://hzp-iam-session-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: TAGS_SVC
+              value: "http://hzp-tags-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: NOTIFICATION_SVC
+              value: "http://hzp-notification-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: CERTIFICATE_SVC
+              value: "http://hzp-certificate-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: UPGRADE_SVC
+              value: "http://hzp-upgrade-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: INGRESS_AUTHZ_SVC
+              value: "http://hzp-ingress-authz-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: INVENTORY_SVC_URL
+              value: "http://hzp-inventory-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: DATACOLLECTION_SVC
+              value: "http://hzp-datacollection-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: JOBS_SVC
+              value: "http://hzp-job-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: FRU_CRU_SVC
+              value: "http://hzp-fru-cru-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: EVENT_SVC
+              value: "http://hzp-events-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: OE_TEMPLATE_MGR_SVC
+              value: "http://hzp-oe-template-mgr-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: EO_INIT_SVC
+              value: "http://hzp-eo-initialization-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: PRODUCT_SVC
+              value: "http://hzp-product-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            {{- toYaml $svc.env | nindent 12 }}
+            - name: RULES_SVC
+              value: "http://hzp-rules-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: SECURITY_SVC
+              value: "http://hzp-security-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: HEALTHCHECK_SVC
+              value: "http://hzp-health-check-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: ENABLE_INSTRUMENTATION
+              value: {{ .Values.global.instrumentation.enabled | quote }}
+            - name: FLAG_MANAGER_SVC_URL
+              value: "http://hzp-flag-manager-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: CATALOG_SVC
+              value: "http://hzp-catalog-svc.{{ .Release.Namespace }}.svc.cluster.local"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            {{- include "logLevel.configMap.mount" $ | indent 12 }}
+      volumes:
+        {{- include "logLevel.configMap.volume" $ | indent 8 }}

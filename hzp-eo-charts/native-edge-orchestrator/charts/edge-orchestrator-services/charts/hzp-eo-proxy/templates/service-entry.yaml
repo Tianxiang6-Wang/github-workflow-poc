@@ -1,0 +1,18 @@
+{{- if .Values.global.istio.deploy }}
+{{- $svc := .Values.svc -}}
+apiVersion: networking.istio.io/v1alpha3
+kind: ServiceEntry
+metadata:
+  name: eoproxy-service-entry
+spec:
+  hosts:
+    - {{ $svc.name }}-0.{{ $svc.headlessService.name }}.{{ .Release.Namespace }}.svc.cluster.local
+    - {{ $svc.name }}-1.{{ $svc.headlessService.name }}.{{ .Release.Namespace }}.svc.cluster.local
+    - {{ $svc.name }}-2.{{ $svc.headlessService.name }}.{{ .Release.Namespace }}.svc.cluster.local
+  location: MESH_INTERNAL
+  ports:
+    - name: websocket
+      number: 8088
+      protocol: HTTP
+  resolution: DNS
+{{- end }}

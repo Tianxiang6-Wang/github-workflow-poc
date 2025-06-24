@@ -1,0 +1,45 @@
+eo-management:
+  nats:
+    nats:
+      jetStream:
+        pvc:
+          resources:
+            storage: 30Gi
+  postgresql:
+    primary:
+      persistence:
+        size: 50Gi
+global:
+  repository: public.ecr.aws/p4e0j4w5/nativeedge/
+  image:
+    registry: public.ecr.aws/p4e0j4w5/nativeedge
+  imageRegistry: public.ecr.aws/p4e0j4w5/nativeedge
+  dockerSecret:
+    createSecret: false
+  fido:
+    global_rv_flag: enabled
+  ingress:
+    exposeEOServices: false
+    exposeQAServices: false
+    fqdn: ''
+  logLevel:
+    configMap:
+      initialGlobalLogLevel: error
+  opensearch:
+    resources:
+      requests:
+        cpu: 5m
+      storageSize: 45Gi
+  eoInitializationSvc:
+    dynamicLicensing:
+      directUrl: "https://apigtwb2c.us.dell.com/PROD/DynamicLicensing/"
+  catalog:
+    public:
+      enabled: true # indicates if public catalog is integrated.
+      portal:
+        baseURL: "https://dsp-portal.automation.dell.com"
+fusion-services-helm:
+  rabbitmq:
+    image:
+      registry: public.ecr.aws/p4e0j4w5/nativeedge
+      repository: mist-rabbitmq

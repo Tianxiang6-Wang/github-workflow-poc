@@ -1,0 +1,21 @@
+{{- if .Values.ese.pvc.enabled }}
+{{- $oldPvc := lookup "v1" "PersistentVolumeClaim" .Release.Namespace .Values.ese.pvc.name }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.ese.pvc.name }}
+spec:
+  accessModes:
+    {{- toYaml .Values.ese.pvc.accessModes | nindent 4 }}
+{{- if $oldPvc }}
+  resources:
+    requests:
+      storage: {{ $oldPvc.spec.resources.requests.storage }}
+  storageClassName: {{ $oldPvc.spec.storageClassName }}
+{{- else }}
+  resources:
+    requests:
+      storage: {{ .Values.ese.pvc.resources.storage }}
+  {{ include "pvc.storage.class.name" (dict "global" .Values.global) }}
+{{- end }}
+{{- end }}

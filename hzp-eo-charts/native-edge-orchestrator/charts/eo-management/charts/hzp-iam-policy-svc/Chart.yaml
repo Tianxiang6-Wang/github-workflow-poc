@@ -1,0 +1,10 @@
+annotations:
+  containerImages: |
+    - iam-policy-svc
+    - busybox
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for the IAM policy service
+name: hzp-iam-policy-svc
+type: application
+version: 0.2.1

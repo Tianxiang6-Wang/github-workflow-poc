@@ -1,0 +1,66 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: owner-to2-setup
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+{{- tpl (toYaml .Values.fidoOwner.jobLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.fidoOwner $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.fidoOwner $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.fidoOwner $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.fidoOwner.image.name ) "repo" .Values.global.repository) }}
+          name: owner-to2-setup
+          imagePullPolicy: {{ .Values.fidoOwner.image.pullPolicy }}
+          command: ["sh","-c","cd /home/fdo/svi-scripts/ && ./register_svi.sh"]
+          resources:
+            {{- toYaml .Values.fidoOwner.resources | nindent 12 }}
+          env:
+            - name: OwnerServer_URL
+              value: http://fido-owner.{{ .Release.Namespace }}.svc.cluster.local
+            - name: OWNER_PORT
+              value: "{{ .Values.fidoOwner.port }}"
+            - name: FQDN
+              value: {{ .Values.global.ingress.fqdn }}
+            - name: MTLS_HOST
+              value: {{ template "GetMTLSHost" (dict "namespace" .Release.Namespace "prefix" $.Values.global.istio.defaultPrefix.mTLSHost "default" $.Values.global.istio.mTLSHost "fqdn" $.Values.global.ingress.fqdn) }}
+            - name: MTLS_RECOVERY_HOST
+              value: {{ template "GetMTLSHost" (dict "namespace" .Release.Namespace "prefix" $.Values.global.istio.defaultPrefix.mTLSHostRecovery "default" $.Values.global.istio.mTLSHostRecovery "fqdn" $.Values.global.ingress.fqdn) }}
+              {{- toYaml .Values.fidoOwner.env | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            seccompProfile:
+              type: RuntimeDefault
+      initContainers:
+      - image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        name: init-owner
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for Owner svc to become ready...'
+            until printf "." && nc -z -w 2 fido-owner 80; do
+                sleep 2;
+            done;
+            echo 'Owner svc OK ✓'
+      restartPolicy: OnFailure
+  backoffLimit: 8

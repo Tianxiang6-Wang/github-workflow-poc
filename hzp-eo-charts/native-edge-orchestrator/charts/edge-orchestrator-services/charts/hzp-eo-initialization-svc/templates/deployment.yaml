@@ -1,0 +1,185 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.svc.name }}
+  labels:
+    hzp-app: {{ .Values.svc.name }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: {{ .Values.svc.port }}
+      protocol: TCP
+      name: http
+  selector:
+    hzp-app: {{ .Values.svc.name }}
+    app.kubernetes.io/app: {{ .Values.svc.name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hzp-eo-initialization-svc
+spec:
+{{- if not .Values.svc.autoScaling.enabled }}
+  replicas: {{ .Values.svc.replicaCount }}
+{{- end }}
+  selector:
+    matchLabels:
+      hzp-app: {{ .Values.svc.name }}
+  template:
+    metadata:
+      annotations:
+{{- with .Values.svc.podAnnotations }}
+{{- tpl (toYaml .) $ | nindent 8 }}
+{{- end }}
+{{- if .Values.global.instrumentation.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "{{ .Values.svc.port }}"
+{{- end }}  		
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          name: {{ .Values.svc.name }}
+          imagePullPolicy: {{ .Values.svc.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.svc.port }}
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /admin/health/dependency
+              port: {{ .Values.svc.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /admin/health/liveness
+              port: {{ .Values.svc.port }}
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          startupProbe:
+            httpGet:
+              path: /admin/health/liveness
+              port: {{ .Values.svc.port }}
+              scheme: HTTP
+            initialDelaySeconds: 20
+            failureThreshold: 30
+            periodSeconds: 10
+          volumeMounts:
+            {{- include "logLevel.configMap.mount" $ | indent 12 }}
+          env:
+            - name: PRODUCT_SERVER_URL
+              value: http://hzp-product-svc.{{ .Release.Namespace }}.svc.cluster.local
+            - name: FIDO_ONBOARDING_SERVER_URL
+              value: http://hzp-security-svc.{{ .Release.Namespace }}.svc.cluster.local
+            - name: FRU_CRU_SERVER_URL
+              value: http://hzp-fru-cru-svc.{{ .Release.Namespace }}.svc.cluster.local
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            - name: SCHEDULER_SVC_URL
+              value: "http://hzp-scheduler-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: INVENTORY_SVC_URL
+              value: "http://hzp-inventory-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: NATS_SERVER_MONITORING_URL
+              value: "http://jetstream.{{ .Release.Namespace }}.svc.cluster.local:8222/healthz"
+            - name: VAULT_HOST
+              value: "{{ tpl .Values.global.vault.host . }}"
+            - name: EO_IP
+              value: {{ .Values.global.ingress.fqdn }}
+            - name: HOSTING_ENVIRONMENT
+              value: {{ if and .Values.global.k8s (eq .Values.global.k8s.distro "eks") }}{{ "SAAS" | quote }}{{ else }}{{ "ON_PREM" | quote }}{{ end }}
+            - name: EO_NAME
+              value: {{ .Values.global.eoName }}
+            - name: ENABLE_INSTRUMENTATION
+              value: {{ .Values.global.instrumentation.enabled | quote }}
+            - name: PORTAL_NATS_URL
+              value: "nats://nats.{{ .Values.global.dsp.portal.namespace }}.svc.cluster.local:4222"
+            - name: IAM_SESSION_SVC_URL
+              value: http://dsp-iam-session-svc.{{ .Values.global.dsp.portal.namespace }}.svc.cluster.local
+            - name: DL_PUBLIC_URL
+              value: {{ .Values.global.eoInitializationSvc.dynamicLicensing.directUrl }}
+            - name: ORG_ID
+              value: {{ .Values.global.dsp.portal.orgId }}
+            - name: ORCHESTRATOR_ID
+              value: {{ .Values.global.dsp.portal.orchId }}
+            - name: ESE_AUTH_PATH
+              value: {{ .Values.global.dl.eseAuthPath }}
+            - name: ESE_DL_ENTITLEMENT_LIST_PATH
+              value: {{ .Values.global.dl.entitlementListPath }}
+            - name: ESE_DL_ENTITLEMENT_REGISTRATION_PATH
+              value: {{ .Values.global.dl.entitlementRegistrationPath }}
+            - name: ESE_DL_ENTITLEMENT_REDUCTION_PATH
+              value: {{ .Values.global.dl.entitlementReductionPath }}
+            - name: ESE_DL_ENTITLEMENT_DEREGISTRATION_PATH
+              value: {{ .Values.global.dl.entitlementDeregistrationPath }}
+            - name: ESE_DL_ENTITLEMENT_UPGRADE_PATH
+              value: {{ .Values.global.dl.entitlementUpgradePath }}
+            - name: ESE_DL_ENTITLEMENT_CONSUME_PATH
+              value: {{ .Values.global.dl.entitlementConsumptionPath }}
+            {{- toYaml .Values.svc.env | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+      initContainers:
+        - name: init-hzp-eo-initialization-svc
+          image: "{{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}"
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          env:
+            - name: ONBOARDING_HOST
+              value: "{{ .Values.svc.dependency.fidoOnboarding.service.fullname }}"
+            - name: ONBOARDING_PORT
+              value: "{{ .Values.svc.dependency.fidoOnboarding.service.port }}"
+            - name: OWNER_HOST
+              value: "{{ .Values.svc.dependency.fidoOwner.service.fullname }}"
+            - name: OWNER_PORT
+              value: "{{ .Values.svc.dependency.fidoOwner.service.port }}"
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for Onboarding Svc to become ready...'
+              command="wget -S ${ONBOARDING_HOST}:${ONBOARDING_PORT}/admin/health/liveness 2>&1 | awk '/^  HTTP/{print $2}'"
+              status=$(eval "$command")
+              echo "status: $status"
+              while [[ "$status" != *"HTTP/1.1 200 OK"* ]]; do
+                  sleep 2;
+                  status=$(eval "$command")
+                  echo "status: $status"
+              done;
+              echo 'Onboarding Svc OK ✓'
+              echo 'Waiting for Owner Svc to become ready...'
+              command="wget -S ${OWNER_HOST}:${OWNER_PORT}/admin/health/liveness  2>&1 | awk '/^  HTTP/{print $2}'"
+              status=$(eval "$command")
+              echo "status: $status"
+              while [[ "$status" != *"HTTP/1.1 200"* ]]; do
+                  sleep 2;
+                  status=$(eval "$command")
+                  echo "status: $status"
+              done;
+              echo 'Owner Svc OK ✓'
+              echo 'Waiting for scheduler svc to become ready...'
+              until printf "." && nc -z -w 2 hzp-scheduler-svc 80; do
+                  sleep 2;
+              done;
+              echo 'scheduler svc OK ✓'
+      volumes:
+        {{- include "logLevel.configMap.volume" $ | indent 8 }}

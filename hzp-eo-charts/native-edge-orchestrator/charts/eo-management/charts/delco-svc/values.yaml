@@ -1,0 +1,58 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  isPipelineDeploy: false
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+components:
+  delco-svc:
+    image: delco-svc
+    version: latest
+    project: hzp/
+  delco-svc-init:
+    image: delco-svc-init
+    version: latest
+    project: hzp/
+# Subchart values
+svc:
+  name: &serviceName hzp-delco-svc
+  port: 8080
+  manifest_eo_version: "test-eo-version"
+  image:
+    name: delco-svc
+    pullPolicy: Always
+    tag: latest
+  resources:
+    limits:
+      cpu: 100m
+      memory: 200Mi
+    requests:
+      cpu: 50m
+      memory: 50Mi
+  env:
+    - name: ENABLE_PLAYGROUND
+      value: "false"
+    - name: MANIFEST_FILE_PATH
+      value: "/app/data/manifest.yaml"
+    - name: EULA_NOTES_FILE_PATH
+      value: "/app/data/EULA.txt"
+    - name: ESE_EULA_NOTES_FILE_PATH
+      value: "/app/data/ESE_EULA.txt"
+    - name: EO_ECE_INTEROP_FILE_PATH
+      value: "/app/data/eo_ece_interop_healthcheck.json"
+  upgrade_execution_id_env_var: ""
+  initialization:
+    image:
+      name: delco-svc-init
+      tag: latest
+      pullPolicy: Always
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: "{{ .Values.global.nginx_gw.enabled | quote}}"
+  podAnnotations:
+    hzp.iam.webhook/authentication-enabled: "false"
+    hzp.iam.webhook/authorization-enabled: "false"
+    rollme: '{{ randAlphaNum 5 | quote }}'

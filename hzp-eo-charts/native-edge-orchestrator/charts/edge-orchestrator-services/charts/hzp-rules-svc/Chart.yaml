@@ -1,0 +1,11 @@
+annotations:
+  containerImages: |
+    - rules-svc
+    - busybox
+    - rules-smoke-test
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for rules service
+name: hzp-rules-svc
+type: application
+version: 0.1.0

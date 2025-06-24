@@ -1,0 +1,11 @@
+annotations:
+  containerImages: |
+    - scheduler-svc
+    - busybox
+    - scheduler-smoke-test
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for scheduler service
+name: hzp-scheduler-svc
+type: application
+version: 0.1.0

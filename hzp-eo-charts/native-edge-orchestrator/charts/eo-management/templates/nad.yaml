@@ -1,0 +1,28 @@
+{{- if and .Values.global.oob.oobEnabled .Values.global.oob.oobNodeToInterfaceList }}
+{{- range .Values.global.oob.oobNodeToInterfaceList }}
+{{- range $node, $interface := . }}
+---
+apiVersion: k8s.cni.cncf.io/v1
+kind: NetworkAttachmentDefinition
+metadata:
+  name: ipvlan-static-nad
+  namespace: {{ $.Release.Namespace }}
+spec:
+  config: '{
+    "cniVersion": "0.3.1",
+    "type": "ipvlan",
+    "master": {{ $interface | quote }},
+    "mode": "l2",
+    "ipam": {
+      "type": "static",
+      "addresses": [
+        {
+          "address": "0.0.0.0/32",
+          "gateway": "0.0.0.0"
+        }
+      ]
+    }
+  }'
+{{- end -}}
+{{- end -}}
+{{- end -}}

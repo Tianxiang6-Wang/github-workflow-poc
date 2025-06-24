@@ -1,0 +1,162 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  keycloak:
+    scheme: http
+    host: keycloak-http
+    port: "80"
+  iamPolicy:
+    smoketestEnabled: false
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+components:
+  iam-policy-svc:
+    image: iam-policy-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+# Subchart values
+svc:
+  name: &serviceName hzp-iam-policy-svc
+  port: 8080
+  replicaCount: 1
+  image:
+    name: iam-policy-svc
+    pullPolicy: Always
+    tag: latest
+  resources:
+    limits:
+      cpu: 100m
+      memory: 1000Mi
+    requests:
+      cpu: 50m
+      memory: 100Mi
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: "{{ .Values.global.nginx_gw.enabled | quote }}"
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  env:
+    - name: APP_PORT
+      value: "8080"
+    - name: DB_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresHost
+    - name: DB_PORT
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresPort
+    - name: TENANT_AWARE_USER
+      value: "hzp_iam_policy_svc"
+    - name: TENANT_AWARE_PASS
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: hzp_iam_policy_svc-password
+    - name: DB_USER
+      value: "hzp_iam_policy_svc"
+    - name: DB_PA
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: hzp_iam_policy_svc-password
+    - name: POLICY_BUNDLE_BASE_PATH
+      value: resources/policy
+
+autoscaling:
+  # The minimum and maximum number of replicas for the Deployment
+  minReplicas: 1
+  maxReplicas: 5
+  # The metrics to use for scaling
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+  # The scaling policy to use. This will scale up quickly but only scale down a single Pod per 5 minutes.
+  # This is important because caches are usually only replicated to 2 Pods and if one of those Pods is terminated this will give the cluster time to recover.
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 300
+
+dbchecker:
+  image:
+    # Docker image used to check Postgresql readiness at startup
+    repository: busybox
+    # Image tag for the dbchecker image
+    tag: 1.37.0
+    # Image pull policy for the dbchecker image
+    pullPolicy: IfNotPresent
+  # SecurityContext for the dbchecker container
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsUser: 1001
+    runAsGroup: 1001
+    runAsNonRoot: true
+  # Resource requests and limits for the dbchecker container
+  resources:
+    requests:
+      cpu: "20m"
+      memory: "32Mi"
+    limits:
+      cpu: "20m"
+      memory: "32Mi"
+
+database:
+  existingSecret: postgres-secret
+  hostname: postgres
+  port: 5432
+
+test:
+  # Subchart values
+  enabled: false
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    hzp-app: hzp-iam-policy-svc-regression
+    hzp-role: smoke-test
+  testsuite: test-suites/smoke.xml
+  replicaCount: 1
+  name: iam-policy-smoke-test
+  image:
+    name: iam-policy-smoke-test
+    pullPolicy: Always
+    tag: latest
+  cpu: 0.25
+  memory: 512Mi
+  iamPolicy:
+    service:
+      fullname: *serviceName
+      port: 80
+  keycloak:
+    url: "http://keycloak-http:80"
+    realm: master
+    clientId: admin-cli
+    credentialsUsername: keycloak
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 802133
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    runid: 1
+    release: 1
+    suite: 1

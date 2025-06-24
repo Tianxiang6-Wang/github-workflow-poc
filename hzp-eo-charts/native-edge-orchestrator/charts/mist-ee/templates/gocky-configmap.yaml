@@ -1,0 +1,41 @@
+{{ if .Values.deployment.gocky.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "chart.fullname" . }}-gocky
+  labels:
+    app: gocky
+    chart: {{ include "chart.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+data:
+  config.toml: |
+    [[http]]
+    name = "influxdb"
+    bind-addr = "0.0.0.0:9096"
+    cron-schedule=""
+    output = [
+      {{- if .Values.victoriametrics.enabled }}
+      {{  if .Values.victoriametrics.deploy -}}
+        { name="victoriametrics", location="http://${VMUSER}:${VMPASS}@{{ include "chart.fullname" . }}-vminsert:8480/insert/<org_id>/influx/write", type="victoria-metrics"},
+      {{- else -}}
+        { name="victoriametrics", location="{{ .Values.victoriametrics.writeEndpoint }}/insert/<org_id>/influx/write", type="victoria-metrics"},
+      {{- end }}
+      {{- end }}
+    ]
+    {{ if .Values.enableExternalMessaging -}}
+    [[nats]]
+    name = "influxdbnats"
+    bind-addr = "0.0.0.0:9098"
+    cron-schedule=""
+    output = [
+      {{- if .Values.victoriametrics.enabled }}
+      {{  if .Values.victoriametrics.deploy -}}
+        { name="victoriametrics", location="http://${VMUSER}:${VMPASS}@{{ include "chart.fullname" . }}-vminsert:8480/insert/<org_id>/influx/write", type="victoria-metrics"},
+      {{- else -}}
+        { name="victoriametrics", location="{{ .Values.victoriametrics.writeEndpoint }}/insert/<org_id>/influx/write", type="victoria-metrics"},
+      {{- end }}
+      {{- end }}
+    ]
+    {{- end }}
+{{- end }}

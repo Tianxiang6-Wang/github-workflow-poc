@@ -1,0 +1,171 @@
+{{- if .Values.plugins.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: plugins
+  name: {{ template "fusion-services.name" . }}-plugins
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  replicas: {{ .Values.plugins.replicas }}
+  selector:
+    matchLabels:
+      app: plugins
+  template:
+    metadata:
+      labels:
+        app: plugins
+      {{ with .Values.plugins.podLabels }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      annotations:
+        {{- include "fusion-services.merge" ( list .Values.commonAnnotations .Values.plugins.podAnnotations ) | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- if .Values.rest_service.irsa_service_account }}
+      serviceAccountName: {{ .Values.rest_service.irsa_service_account }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.plugins $ )| trim | nindent 8 }}
+      tolerations: {{- include "fusion-services.tolerations" ( list .Values.plugins $ ) | trim | nindent 8 }}
+      affinity: {{- include "fusion-services.affinity" ( list .Values.plugins $ ) | trim | nindent 8 }}
+      initContainers:
+        - name: db-wait
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-restservice" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-restservice" ).pullPolicy }}
+          securityContext:
+            runAsUser: {{ .Values.plugins.initContainerSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.plugins.initContainerSecurityContext.runAsGroup }}
+          env:
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.plugins "root" $) | nindent 12 }}
+            {{- include "fusion-services.restservice_keys" . | nindent 12 }}
+          command:
+            - /usr/bin/env
+            - -S
+            - bash
+            - -exuc
+            - |
+              python -m manager_rest.configure_manager --db-wait {{ .Values.plugins.db.host | default .Values.db.host }}
+        - name: plugins-migrate-db
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-plugins-service" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-plugins-service" ).pullPolicy }}
+          securityContext:
+            runAsUser: {{ .Values.plugins.initContainerSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.plugins.initContainerSecurityContext.runAsGroup }}
+          env:
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.plugins "root" $) | nindent 12 }}
+          command:
+            - /usr/bin/env
+            - -S
+            - bash
+            - -exuc
+            - |
+              cd /opt/plugins-service/migrations
+              alembic upgrade head
+      containers:
+        - name: plugins
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-plugins-service" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-plugins-service" ).pullPolicy }}
+          env:
+            - name: FUSION_AUTH_PSK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fusion-services.name" . }}-auth-signing
+                  key: psk
+            {{- include "fusion-services.s3_env_vars" . | nindent 12 }}
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.plugins "root" $) | nindent 12 }}
+            {{- include "fusion-services.rabbitmq_env_vars" (dict "root" $) | nindent 12 }}
+            {{- include "fusion-services.eo_env_vars" . | nindent 12 }}
+            {{- if .Values.rabbitmq.enabled }}
+            - name: RABBITMQ_CA_CERT_PATH
+              value: "/etc/nativeedge/ssl/cloudify_internal_ca_cert.pem"
+            {{- else }}
+            - name: RABBITMQ_CA_CERT_PATH
+              value: {{ .Values.externalRabbitmq.ca_cert }}
+            {{- end }}
+            - name: LOGGING_LEVEL_CONFIGURATION_PATH
+              value: {{ tpl .Values.plugins.logging.configMountPath $}}
+            - name: LOGGING_LEVEL_GLOBAL_PATH
+              value: {{ tpl .Values.plugins.logging.configMountPath $ }}/{{ tpl .Values.plugins.logging.globalConfigFile $ }}
+            - name: LOGGING_LEVEL_SERVICE_PATH
+              value: {{ tpl .Values.plugins.logging.configMountPath $ }}/{{ tpl .Values.plugins.logging.serviceConfigFile $ }}
+            {{- if (.Values.plugins.logging).audit_logs_subject }}
+            - name: AUDIT_LOGS_SUBJECT
+              value: {{ tpl .Values.plugins.logging.audit_logs_subject $ | quote }}
+            {{- end }}
+            {{- if (.Values.plugins.eventing).stream_url }}
+            - name: NATS_URL
+              value: {{ tpl .Values.plugins.eventing.stream_url $ | quote}}
+            {{- else if (.Values.nats).enabled }}
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            {{- end }}
+            {{- if and (.Values.global.dsp).enabled (.Values.global.dsp.portal).enabled }}
+            - name: PORTAL_NATS_URL
+              value: "nats://{{ (.Values.global.dsp.portal).externalServiceName }}.{{ (.Values.global.dsp.portal).namespace }}.svc.cluster.local:4222"
+            - name: ORG_ID
+              value: {{ (.Values.global.dsp.portal).orgId }}
+            {{- end }}
+            {{- if (.Values.global).useHzpMultitenancy }}
+            - name: "HZP_MULTITENANCY"
+              value: "true"
+            {{- end }}
+          volumeMounts:
+            - mountPath: /etc/nativeedge/ssl
+              name: ssl
+              readOnly: true
+            - name: logging
+              mountPath: {{ tpl .Values.plugins.logging.configMountPath $ }}
+              readOnly: true
+          ports:
+            - containerPort: {{ .Values.plugins.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ template "fusion-services.name" . }}-plugins-envvars
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources: {{- toYaml .Values.plugins.resources | nindent 12 }}
+          {{- if .Values.plugins.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              port: {{ .Values.plugins.port}}
+              path: /health
+            initialDelaySeconds: {{ .Values.plugins.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.plugins.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.plugins.probes.liveness.timeoutSeconds }}
+            successThreshold: {{ .Values.plugins.probes.liveness.successThreshold }}
+            failureThreshold: {{ .Values.plugins.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.plugins.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              port: {{ .Values.plugins.port}}
+              path: /health
+            initialDelaySeconds: {{ .Values.plugins.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.plugins.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.plugins.probes.readiness.timeoutSeconds }}
+            successThreshold: {{ .Values.plugins.probes.readiness.successThreshold }}
+            failureThreshold: {{ .Values.plugins.probes.readiness.failureThreshold }}
+          {{- end }}
+      restartPolicy: Always
+      {{- include "fusion-services.images.pullSecrets" . | nindent 6 }}
+      volumes:
+        - name: ssl
+          secret:
+            secretName: {{ template "fusion-services.name" . }}-ssl-certs
+            optional: false
+        - name: logging
+          configMap:
+            name: {{ include "fusion-loglevel-configmap.name" $ }}
+
+{{- end }}

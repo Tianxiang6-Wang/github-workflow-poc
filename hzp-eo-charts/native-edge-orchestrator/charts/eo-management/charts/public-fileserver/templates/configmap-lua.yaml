@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "fileserver.name" . }}-lua-scripts
+  annotations:
+    {{- include "common.annotations" ( list $ .Values.deploymentAnnotations ) | nindent 4 }}
+data:
+  basic_auth.lua: |-
+{{ ( tpl (.Files.Get "files/lua/basic_auth.lua") . ) | indent 4 }}

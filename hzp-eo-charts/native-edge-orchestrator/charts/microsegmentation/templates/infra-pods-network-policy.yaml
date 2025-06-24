@@ -1,0 +1,74 @@
+{{- if $.Values.global.ingress.enableNetworkPolicies }}
+{{- $endpoint := (lookup "v1" "Endpoints" "default" "kubernetes") }}
+{{- $namespace := .Release.Namespace -}}
+{{- range $.Values.networkPolicies.infra }}
+{{- $isIstioDeployWithNginx := and (eq .namespace "istio-system") ($.Values.global.nginx_gw.enabled) }}
+{{- if and (ne .namespace "release-namespace") (not $isIstioDeployWithNginx) }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-all
+  namespace: {{ .namespace }}
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+{{- end }}
+---
+{{- if not $isIstioDeployWithNginx }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ .service }}-pod-network-policy
+  {{- if (eq .namespace "release-namespace") }}
+  namespace: {{ $namespace }}
+  {{- else }}
+  namespace: {{ .namespace }}
+  {{- end }}
+spec:
+  podSelector:
+    {{- if not .podSelector }}
+    matchLabels:
+      hzp-role: {{ .service }}
+    {{- else }}
+      {{- tpl (toYaml .podSelector) $ | replace "'" "" | nindent 4 }}
+    {{- end }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+      {{- range .permissions }}
+       - namespaceSelector:
+           matchLabels:
+             kubernetes.io/metadata.name: {{ . }}
+      {{- end }}
+       - namespaceSelector:
+           matchLabels:
+             kubernetes.io/metadata.name: {{ $namespace }}
+       - namespaceSelector:
+           matchLabels:
+             kubernetes.io/metadata.name: {{ $.Values.global.dsp.portal.namespace | default "dapp" }}
+       - ipBlock:
+           cidr: 0.0.0.0/0
+  egress:
+    - to:
+      {{- range .permissions }}
+       - namespaceSelector:
+           matchLabels:
+             kubernetes.io/metadata.name: {{ . }}
+      {{- end }}
+       - namespaceSelector:
+           matchLabels:
+             kubernetes.io/metadata.name: {{ $namespace }}
+       - namespaceSelector:
+           matchLabels:
+             kubernetes.io/metadata.name: {{ $.Values.global.dsp.portal.namespace | default "dapp" }}
+       - ipBlock:
+          cidr: 0.0.0.0/0
+{{- end }}
+{{- end }}
+{{- end }}
+

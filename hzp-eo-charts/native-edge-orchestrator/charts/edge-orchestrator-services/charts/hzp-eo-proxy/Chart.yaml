@@ -1,0 +1,11 @@
+annotations:
+  containerImages: |
+    - eo-proxy-svc
+    - busybox
+    - eo-proxy-smoke-test
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for the EO Proxy service
+name: hzp-eo-proxy
+type: application
+version: 0.1.0

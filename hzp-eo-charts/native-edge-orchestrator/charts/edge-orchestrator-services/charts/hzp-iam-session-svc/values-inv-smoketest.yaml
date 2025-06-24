@@ -1,0 +1,4 @@
+global:
+  iamSessionSvc:
+    deploy: true
+    smoketestEnabled: true

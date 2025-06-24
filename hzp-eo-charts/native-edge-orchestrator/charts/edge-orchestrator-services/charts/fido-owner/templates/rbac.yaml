@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.fidoOwner.rbac.namePrefix }}-sa
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.fidoOwner.rbac.namePrefix }}-role
+rules:
+  - apiGroups: [ "batch" ]
+    resources: [ "jobs" ]
+    resourceNames: [ "vault-bootstrap" ]
+    verbs: [ "list","get","watch" ]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Values.fidoOwner.rbac.namePrefix }}-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Values.fidoOwner.rbac.namePrefix }}-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.fidoOwner.rbac.namePrefix }}-sa
+    namespace: {{ .Release.Namespace }}

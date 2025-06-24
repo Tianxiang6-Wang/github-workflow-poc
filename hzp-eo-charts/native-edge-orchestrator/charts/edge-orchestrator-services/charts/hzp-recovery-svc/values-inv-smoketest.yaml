@@ -1,0 +1,4 @@
+global:
+  recoverySvc:
+    deploy: true
+    smoketestEnabled: true

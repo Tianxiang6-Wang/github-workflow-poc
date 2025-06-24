@@ -1,0 +1,32 @@
+annotations:
+  containerImages: |
+    - kubectl
+    - hzp-util
+apiVersion: v2
+appVersion: 1.0.0.0
+dependencies:
+- condition: global.eoManagement.deploy
+  name: eo-management
+  repository: ""
+  version: 0.1.1
+- condition: global.edgeOrchestrator.deploy
+  name: edge-orchestrator-services
+  repository: ""
+  version: "0.20"
+- condition: global.microsegmentation.deploy
+  name: microsegmentation
+  repository: ""
+  version: 0.1.0
+- alias: mist-ee
+  condition: global.mist.deploy
+  name: mist-ee
+  repository: ""
+  version: 0.1.0
+- condition: global.fusionServices.deploy
+  name: fusion-services-helm
+  repository: ""
+  version: 0.1.203
+description: Helm chart for Edge-Orchestrator services
+name: native-edge-orchestrator-dev
+type: application
+version: 1.0.0-0-2328

@@ -1,0 +1,109 @@
+{{- $svc := .Values.svc -}}
+{{- if or (.Values.global.regressionEnabled) (.Values.global.certificateSvc.smoketestEnabled) }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.test.rbac.name }}
+{{- include "images.pullSecrets" . }}
+
+---
+
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ .Values.test.rbac.clusterRole }}"
+  labels:
+    env: "{{ .Release.Namespace }}"
+    name: "{{ .Values.test.rbac.clusterRole }}"
+    globalName: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ .Values.test.rbac.clusterRole }}"
+rules:
+  - apiGroups: [""]
+    resources: ["*"]
+    verbs: ["*"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ .Values.test.rbac.clusterRoleBinding }}"
+  labels:
+    env: "{{ .Release.Namespace }}"
+    name: "{{ .Values.test.rbac.clusterRoleBinding }}"
+    globalName: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ .Values.test.rbac.clusterRoleBinding }}"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ .Values.test.rbac.clusterRole }}"
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.test.rbac.name }}
+    namespace: {{ .Release.Namespace }}
+
+---
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: certificate-smoke-test
+spec:
+  template:
+    metadata:
+      name: certificate-smoke-test
+      labels:
+{{- tpl (toYaml .Values.test.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.test.rbac.name }}
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+      - name: certificate-smoke-test-container
+        env:
+          - name: BASE_URL
+            value: "http://{{ .Values.test.service.fullname }}.{{ .Release.Namespace }}.svc.cluster.local"
+          - name: FQDN
+            value: {{ .Values.global.ingress.fqdn }}
+          {{- toYaml .Values.test.env | nindent 10 }}
+          - name: RP_ENDPOINT
+            value: "{{ .Values.test.reportportal.rpendpoint }}"
+          - name: RP_API_KEY
+            value: "{{ .Values.test.reportportal.rpuuid }}"
+          - name: RP_MODE
+            value: default
+          - name: RP_PROJECT
+            value: HZP_EO_SERVICES
+          - name: RP_LAUNCH
+            value: "{{ .Values.test.service.fullname }}"
+          - name: RP_ATTRIBUTES
+            value: "RELEASE_VERSION:{{ .Values.test.reportportal.release }};EO_IP:{{ .Values.test.reportportal.eourl }};EO_MANIFEST:{{ .Values.test.reportportal.manifest }};TEST_GROUP:{{ .Values.test.reportportal.suite }};RP_LAUNCH_KEY_ATTRIBUTE:{{ .Values.test.reportportal.runid }};;RELEASE_VERSION:{{ .Values.test.reportportal.release }};"
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.test.image.name ) "repo" .Values.global.repository) }}
+        imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+        command: ['/bin/sh', '-c']
+        # Sleep before test to allow netpol and istio-proxy to take effect
+        # Sleep after the test is to enable pipeline to copy the test result when pod is running state
+        args:
+          - |
+            sleep 60; echo All dependent components are running. Start testing!;
+            java -jar tests.jar {{ .Values.test.testsuite }}; sleep 60;
+            if wget -q --post-data='' -S -O /dev/null http://127.0.0.1:15020/quitquitquit 2>/dev/null; then
+                echo "Terminated istio-proxy."
+            fi
+      initContainers:
+      - name: init-certificate-svc
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for certificate service to become ready...'
+
+            until printf "." && nc -z -w 2 {{ .Values.test.service.fullname }} {{ .Values.test.service.port }}; do
+                sleep 2;
+            done;
+
+            echo 'Hzp-certificate-svc OK ✓'
+      restartPolicy: Never
+{{- end }}

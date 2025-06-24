@@ -1,0 +1,50 @@
+# Redirects
+location = /api/v1/ {
+      return 301 /api/v1;
+}
+
+location = /portal {
+      return 301 /portal/;
+}
+
+location = /api/v2/ {
+      return 301 /api/v2;
+}
+
+location /auth/social_auth/complete/keycloak {
+      return 301 /social_auth/complete/keycloak;
+}
+
+{{- range ( list
+    "/portal/"
+    "/assets/"
+) }}
+location {{ . }} {
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      set $upstream http://mist-ee-portal.{{$.Release.Namespace}}.svc.cluster.local:8000;
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+}
+{{- end }}
+
+# Default route for Mist GUI and APIs
+location / {
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      {{ if eq .Values.defaultRouteService "mist-ee-portal" }}
+      set $upstream http://{{ .Values.defaultRouteService }}.{{ $.Release.Namespace }}.svc.cluster.local:8000;
+      {{ else }}
+      set $upstream http://{{ .Values.defaultRouteService }}.{{ $.Release.Namespace }}.svc.cluster.local:80;
+      {{ end }}
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+}

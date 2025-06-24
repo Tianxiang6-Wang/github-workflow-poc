@@ -1,0 +1,108 @@
+{{- $svc := .Values.svc -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.svc.name }}
+  labels:
+    hzp-app: {{ .Values.svc.name }}
+spec:
+  replicas: {{ .Values.svc.replicaCount }}
+  selector:
+    matchLabels:
+      hzp-app: {{ .Values.svc.name }}
+  template:
+    metadata:
+      name: {{ .Values.svc.name }}
+      annotations:
+{{- if .Values.global.instrumentation.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "{{ .Values.svc.port }}"
+{{- end }}     
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          name: {{ .Values.svc.name }}
+          {{ $_ := set .Values "iamProxyEntry" "./main" }}
+          {{ tpl (toYaml .Values.global.iamProxy.commandDecorator) . | nindent 10 }}
+          imagePullPolicy: {{ .Values.svc.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          ports:
+            - containerPort: {{ .Values.svc.port }}
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          env:
+            - name: SIDECAR_INJECTED
+              value: "{{ .Values.global.iamProxy.sidecarEnabled }}"
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            - name: NATS_SERVER_MONITORING_URL
+              value: "http://jetstream.{{ .Release.Namespace }}.svc.cluster.local:8222"
+            - name: ENABLE_INSTRUMENTATION
+              value: {{ .Values.global.instrumentation.enabled | quote }}
+            - name: EO_IP
+              value: {{ .Values.global.ingress.fqdn }}
+            {{- toYaml .Values.svc.env | nindent 12 }}
+          volumeMounts:
+            {{- include "logLevel.configMap.mount" $ | indent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /admin/health/dependency
+              port: {{ .Values.svc.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /admin/health/liveness
+              port: {{ .Values.svc.port }}
+            periodSeconds: 20
+          startupProbe:
+            httpGet:
+              path: /admin/health/liveness
+              port: {{ .Values.svc.port }}
+              scheme: HTTP
+            initialDelaySeconds: 20
+            failureThreshold: 30
+            periodSeconds: 10
+      initContainers:
+        - name: init-postgres
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: Always
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          env:
+            - name: waiting_for_postgres_to_be_initialized
+              valueFrom:
+                configMapKeyRef:
+                  key: waiting_for_postgres_to_be_initialized
+                  name: infra-status-config
+            {{- toYaml $svc.env | nindent 12 }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for PostgreSQL to become ready...'
+              until printf "." && nc -z -w 2 $DB_HOST $DB_PORT; do
+                  sleep 2;
+              done;
+              echo 'PostgreSQL OK ✓'
+      volumes:
+        {{- include "logLevel.configMap.volume" $ | indent 8 }}

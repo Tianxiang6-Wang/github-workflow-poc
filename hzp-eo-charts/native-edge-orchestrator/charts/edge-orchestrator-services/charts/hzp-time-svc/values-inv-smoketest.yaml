@@ -1,0 +1,4 @@
+global:
+  timeSvc:
+    deploy: true
+    smoketestEnabled: true

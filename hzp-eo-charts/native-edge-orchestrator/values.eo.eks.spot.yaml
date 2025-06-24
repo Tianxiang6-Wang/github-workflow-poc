@@ -1,0 +1,44 @@
+global:
+  nodeSelector:
+    karpenter.sh/capacity-type: spot
+  tolerations:
+    - key: "eks.amazonaws.com/capacityType"
+      operator: "Equal"
+      value: "spot"
+      effect: "NoSchedule"
+eo-management:
+  vault:
+    server:
+      nodeSelector:
+        karpenter.sh/capacity-type: spot
+      tolerations:
+        - key: "eks.amazonaws.com/capacityType"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+  postgresql:
+    primary:
+      nodeSelector:
+        karpenter.sh/capacity-type: spot
+      tolerations:
+        - key: "eks.amazonaws.com/capacityType"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+    readReplicas:
+      nodeSelector:
+        karpenter.sh/capacity-type: spot
+      tolerations:
+        - key: "eks.amazonaws.com/capacityType"
+          operator: "Equal"
+          value: "spot"
+          effect: "NoSchedule"
+fusion-services-helm:
+  rabbitmq:
+    nodeSelector:
+      karpenter.sh/capacity-type: spot
+    tolerations:
+      - key: "eks.amazonaws.com/capacityType"
+        operator: "Equal"
+        value: "spot"
+        effect: "NoSchedule"

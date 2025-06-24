@@ -1,0 +1,152 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  eoProxy:
+    smoketestEnabled: false
+  oob:
+    oobEnabled: false
+    oobGateway: ""
+    oobListOfIpAddress: []
+    oobInterfaceName: oobnet1
+    nadName: ipvlan-static-nad
+  istio:
+    deploy: true
+    mTLSHost: []
+    mTLSHostRecovery: []
+    defaultPrefix:
+      mTLSHost: ""
+      mTLSHostRecovery: ""
+  nginx_gw:
+    enabled: false
+  ingress:
+    fqdn: localhost
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+    runAsRootUser: 0
+  instrumentation:
+    enabled: false
+components:
+  eo-proxy-svc:
+    image: eo-proxy-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  eo-proxy-smoke-test:
+    image: eo-proxy-smoke-test
+    version: latest
+    project: hzp/
+# Subchart values
+svc:
+  rbac:
+    name: eo-proxy-sa
+    clusterRole: eo-proxy-config-role
+    clusterRoleBinding: eo-proxy-config-role-binding
+  network:
+    nodeAffinityWeight: 100
+    nodeAffinityKey: network.oob
+  name: &serviceName hzp-eoproxy-svc
+  headlessService:
+    name: eoproxy-headless
+  replicaCount: 3
+  httpPort: 8080
+  websocketPort: 8088
+  image:
+    name: eo-proxy-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: 'true'
+  annotations:
+    hzp.iam.webhook/authentication-enabled: 'false'
+    hzp.iam.webhook/authorization-enabled: 'false'
+  resources:
+    limits:
+      cpu: 100m
+      memory: 200Mi
+    requests:
+      cpu: 5m
+      memory: 25Mi
+  env:
+    - name: ENABLE_PLAYGROUND
+      value: "true"
+    - name: APP_PORT
+      value: "8080"
+    - name: TLS_HOST
+      value: "default.dell.com"
+    - name: LOG_LEVEL
+      value: "info"   
+    - name: DB_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresHost
+    - name: DB_PORT
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresPort
+    - name: DB_USER
+      value: "hzp_eo_proxy"
+    - name: DB_PA
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: hzp_eo_proxy-password
+    - name: NODE_PORT
+      value: "DISABLED"
+test:
+  # Subchart values
+  enabled: false
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    hzp-app: hzp-eoproxy-svc-regression
+    hzp-role: smoke-test
+  eoEceRegression: true
+  testsuite: test-suites/smoke.xml
+  replicaCount: 1
+  image:
+    name: eo-proxy-smoke-test
+    pullPolicy: Always
+    tag: latest
+  env:
+    - name: DATABASE_URL
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresUrl
+    - name: DATABASE_USERNAME
+      value: "test"
+    - name: DATABASE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: test-password
+  cpu: 0.25
+  memory: 512Mi
+  postgresql:
+    service:
+      fullname: postgres
+      port: 5432
+  eoproxy:
+    service:
+      fullname: *serviceName
+      port: 8080
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 653540
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    ecemanifest: 1
+    runid: 1
+    release: 1
+    suite: 1

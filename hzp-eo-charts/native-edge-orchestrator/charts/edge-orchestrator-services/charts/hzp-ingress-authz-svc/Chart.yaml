@@ -1,0 +1,12 @@
+annotations:
+  containerImages: |
+    - ingress-authz-svc
+    - busybox
+    - ingress-authz-smoke-test
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for hzp-ingress-authz-svc, a service to integrate Vault
+  to Istio Ingress
+name: hzp-ingress-authz-svc
+type: application
+version: 0.1.0

@@ -1,0 +1,87 @@
+# Declares the size of a request's body. This is mainly used to allow large blueprints to be uploaded.
+# CIS 5.2.2
+client_max_body_size 100m;
+
+# Overcoming the renowned http://stackoverflow.com/questions/19238122/nginx-with-ubuntu-and-rails-on-digital-ocean
+types_hash_max_size 4096;
+
+upstream fusion-rest {
+  server ${REST_SERVICE_HOST}:${REST_SERVICE_SERVICE_PORT};
+}
+
+{{- if .Values.stage_frontend.enabled }}
+upstream fusion-stage {
+  server ${STAGE_FRONTEND_HOST}:${STAGE_FRONTEND_SERVICE_PORT};
+}
+{{- end }}
+
+upstream fusion-stage-backend {
+  server ${STAGE_BACKEND_HOST}:${STAGE_BACKEND_SERVICE_PORT};
+}
+
+{{- if (.Values.composer).enabled }}
+upstream fusion-composer {
+  server ${COMPOSER_FRONTEND_HOST}:${COMPOSER_FRONTEND_SERVICE_PORT};
+}
+
+upstream fusion-composer-backend {
+  server ${COMPOSER_BACKEND_HOST}:${COMPOSER_BACKEND_SERVICE_PORT};
+}
+{{- end }}
+
+upstream fusion-api {
+  server ${API_SERVICE_HOST}:${API_SERVICE_SERVICE_PORT};
+}
+
+upstream fusion-blueprints {
+  server ${BLUEPRINTS_SERVICE_HOST}:${BLUEPRINTS_SERVICE_PORT};
+}
+
+upstream fusion-agents {
+  server ${AGENTS_SERVICE_HOST}:${AGENTS_SERVICE_PORT};
+}
+
+upstream fusion-secrets {
+  server ${SECRETS_SERVICE_HOST}:${SECRETS_SERVICE_PORT};
+}
+
+upstream fusion-plugins {
+  server ${PLUGINS_SERVICE_HOST}:${PLUGINS_SERVICE_PORT};
+}
+
+upstream fusion-deployments {
+  server ${DEPLOYMENTS_SERVICE_HOST}:${DEPLOYMENTS_SERVICE_PORT};
+}
+
+upstream fusion-drift {
+  server ${DRIFT_SERVICE_HOST}:${DRIFT_SERVICE_PORT};
+}
+
+{{ if .Values.nginx.rateLimit.enabled }}
+map $http_execution_token $no_token_limit {
+  default $binary_remote_addr;
+  "~.+" "";
+}
+
+limit_req_zone $no_token_limit zone=ratelimit:10m rate={{ .Values.nginx.rateLimit.rate }};
+{{ end }}
+
+map $http_upgrade $connection_upgrade {
+  default upgrade;
+  '' close;
+}
+
+server {
+  listen              80;
+  server_name         _;
+
+  {{ if .Values.nginx.rateLimit.enabled }}
+  limit_req zone=ratelimit burst={{ .Values.nginx.rateLimit.burst }} delay={{ .Values.nginx.rateLimit.delay }};
+  {{ end }}
+
+  include "/etc/nginx/conf.d/logs-conf.fusion";
+  include "/etc/nginx/conf.d/healthcheck.fusion";
+  include "/etc/nginx/conf.d/rest-location.fusion";
+  include "/etc/nginx/conf.d/fileserver.fusion";
+  include "/etc/nginx/conf.d/ui-locations.fusion";
+}

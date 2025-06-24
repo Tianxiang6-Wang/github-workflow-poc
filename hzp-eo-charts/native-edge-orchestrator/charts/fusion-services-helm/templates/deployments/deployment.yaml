@@ -1,0 +1,179 @@
+{{- if .Values.deployments.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: deployments
+  name: {{ template "fusion-services.name" . }}-deployments
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  replicas: {{ .Values.deployments.replicas }}
+  selector:
+    matchLabels:
+      app: deployments
+  template:
+    metadata:
+      labels:
+        app: deployments
+      {{ with .Values.deployments.podLabels }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      annotations:
+        {{- include "fusion-services.merge" ( list .Values.commonAnnotations .Values.deployments.podAnnotations ) | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: {{ .Values.deployments.podSecurityContext.runAsUser }}
+        runAsGroup: {{ .Values.deployments.podSecurityContext.runAsGroup }}
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.deployments $ )| trim | nindent 8 }}
+      tolerations: {{- include "fusion-services.tolerations" ( list .Values.deployments $ ) | trim | nindent 8 }}
+      affinity: {{- include "fusion-services.affinity" ( list .Values.deployments $ ) | trim | nindent 8 }}
+      initContainers:
+        - name: db-wait
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-restservice" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-restservice" ).pullPolicy }}
+          env:
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.deployments "root" $) | nindent 12 }}
+          command:
+            - /usr/bin/env
+            - -S
+            - bash
+            - -exuc
+            - |
+              python -m manager_rest.configure_manager --db-wait {{ .Values.deployments.db.host | default .Values.db.host }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsUser: {{ .Values.deployments.initContainerSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.deployments.initContainerSecurityContext.runAsGroup }}
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: "0.1"
+            limits:
+              memory: 512Mi
+              cpu: "1"
+        - name: deployments-migrate-db
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-deployments-service" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-deployments-service" ).pullPolicy }}
+          env:
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.deployments "root" $) | nindent 12 }}
+          command:
+            - /usr/bin/env
+            - -S
+            - bash
+            - -exuc
+            - |
+              cd /opt/manager/migrations
+              alembic upgrade head
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsUser: {{ .Values.deployments.initContainerSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.deployments.initContainerSecurityContext.runAsGroup }}
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: "0.1"
+            limits:
+              memory: 512Mi
+              cpu: "1"
+      containers:
+        - name: deployments
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-deployments-service" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-deployments-service" ).pullPolicy }}
+          env:
+            {{- if (.Values.deployments.eventing).stream_url }}
+            - name: NATS_URL
+              value: {{ tpl .Values.deployments.eventing.stream_url $ | quote}}
+            {{- end }}
+            - name: FUSION_AUTH_PSK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fusion-services.name" . }}-auth-signing
+                  key: psk
+            {{- include "fusion-services.s3_env_vars" . | nindent 12 }}
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.deployments "root" $) | nindent 12 }}
+            - name: LOGGING_LEVEL_CONFIGURATION_PATH
+              value: {{ tpl .Values.deployments.logging.configMountPath $}}
+            - name: LOGGING_LEVEL_GLOBAL_PATH
+              value: {{ tpl .Values.deployments.logging.configMountPath $ }}/{{ tpl .Values.deployments.logging.globalConfigFile $ }}
+            - name: LOGGING_LEVEL_SERVICE_PATH
+              value: {{ tpl .Values.deployments.logging.configMountPath $ }}/{{ tpl .Values.deployments.logging.serviceConfigFile $ }}
+            {{- if (.Values.deployments.eventing).stream_url }}
+            - name: AUDIT_LOGS_SUBJECT
+              value: {{ tpl .Values.deployments.logging.audit_logs_subject $ | quote }}
+            {{- end }}
+            {{- if .Values.deployments.inventory_url }}
+            - name: INVENTORY_SERVICE_URL
+              value: {{ tpl .Values.deployments.inventory_url $ | quote }}
+            {{- end }}
+            {{- if .Values.deployments.metrics_url }}
+            - name: METRICS_SERVICE_URL
+              value: {{ tpl .Values.deployments.metrics_url $ | quote }}
+            {{- end }}
+            {{- if (.Values.global).useHzpMultitenancy }}
+            - name: "HZP_MULTITENANCY"
+              value: "true"
+            {{- end }}
+          volumeMounts:
+            - name: logging
+              mountPath: {{ tpl .Values.deployments.logging.configMountPath $ }}
+              readOnly: true
+          ports:
+            - containerPort: {{ .Values.deployments.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ template "fusion-services.name" . }}-deployments-envvars
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources: {{- toYaml .Values.deployments.resources | nindent 12 }}
+          {{- if .Values.deployments.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              port: {{ .Values.deployments.port}}
+              path: /health
+            initialDelaySeconds: {{ .Values.deployments.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.deployments.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.deployments.probes.liveness.timeoutSeconds }}
+            successThreshold: {{ .Values.deployments.probes.liveness.successThreshold }}
+            failureThreshold: {{ .Values.deployments.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.deployments.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              port: {{ .Values.deployments.port}}
+              path: /health
+            initialDelaySeconds: {{ .Values.deployments.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.deployments.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.deployments.probes.readiness.timeoutSeconds }}
+            successThreshold: {{ .Values.deployments.probes.readiness.successThreshold }}
+            failureThreshold: {{ .Values.deployments.probes.readiness.failureThreshold }}
+          {{- end }}
+      restartPolicy: Always
+      {{- include "fusion-services.images.pullSecrets" . | nindent 6 }}
+      volumes:
+        - name: logging
+          configMap:
+            name: {{ include "fusion-loglevel-configmap.name" $ }}
+{{- end }}

@@ -1,0 +1,9 @@
+annotations:
+  containerImages: |
+    - mist-opensearch
+    - mist-opensearch-manage
+apiVersion: v2
+appVersion: 0.1.0
+description: Opensearch
+name: opensearch
+version: 0.1.0

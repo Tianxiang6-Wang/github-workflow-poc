@@ -1,0 +1,9 @@
+annotations:
+  containerImages: |
+    - seaweedfs
+    - busybox
+apiVersion: v1
+appVersion: "3.85"
+description: SeaweedFS
+name: seaweedfs
+version: 3.63.0

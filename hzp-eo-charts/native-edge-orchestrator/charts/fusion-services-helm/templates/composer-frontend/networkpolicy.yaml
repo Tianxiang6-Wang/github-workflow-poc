@@ -1,0 +1,22 @@
+{{- if and (.Values.composer).enabled (.Values.composer_frontend).enableNetworkPolicy -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ template "fusion-services.name" . }}-composer-frontend-ingress-policy
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: composer-frontend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: nginx
+      ports:
+        - protocol: TCP
+          port: {{ .Values.composer_frontend.port }}
+{{- end }}

@@ -1,0 +1,91 @@
+{{ if .Values.victoriametrics.deploy }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "chart.fullname" . }}-vmselect
+  labels: &labels
+    app: vmselect
+    chart: {{ include "chart.chart" . }}
+    release: {{ include "selector.label.release.name" . }}
+    heritage: {{ .Release.Service }}
+    hzp-app: vmselect
+    hzp-role: mist-service
+    hzp.iam.webhook/active: '{{ .Values.global.nginx_gw.enabled }}'
+spec:
+  replicas: {{ .Values.victoriametrics.vmselect.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: vmselect
+      release: {{ include "selector.label.release.name" . }}
+  template:
+    metadata:
+      annotations:
+        hzp.iam.webhook/authentication-enabled: "false"
+        hzp.iam.webhook/authorization-enabled: "false"
+      labels: *labels
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+        fsGroup: 1000
+        runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.victoriametrics.vmselect $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.victoriametrics.vmselect $ ) | trim | nindent 8 }}
+      initContainers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: Always
+          name: init-vmstorage-forvmselect
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for vmstorage to become ready for vmselect...'
+              until printf "." && nc -z -w 2 {{ include "chart.fullname" . }}-vmstorage 8482; do
+                  sleep 2;
+              done;
+              echo 'mist-ee-vmstorage-forvmselect ready OK ✓'
+      containers:
+      - name: vmselect
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "mist-vmselect" ) "repo" .Values.global.repository "tag" .Values.image.tag) }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+        command:
+        - /bin/sh
+        - -c
+        args:
+        - |
+          export VMUSER=$(cat /etc/vm-auth/username)
+          export VMPASS=$(cat /etc/vm-auth/password)
+          exec /vmselect-prod \
+          -httpAuth.username=$VMUSER \
+          -httpAuth.password=$VMPASS \
+          --search.maxQueryLen={{ .Values.victoriametrics.vmselect.extraArgs.search.maxQueryLen | default "1GiB" }} \
+          --search.latencyOffset={{ .Values.victoriametrics.vmselect.extraArgs.search.latencyOffset | default "0s" }} \
+          --search.cacheTimestampOffset={{ .Values.victoriametrics.vmselect.extraArgs.search.cacheTimestampOffset | default "15m" }} \
+          --search.maxConcurrentRequests={{ .Values.victoriametrics.vmselect.extraArgs.search.maxConcurrentRequests | default 100 }} \
+          --storageNode={{ include "chart.fullname" . }}-vmstorage:8401
+        resources:
+          requests:
+            memory: {{ .Values.victoriametrics.vmselect.resources.requests.memory | default "30Mi" }}
+            cpu: {{ .Values.victoriametrics.vmselect.resources.requests.cpu | default "50m" }}
+          limits:
+            memory: {{ .Values.victoriametrics.vmselect.resources.limits.memory | default "300Mi" }}
+            cpu: {{ .Values.victoriametrics.vmselect.resources.limits.cpu | default "1000m" }}
+        volumeMounts:
+          - name: vm-auth
+            mountPath: /etc/vm-auth
+            readOnly: true
+      volumes:
+        - name: vm-auth
+          secret:
+            secretName: {{ include "chart.fullname" . }}-victoria-metrics
+{{- end }}

@@ -1,0 +1,52 @@
+{{- if $.Values.global.ingress.enableNetworkPolicies }}
+{{- $endpoint := (lookup "v1" "Endpoints" "default" "kubernetes") }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: fusion-eo-network-policy-instance
+  namespace: {{ .Release.Namespace }}
+spec:
+  ingress:
+    - from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: {{ .Values.global.dsp.portal.namespace | default "dapp" }}
+      - podSelector:
+          matchLabels:
+            hzp-role: fusion-service
+      - podSelector:
+          matchLabels:
+            hzp-role: eo-gateway
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/instance: {{ .Values.global.fusionChartName }}
+  egress:
+    - to:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: {{ .Values.global.dsp.portal.namespace | default "dapp" }}
+      - podSelector:
+          matchLabels:
+            app.kubernetes.io/instance: {{ .Values.global.fusionChartName }}
+      - podSelector:
+          matchLabels:
+            hzp-app: istiod
+      - podSelector:
+          matchLabels:
+            hzp-role: eo-gateway
+      - podSelector:
+          matchLabels:
+            hzp-role: fusion-service
+      - ipBlock:
+          cidr: 0.0.0.0/0
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/instance: {{ .Values.global.fusionChartName }}
+  policyTypes:
+  - Egress
+  - Ingress
+{{- end }}

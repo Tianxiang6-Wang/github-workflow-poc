@@ -1,0 +1,338 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.svc.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    hzp-app: {{ .Values.svc.name }}
+    k8slens-edit-resource-version: v1
+spec:
+  ports:
+    - port: {{ .Values.svc.port }} # Port on the service
+      targetPort: {{ .Values.svc.targetPort }} # Port on the pod
+      protocol: TCP
+      name: http
+
+  selector:
+    hzp-app: {{ .Values.svc.name }}
+  type: ClusterIP
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.svc.name }}-conf
+  namespace: {{ .Release.Namespace }}
+data:
+  fluent-bit.conf: >-
+    [INPUT]
+      Name              tail
+      Tag               kube.*
+      Path              /var/log/pods/{{ .Release.Namespace }}_*/*/*.log
+      Exclude_Path      /var/log/pods/**/istio-proxy/*.log,/var/log/pods/**/istio-init/*.log,/var/log/pods/kube-system*/*.log,/var/log/pods/istio-system*/*.log,/var/log/pods/*mist-ee-artifacts-cleanup*/*.log,/var/log/pods/*hzp-inventory-pingsource-ece-offline-check*/*.log,/var/log/pods/*hzp-inventory-pingsource-idrac*/*.log,/var/log/pods/*hzp-job-svc-pingsource-jobtimeout*/*.log,/var/log/pods/*hzp-fru-cru-session-expiry-cleanup*/*.log,/var/log/pods/*hzp-inventory-pingsource-ece-offboard-actions*/*.log,/var/log/pods/*hzp-inventory-heart-beat*/*.log,/var/log/pods/*testconnectivity*/*.log
+
+    [INPUT]
+      name http
+      listen 0.0.0.0
+      port 8080
+
+    {{- if .Values.global.ova.enabled }}
+    [INPUT]
+      Name              systemd
+      Tag               {{ .Values.svc.s3.vaBucketName }}.k8s
+      Systemd_Filter    _SYSTEMD_UNIT=rke2-server.service
+      Path              /var/log/journal
+      Read_From_Tail    true
+
+    [INPUT]
+      Name              systemd
+      Tag               {{ .Values.svc.s3.vaBucketName }}.docker
+      Systemd_Filter    _SYSTEMD_UNIT=docker.service
+      Path              /var/log/journal
+      Read_From_Tail    true
+
+    [INPUT]
+      Name              systemd
+      Tag               {{ .Values.svc.s3.vaBucketName }}.containerd
+      Systemd_Filter    _SYSTEMD_UNIT=containerd.service
+      Path              /var/log/journal
+      Read_From_Tail    true
+
+    [INPUT]
+      Name              systemd
+      Tag               {{ .Values.svc.s3.vaBucketName }}.registry
+      Systemd_Filter    _SYSTEMD_UNIT=registry.service
+      Path              /var/log/journal
+      Read_From_Tail    true
+    
+    [INPUT]
+      Name              tail
+      Tag               {{ .Values.svc.s3.vaBucketName }}.calico-cni
+      Path              /var/log/calico/cni/cni.log
+
+    [INPUT]
+      Name              tail
+      Tag               load-balancer.*
+      Path              /var/log/pods/metallb-system_*/*/*.log
+    
+    [INPUT]
+      Name              tail
+      Tag               {{ .Values.svc.s3.vaBucketName }}.os
+      Path              /var/log/messages
+    
+    [INPUT]
+      Name              tail
+      Tag               {{ .Values.svc.s3.portalBucketName }}.*
+      Path              /var/log/pods/{{ .Values.global.dsp.portal.namespace }}_*/*/*.log 
+    
+    [OUTPUT]
+      Name              s3
+      Match             kube.*
+      bucket            {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.bucketName }}
+      region            {{ .Values.global.s3.region }}
+      compression       gzip
+      {{- if .Values.global.s3.url }}
+      endpoint          {{ tpl .Values.global.s3.url . }}
+      {{- end }}
+      upload_timeout    10m
+      use_put_object    true
+      s3_key_format                /$TAG
+      s3_key_format_tag_delimiters .
+      send_content_md5  true
+
+    [OUTPUT]
+      Name              s3
+      Match             {{ .Values.svc.s3.vaBucketName }}.*
+      bucket            {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.vaBucketName }}
+      region            {{ .Values.global.s3.region }}
+      {{- if .Values.global.s3.url }}
+      endpoint          {{ tpl .Values.global.s3.url . }}
+      {{- end }}
+      upload_timeout    10m
+      use_put_object    true
+      s3_key_format                /$TAG[1]/$TAG[1].log
+      s3_key_format_tag_delimiters .
+      send_content_md5  true
+    
+    [OUTPUT]
+      Name              s3
+      Match             {{ .Values.svc.s3.portalBucketName }}.*
+      bucket            {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.portalBucketName }}
+      region            {{ .Values.global.s3.region }}
+      {{- if .Values.global.s3.url }}
+      endpoint          {{ tpl .Values.global.s3.url . }}
+      {{- end }}      
+      upload_timeout  10m
+      use_put_object  true
+      s3_key_format     /portal/$TAG[4]/$TAG[5]/$TAG[5].log
+      s3_key_format_tag_delimiters .
+      send_content_md5 true
+    
+    [OUTPUT]
+      Name              s3
+      Match             load-balancer.*
+      bucket            {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.vaBucketName }}
+      region            {{ .Values.global.s3.region }}
+      {{- if .Values.global.s3.url }}
+      endpoint          {{ tpl .Values.global.s3.url . }}
+      {{- end }}    
+      upload_timeout  10m
+      use_put_object  true
+      s3_key_format     /load-balancer/$TAG[4]/$TAG[5]/$TAG[5].log
+      s3_key_format_tag_delimiters .
+      send_content_md5 true
+
+    {{- else }}
+    [OUTPUT]
+      Name              s3
+      Match             *
+      bucket            {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.bucketName }}
+      region            {{ .Values.global.s3.region | default "us-east-1" }}
+      compression       gzip
+      {{- if .Values.global.s3.url }}
+      endpoint          {{ tpl .Values.global.s3.url . }}
+      {{- end }}
+      upload_timeout  30m
+      use_put_object  true
+      s3_key_format                /$TAG
+      s3_key_format_tag_delimiters .
+      send_content_md5 true
+    {{- end }}
+
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.svc.name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- if .Values.global.s3.serviceAccountAnnotations }}
+      {{- .Values.global.s3.serviceAccountAnnotations | toYaml | nindent 4 }}
+    {{- end }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ .Values.svc.name }}"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    env: "{{ .Release.Namespace }}"
+    name: "{{ .Values.svc.name }}"
+    globalName: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ .Values.svc.name }}"
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+      - namespaces
+    verbs:
+      - get
+      - list
+      - watch
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ .Values.svc.name }}"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    env: "{{ .Release.Namespace }}"
+    name: "{{ .Values.svc.name }}"
+    globalName: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ .Values.svc.name }}"
+roleRef:
+  kind: ClusterRole
+  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ .Values.svc.name }}"
+  apiGroup: rbac.authorization.k8s.io
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.svc.name }}
+    namespace: {{ .Release.Namespace }}
+
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: {{ .Values.svc.name }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    k8s-app: fluentbit-logging
+    version: v1
+spec:
+  selector:
+    matchLabels:
+      k8s-app: fluentbit-logging
+      version: v1
+  template:
+    metadata:
+      annotations:
+        hzp.iam.webhook/authentication-enabled: "false"
+        hzp.iam.webhook/authorization-enabled: "false"
+      labels:
+        k8s-app: fluentbit-logging
+        version: v1
+        sidecar.istio.io/inject: "false"
+        hzp-app: {{ .Values.svc.name }}
+        hzp-role: eo-service
+        hzp.iam.webhook/active: "{{ .Values.global.nginx_gw.enabled }}"
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      serviceAccountName: {{ .Values.svc.name }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          effect: NoSchedule
+        - key: node-role.kubernetes.io/master
+          effect: NoSchedule
+      containers:
+        - name: {{ .Values.svc.name }}
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "fluent-bit" ) "repo" .Values.global.repository) }}
+          ports:
+            - containerPort: {{ .Values.svc.targetPort }}
+          env:
+            {{- if .Values.global.s3.credentials }}{{- toYaml .Values.global.s3.credentials | nindent 12 }}{{ end }}
+            - name: K8S_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: FLUENT_FOWARD_HOST
+              value: localhost
+            - name: FLUENT_FOWARD_PORT
+              value: "80"
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          volumeMounts:
+            - name: config-volume
+              mountPath: /fluent-bit/etc
+            - name: varlog
+              mountPath: /var/log
+            - name: dockercontainerlogdirectory
+              mountPath: /var/log/pods
+              readOnly: true
+            - name: dockercontainers
+              readOnly: true
+              mountPath: /var/log/containers
+      {{- if .Values.global.seaweedfs.enabled }}
+      initContainers:
+        - name: init-seaweedfs-s3
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: Always
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for Seaweedfs S3 to become ready...'
+              until [ "$response" = "200" ]; do
+                response=$(wget -S -O /dev/null {{ tpl .Values.global.s3.url . }}/status 2>&1 | awk '/HTTP\/1.1/ {print $2}')
+                printf "." && sleep 2
+              done
+              echo 'Seaweedfs S3 OK ✓'
+        - name: seaweed-create-bucket
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "seaweedfs" ) "repo" .Values.global.repository) }}
+          command:
+            - sh
+            - '-c'
+            - >
+              {{- if .Values.global.ova.enabled }}
+              echo "s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}eo-logs;s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.vaBucketName }};s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.dapoBucketName }};s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.portalBucketName }};s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.logBundleBucketName }}" | /usr/bin/weed
+              shell -filer=eo-management-seaweedfs-filer-client.{{ .Release.Namespace }}:8888
+              -master=eo-management-seaweedfs-master:9333 \
+              {{- else }}
+              echo "s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}eo-logs" | /usr/bin/weed
+              shell -filer=eo-management-seaweedfs-filer-client.{{ .Release.Namespace }}:8888
+              -master=eo-management-seaweedfs-master:9333 \
+              {{- end }}
+          imagePullPolicy: Always
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          env:
+            - name: AWS_ENDPOINT_URL_S3
+              value: {{ tpl .Values.global.s3.url . }}
+            {{- if .Values.global.s3.credentials }}{{- toYaml .Values.global.s3.credentials | nindent 12 }}{{ end }}
+      {{- end }}
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - name: config-volume
+          configMap:
+            name: fluentbit-conf
+        - name: varlog
+          hostPath:
+            path: /var/log
+        - name: dockercontainerlogdirectory
+          hostPath:
+            path: /var/log/pods
+        - name: dockercontainers
+          hostPath:
+            path: /var/log/containers
+

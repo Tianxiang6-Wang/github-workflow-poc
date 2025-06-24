@@ -1,0 +1,43 @@
+{{- if $.Values.global.ingress.enableNetworkPolicies }}
+{{- $namespace := .Release.Namespace -}}
+{{- $netPolList := list }}
+{{- range $.Values.networkPolicies.iam }}
+ {{- $netPolList = append $netPolList . }}
+{{- end }}
+{{- range $netPolList}}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: iam-{{ .service }}-network-policy
+  namespace: {{ $namespace }}
+spec:
+  podSelector:
+    {{- if not .podSelector }}
+    matchLabels:
+      hzp-role: {{ .service }}
+    {{- else }}
+      {{- tpl (toYaml .podSelector) $ | replace "'" "" | nindent 4 }}
+    {{- end }}
+  policyTypes:
+  {{- if .outboundRequests }}
+    - Egress
+  {{- end }}
+  {{- if .inboundRequests }}
+    - Ingress
+  ingress:
+    - from:
+{{- end }}
+{{- if .outboundRequests }}
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ $.Values.global.dsp.portal.namespace | default "dapp" }}
+      {{- range .outboundRequests }}
+        - podSelector:
+            matchLabels: {{- toYaml . | nindent 15 }}
+      {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

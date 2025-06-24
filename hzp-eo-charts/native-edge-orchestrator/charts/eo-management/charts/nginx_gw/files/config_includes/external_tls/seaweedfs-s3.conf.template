@@ -1,0 +1,31 @@
+{{- $s3Url := ternary (tpl .Values.global.s3.url .) (printf "https://s3.%s.amazonaws.com" .Values.global.s3.region) (ne .Values.global.s3.url "") -}}
+{{- $s3HostPort := index ( urlParse $s3Url ) "host" }}
+
+{{- if eq .Values.global.s3.url "" }}{{/* If using AWS S3 */}}
+location /repository/ {
+      proxy_pass https://{{ .Values.global.s3.bucketPrefix }}repository.s3.{{ .Values.global.s3.region }}.amazonaws.com/;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      # NOTE: Disable proxy for fix issue for vNEE on site with slow link
+      proxy_buffering off;
+}
+{{- end }}
+
+location /repository {
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host "{{ $s3HostPort }}";
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      set $upstream http://{{ $s3HostPort }};
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      proxy_buffering off;
+
+      # ip address allowlist
+      include /etc/nginx/ip-sources/ip-allowlist.txt;
+      deny all;
+}

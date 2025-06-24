@@ -1,0 +1,14 @@
+{{- if .Values.deployments.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "fusion-services.name" . }}-deployments
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  ports:
+    - port: {{ .Values.deployments.port }}
+  selector:
+    app: deployments
+  type: ClusterIP
+{{- end }}

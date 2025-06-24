@@ -1,0 +1,8 @@
+{{- if .Values.global.s3.serviceAccountAnnotations -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.svc.name }}
+  annotations:
+    {{- .Values.global.s3.serviceAccountAnnotations | toYaml | nindent 4 }}
+{{- end -}}

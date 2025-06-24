@@ -1,0 +1,22 @@
+{{- if .Values.stage_backend.enableNetworkPolicy -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ template "fusion-services.name" . }}-stage-backend-ingress-policy
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: stage-backend
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: nginx
+      ports:
+        - protocol: TCP
+          port: {{ .Values.stage_backend.port }}
+{{- end }}

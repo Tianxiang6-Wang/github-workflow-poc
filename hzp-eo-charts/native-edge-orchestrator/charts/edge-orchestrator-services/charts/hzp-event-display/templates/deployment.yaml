@@ -1,0 +1,90 @@
+{{- if default false .Values.global.eventDisplayEnabled }}
+{{- $svc := .Values.svc -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.svc.name }}
+  labels:
+    hzp-app: {{ .Values.svc.name }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: {{ .Values.svc.port }}
+      protocol: TCP
+      name: http
+  selector:
+    hzp-app: {{ .Values.svc.name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+spec:
+{{- if not .Values.svc.autoScaling.enabled }}
+  replicas: {{ .Values.svc.replicaCount }}
+{{- end }}
+  selector:
+    matchLabels:
+      hzp-app: {{ .Values.svc.name }}
+  template:
+    metadata:
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - name: hzp-event-display
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ $svc.image.pullPolicy }}
+          securityContext:
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          ports:
+            - containerPort: {{ $svc.port }}
+          env:
+            - name: NATS_URL
+              value: nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222
+            {{- toYaml $svc.env | nindent 12 }}
+          volumeMounts:
+            {{- include "logLevel.configMap.mount" $ | indent 12 }}
+      initContainers:
+      - name: init-postgres
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          allowPrivilegeEscalation: false
+        env:
+          - name: waiting_for_postgres_to_be_initialized
+            valueFrom:
+              configMapKeyRef:
+                key: waiting_for_postgres_to_be_initialized
+                name: infra-status-config
+          - name: DB_HOST
+            valueFrom:
+              configMapKeyRef:
+                name: create-postgres-host-configmap
+                key: postgresHost
+          - name: DB_PORT
+            valueFrom:
+              configMapKeyRef:
+                name: create-postgres-host-configmap
+                key: postgresPort
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for PostgreSQL to become ready...'
+            until printf "." && nc -z -w 2 $DB_HOST $DB_PORT; do
+                sleep 2;
+            done;
+            echo 'PostgreSQL OK ✓'
+      volumes:
+        {{- include "logLevel.configMap.volume" $ | indent 8 }}
+{{- end }}

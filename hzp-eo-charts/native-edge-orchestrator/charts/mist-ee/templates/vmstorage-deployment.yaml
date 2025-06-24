@@ -1,0 +1,84 @@
+{{ if .Values.victoriametrics.deploy }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "chart.fullname" . }}-vmstorage
+  labels: &labels
+    app: vmstorage
+    chart: {{ include "chart.chart" . }}
+    release: {{ include "selector.label.release.name" . }}
+    heritage: {{ .Release.Service }}
+    hzp-app: vmstorage
+    hzp-role: mist-service
+    hzp.iam.webhook/active: '{{ .Values.global.nginx_gw.enabled }}'
+spec:
+  serviceName: vmstorage
+  replicas: {{ .Values.victoriametrics.vmstorage.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: vmstorage
+      release: {{ include "selector.label.release.name" . }}
+  template:
+    metadata:
+      annotations:
+        hzp.iam.webhook/authentication-enabled: "false"
+        hzp.iam.webhook/authorization-enabled: "false"
+      labels: *labels
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.victoriametrics.vmstorage $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.victoriametrics.vmstorage $ ) | trim | nindent 8 }}
+      containers:
+      - name: vmstorage
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "mist-vmstorage" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+        command:
+        - /bin/sh
+        - -c
+        args:
+        - |
+          export VMUSER=$(cat /etc/vm-auth/username)
+          export VMPASS=$(cat /etc/vm-auth/password)
+          exec /vmstorage-prod \
+          -httpAuth.username=$VMUSER \
+          -httpAuth.password=$VMPASS \
+          --retentionPeriod={{ .Values.victoriametrics.vmstorage.retentionPeriod | default 12 }} \
+          --storageDataPath=/var/lib/victoria-metrics-data
+        resources:
+          requests:
+            memory: {{ .Values.victoriametrics.vmstorage.resources.requests.memory | default "50Mi" }}
+            cpu: {{ .Values.victoriametrics.vmstorage.resources.requests.cpu | default "250m" }}
+          limits:
+            memory: {{ .Values.victoriametrics.vmstorage.resources.limits.memory | default "1000Mi" }}
+            cpu: {{ .Values.victoriametrics.vmstorage.resources.limits.cpu | default "2000m" }}
+        volumeMounts:
+        - mountPath: /var/lib/victoria-metrics-data
+          name: {{ include "chart.fullname" . }}-vmstorage
+        - name: vm-auth
+          mountPath: /etc/vm-auth
+          readOnly: true
+      volumes:
+        - name: vm-auth
+          secret:
+            secretName: {{ include "chart.fullname" . }}-victoria-metrics
+      securityContext:
+        runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+        fsGroup: 1000
+        runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+        seccompProfile:
+          type: RuntimeDefault
+  volumeClaimTemplates:
+  - metadata:
+      name: {{ include "chart.fullname" . }}-vmstorage
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: {{ .Values.victoriametrics.vmstorage.resources.storageSize | default "8Gi" }}
+{{- if .Values.global.storageClass }}
+      storageClassName: {{ .Values.global.storageClass }}
+{{- end }}
+{{- end }}

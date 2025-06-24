@@ -1,0 +1,166 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  ingress:
+    fqdn: localhost
+  jobSvc:
+    smoketestEnabled: false
+  istio:
+    deploy: true
+  nginx_gw:
+    enabled: false
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  instrumentation:
+    enabled: false
+components:
+  job-svc:
+    image: job-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  common-locales-bundle:
+    image: common-locales-bundle
+    version: latest
+    project: hzp/
+  job-smoke-test:
+    image: job-smoke-test
+    version: latest
+    project: hzp/
+# Subchart values
+svc:
+  name: &serviceName hzp-job-svc
+  replicaCount: 1
+  port: 8080
+  image:
+    name: job-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    app.kubernetes.io/app: *serviceName
+    hzp.iam.webhook/active: "true"
+  job:
+    podLabels:
+      hzp-app: *serviceName
+      hzp-role: eo-service
+  resources:
+    limits:
+      cpu: 100m
+      memory: 200Mi
+    requests:
+      cpu: 5m
+      memory: 25Mi
+  env:
+    - name: DB_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresHost
+    - name: DB_PORT
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresPort
+    - name: DB_USER
+      value: "hzp_job_service"
+    - name: DB_PA
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: hzp_job_service-password
+    - name: QUEUE_GROUP
+      value: "hzp-job-svc-queue"
+    - name: EVENTS_SUBJECT
+      value: "hzp.job.events"
+    - name: ECE_JOB_SUBJECT
+      value: "hzp.ece.job"
+    - name: MAINTENANCE_UPDATE_SUBJECT
+      value: "hzp.job.maintenance"
+    - name: FW_UPDATE_SUBJECT
+      value: "hzp.fw_hostos.update"
+    - name: JOB_EVENT_UPDATE_SUBJECT
+      value: "hzp.job.event-update"
+    - name: JOB_EVENT_CREATE_SUBJECT
+      value: "hzp.job.event-create"
+  localization:
+    image:
+      name: common-locales-bundle
+      tag: magicp1-2.0.0
+      pullPolicy: Always
+  autoScaling:
+    enabled: false
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+
+test:
+  # Subchart values
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    hzp-app: hzp-job-svc-regression
+    hzp-role: smoke-test
+  eoEceRegression: true
+  testsuite: test-suites/smoke.xml
+  replicaCount: 1
+  image:
+    name: job-smoke-test
+    pullPolicy: Always
+    tag: latest
+  env:
+    - name: DATABASE_URL
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresUrl
+    - name: DATABASE_USERNAME
+      value: "test"
+    - name: DATABASE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: test-password
+  cpu: 0.25
+  memory: 512Mi
+  jobsvc:
+    service:
+      fullname: *serviceName
+      port: 80
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 612574
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    ecemanifest: 1
+    runid: 1
+    release: 1
+    suite: 1

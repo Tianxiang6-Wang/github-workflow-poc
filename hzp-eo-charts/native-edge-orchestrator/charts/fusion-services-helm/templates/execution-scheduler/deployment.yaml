@@ -1,0 +1,129 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: execution-scheduler
+  name: {{ template "fusion-services.name" . }}-execution-scheduler
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  replicas: {{ .Values.execution_scheduler.replicas }}
+  selector:
+    matchLabels:
+      app: execution-scheduler
+  template:
+    metadata:
+      labels:
+        app: execution-scheduler
+        fusion-name: fusion-execution-scheduler
+      {{ with .Values.execution_scheduler.podLabels }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      annotations:
+        {{- include "fusion-services.merge" ( list .Values.commonAnnotations .Values.execution_scheduler.podAnnotations ) | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsUser: {{ .Values.execution_scheduler.podSecurityContext.runAsUser }}
+        runAsGroup: {{ .Values.execution_scheduler.podSecurityContext.runAsGroup }}
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.execution_scheduler $ )| trim | nindent 8 }}
+      tolerations: {{- include "fusion-services.tolerations" ( list .Values.execution_scheduler $ ) | trim | nindent 8 }}
+      affinity: {{- include "fusion-services.affinity" ( list .Values.execution_scheduler $ ) | trim | nindent 8 }}
+      initContainers:
+        - name: execution-scheduler-init
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-restservice" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-restservice" ).pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 100Mi
+              cpu: 0.1
+            limits:
+              memory: 100Mi
+              cpu: 0.1
+          env:
+            {{- include "fusion-services.postgres_env_vars" (dict "root" $) | nindent 12 }}
+            - name: ENTRYPOINT
+              value: localhost
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fusion-services.name" . }}-manager-security
+                  key: encryptionKey
+          command:
+            - /usr/bin/env
+            - -S
+            - bash
+            - -exuc
+            - |
+              python -m manager_rest.configure_manager --db-initialized-wait {{ .Values.db.host }}
+      containers:
+        - image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-execution-scheduler" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-execution-scheduler" ).pullPolicy }}
+          env:
+            {{- include "fusion-services.postgres_env_vars" (dict "root" $) | nindent 12 }}
+            {{- include "fusion-services.rabbitmq_env_vars" (dict "root" $) | nindent 12 }}
+            {{- if not .Values.rabbitmq.enabled }}
+            - name: RABBITMQ_CA_CERT_PATH
+              value: {{ .Values.externalRabbitmq.ca_cert }}
+            {{- end }}
+            - name: LOGGING_LEVEL_GLOBAL_PATH
+              value: {{ tpl .Values.execution_scheduler.logging.configMountPath $ }}/{{ tpl .Values.execution_scheduler.logging.globalConfigFile $ }}
+            - name: LOGGING_LEVEL_SERVICE_PATH
+              value: {{ tpl .Values.execution_scheduler.logging.configMountPath $ }}/{{ tpl .Values.execution_scheduler.logging.serviceConfigFile $ }}
+            {{- if .Values.blueprint.enabled }}
+            - name: BLUEPRINT_HOST
+              value: {{ template "fusion-services.name" . }}-blueprint
+            - name: BLUEPRINT_PORT
+              value: {{ .Values.blueprint.port | quote }}
+            - name: BLUEPRINT_PROTOCOL
+              value: http
+            {{- end }}
+            {{- if .Values.deployments.enabled }}
+            - name: DEPLOYMENTS_HOST
+              value: {{ template "fusion-services.name" . }}-deployments
+            - name: DEPLOYMENTS_PORT
+              value: {{ .Values.deployments.port | quote }}
+            - name: DEPLOYMENTS_PROTOCOL
+              value: http
+            {{- end }}
+            - name: FUSION_AUTH_PSK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fusion-services.name" . }}-auth-signing
+                  key: psk
+            {{- include "fusion-services.restservice_keys" . | nindent 12 }}
+            {{- if (.Values.execution_scheduler.logging).audit_logs_subject }}
+            - name: AUDIT_LOGS_SUBJECT
+              value: {{ tpl .Values.execution_scheduler.logging.audit_logs_subject $ | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: logging
+              mountPath: {{ tpl .Values.execution_scheduler.logging.configMountPath $ }}
+              readOnly: true
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          name: execution-scheduler
+          resources: {{- toYaml .Values.execution_scheduler.resources | nindent 12 }}
+      restartPolicy: Always
+      {{- include "fusion-services.images.pullSecrets" . | nindent 6 }}
+      volumes:
+        - name: logging
+          configMap:
+            name: {{ include "fusion-loglevel-configmap.name" $ }}

@@ -1,0 +1,180 @@
+global:
+  imageName: registry
+  imagePullPolicy: IfNotPresent
+  restartPolicy: Always
+  imagePullSecrets:
+  - docker-secret
+
+components:
+  registry:
+    image: registry
+    version: 3.0.0-rc.3
+    project: ''
+
+image:
+  pullPolicy: IfNotPresent
+
+registry:
+  repository: null
+  imageName: null
+  imageTag: null
+  imageOverride: null
+  restartPolicy: null
+
+  # Toleration Settings for server pods
+  # This should be a multi-line string matching the Toleration array
+  # in a PodSpec.
+  tolerations: ""
+
+  # nodeSelector labels for server pod assignment, formatted as a muli-line string.
+  # ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+  # Example:
+  nodeSelector: |
+    kubernetes.io/arch: amd64
+
+registryContaienrPort: &registryContaienrPort 5000
+
+podAnnotations:
+  hzp.iam.webhook/authentication-enabled: "false"
+  hzp.iam.webhook/authorization-enabled: "false"
+  hzp.iam.webhook/exclude-inbound-ports: "443"
+  hzp.iam.webhook/resources-limits-memory: "2500Mi"
+podLabels:
+  hzp-app: container-registry
+  hzp-role: eo-service
+
+deployment: {} # annotations:
+
+service:
+  name: registry
+  type: ClusterIP
+  # sessionAffinity: None
+  # sessionAffinityConfig: {}
+  # clusterIP:
+  port: *registryContaienrPort
+  targetPort: *registryContaienrPort
+  # nodePort:
+  # loadBalancerIP:
+  # loadBalancerSourceRanges:
+  annotations: {}
+  # foo.io/bar: "true"
+  labels: {}
+  # foo.io/baz: "false"
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #  cpu: 100m
+  #  memory: 128Mi
+  # requests:
+  #  cpu: 100m
+  #  memory: 128Mi
+
+persistence:
+  accessMode: 'ReadWriteOnce'
+  enabled: false
+  size: 10Gi
+  # storageClass: '-'
+
+  # set the type of filesystem to use: filesystem, s3
+storage: filesystem
+
+replicaCount: 1
+containerPort: *registryContaienrPort
+
+secrets:
+  haSharedSecret: ""
+  htpasswd: ""
+# Secrets for S3 access and secret keys
+# Use a secretRef with keys (accessKey, secretKey) for secrets stored outside the chart
+#   s3:
+#     secretRef: ""
+#     accessKey: ""
+#     secretKey: ""
+# Secrets for Swift username and password
+#   swift:
+#     username: ""
+#     password: ""
+
+# Options for s3 storage type:
+# s3:
+#  region: us-east-1
+#  regionEndpoint: https://s3.us-east-1.amazonaws.com
+#  bucket: my-bucket
+#  rootdirectory: /object/prefix
+#  encrypt: false
+#  secure: true
+
+configData:
+  version: 0.1
+  log:
+    level: error
+    formatter: json
+    fields:
+      service: registry
+  storage:
+    cache:
+      blobdescriptor: ""
+    filesystem:
+      rootdirectory: /var/lib/registry
+    delete:
+      enabled: true
+  http:
+    addr: :5000
+    headers:
+      X-Content-Type-Options: [ nosniff ]
+    debug:
+      addr: :5001
+
+containerSecurityContext:
+  enabled: true
+  seLinuxOptions: {}
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  privileged: false
+  readOnlyRootFilesystem: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  enabled: true
+  fsGroupChangePolicy: Always
+  sysctls: []
+  supplementalGroups: []
+  fsGroup: 1000
+
+extraVolumeMounts: []
+## Additional volumeMounts to the registry container.
+#  - mountPath: /secret-data
+#    name: cloudfront-pem-secret
+#    readOnly: true
+
+extraVolumes: []
+## Additional volumes to the pod.
+#  - name: cloudfront-pem-secret
+#    secret:
+#      secretName: cloudfront-credentials
+#      items:
+#        - key: cloudfront.pem
+#          path: cloudfront.pem
+#          mode: 511
+
+extraEnvVars: []
+## Additional ENV variables to set
+# - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
+#   value: "/var/lib/example"
+
+initContainers: []
+
+## Init containers to add to the Deployment
+# - name: init
+#   image: busybox
+#   command: []

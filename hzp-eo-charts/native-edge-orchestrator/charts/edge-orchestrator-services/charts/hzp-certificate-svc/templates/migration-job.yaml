@@ -1,0 +1,35 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.svc.name }}-migration-job
+  annotations:
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    metadata:
+      name: {{ .Values.svc.name }}-migration-job
+      labels:
+{{- tpl (toYaml .Values.migration.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.svc.rbac.namePrefix }}-sa
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          name: {{ .Values.svc.name }}-migration-job-container
+          resources:
+            {{- toYaml .Values.migration.resources | nindent 12 }}
+          imagePullPolicy: Always
+          env:
+            - name: CERT_SVC_DAPO_URL
+              value: "http://hzp-certificate-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: CERT_SVC_DAPP_URL
+              value: "http://dsp-portal-certificate-svc.{{ .Values.global.dsp.portal.namespace | default "dapp" }}.svc.cluster.local"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+          command:
+            - "./main"
+            - "-migrate"
+      restartPolicy: Never

@@ -1,0 +1,146 @@
+{{- if .Values.hook.deleteJobs.enabled }}
+{{- $deleteJobsHook := .Values.hook.deleteJobs -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,pre-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+  name: delete-jobs-sa
+  namespace: {{ .Release.Namespace }}
+{{- include "images.pullSecrets" . }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,pre-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+  name: delete-jobs-role
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups:
+      - "batch"
+    resources:
+      - jobs
+    verbs:
+      - delete
+      - list
+      - patch
+      - get
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["list", "get", "delete", "patch", "watch"]
+  - apiGroups: ["apps"]
+    resources: ["statefulsets", "statefulsets/scale"]
+    verbs: ["list", "get", "delete", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "deployments/scale"]
+    verbs: ["list", "get", "delete", "patch"]
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade,pre-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+  name: delete-jobs-rolebinding
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: delete-jobs-role
+subjects:
+  - kind: ServiceAccount
+    name: delete-jobs-sa
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $deleteJobsHook.name }}
+  namespace: {{ .Release.Namespace }}
+  annotations:
+{{- tpl (toYaml $deleteJobsHook.jobAnnotations) . | replace "'" "" | nindent 4 }}
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+{{- tpl (toYaml $deleteJobsHook.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      serviceAccountName: delete-jobs-sa
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.hook.deleteJobs $ ) | trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.hook.deleteJobs $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.hook.deleteJobs $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components "kubectl" ) "repo" .Values.global.repository) }}
+          name: {{ $deleteJobsHook.name }}
+          imagePullPolicy: Always
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+              kubectl label namespace {{ .Release.Namespace }} hzp.iam.webhook/active={{ .Values.global.iamProxy.sidecarEnabled }} --overwrite
+              echo "Labeling {{ .Release.Namespace }} namespace completed"
+              echo "Deleting jobs before upgrade"
+              job_names=("hzp-certificate-svc-job" "owner-to2-setup" "create-hzp-nats-stream-job" "eo-management-opensearch-manage" "factoryos-init-job" "factoryreset-init-job" "hostos-init-job" "hostos-upgrade-job" "postgresql-credentials-bootstrap" "vault-bootstrap" "hzp-delco-svc-pre-delete-job" "fusion-plugin-loader-job" "fusion-resource-uploader-job" "bootos-init-job")
+              for job_name in "${job_names[@]}"; do
+                if ! kubectl delete job -n {{ .Release.Namespace }} $job_name --ignore-not-found=true; then
+                  echo "Failed to delete jobs"
+                  exit 1
+                fi
+              done
+              scale_down() {
+                resource=$1
+                echo "Scaling down ${resource}"
+                if kubectl get "${resource}" -n {{ .Release.Namespace }} > /dev/null 2>&1; then
+                  kubectl scale "${resource}" --replicas=0 -n {{ .Release.Namespace }} 2>/dev/null
+                  echo "Waiting until scaling down is complete for ${resource}"
+                  replica_count=$(kubectl get "${resource}" -n {{ .Release.Namespace }} -o jsonpath='{.status.availableReplicas}')
+                  while [ -n "$replica_count" ] && [ "$replica_count" -gt 0 ]; do
+                    sleep 3
+                    replica_count=$(kubectl get "${resource}" -n {{ .Release.Namespace }} -o jsonpath='{.status.availableReplicas}')
+                  done
+                fi
+              }
+              # Below scaling downs are to avoid other service init containers referring to them
+              # and misjudging as the upgrade has completed for these
+              scale_down statefulset/edgevault
+              scale_down statefulset/postgres
+              scale_down statefulset/keycloak
+              scale_down statefulset/rabbitmq
+              scale_down statefulset/eo-management-opensearch
+              scale_down deployment/hzp-iam-webhook
+              scale_down deployment/fusion-api-service
+              scale_down deployment/fusion-blueprint
+              scale_down deployment/fusion-deployments
+              scale_down deployment/fusion-drift
+              scale_down deployment/fusion-execution-scheduler
+              scale_down deployment/fusion-mgmtworker
+              scale_down deployment/fusion-nginx
+              scale_down deployment/fusion-plugins
+              scale_down deployment/fusion-rest-service
+              scale_down deployment/fusion-secrets
+              scale_down deployment/fusion-stage-backend
+              echo "Scaling down complete"
+              # Delete fusion-drift deployment to allow upgrade
+              kubectl delete deployment fusion-drift -n {{ .Release.Namespace }} --ignore-not-found=true
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+{{- end }}

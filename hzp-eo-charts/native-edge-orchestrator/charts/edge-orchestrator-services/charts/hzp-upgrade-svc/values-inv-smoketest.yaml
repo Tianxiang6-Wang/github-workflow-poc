@@ -1,0 +1,10 @@
+global:
+  upgradeSvc:
+    deploy: true
+    smoketestEnabled: true
+  healthCheckSvc:
+    deploy: true
+  oeTemplateMgr:
+    deploy: true
+  catalogSvc:
+    deploy: true

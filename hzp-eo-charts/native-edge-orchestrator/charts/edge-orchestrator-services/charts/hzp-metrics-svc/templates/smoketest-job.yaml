@@ -1,0 +1,49 @@
+{{- if or (.Values.global.regressionEnabled) (.Values.global.metricsSvc.smoketestEnabled) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: metrics-smoke-test
+spec:
+  template:
+    metadata:
+      name: metrics-smoke-test
+      labels:
+{{- tpl (toYaml .Values.test.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - name: metrics-smoke-test-container
+          env:
+          {{- toYaml .Values.test.env | nindent 12 }}
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.test.image.name ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          command: ['/bin/sh', '-c']
+          # Sleep before test to allow netpol and istio-proxy to take effect
+          # Sleep after the test is to enable pipeline to copy the test result when pod is running state
+          args:
+            - |
+              sleep 60; echo All dependent components are running. Start testing!;
+              java -jar tests.jar {{ .Values.test.testsuite }}; sleep 60;
+              if curl -s -X POST http://127.0.0.1:15020/quitquitquit > /dev/null 2>&1; then
+                  echo "Terminated istio-proxy."
+              fi
+      initContainers:
+        - name: init-metrics
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for hzp-metrics-svc to become ready...'
+              
+              until printf "." && nc -z -w 2 {{ .Values.test.metrics.service.fullname }} {{ .Values.test.metrics.service.port }}; do
+                  sleep 2;
+              done;
+              
+              echo 'hzp-metrics-svc OK ✓'
+      restartPolicy: Never
+  {{- end }}

@@ -1,0 +1,205 @@
+global:
+  temp:
+    portalTransition:
+      enableLoadBalancer: true
+  k8s:
+    distro: eks
+  is-saas-env: true
+  repository: 702886132326.dkr.ecr.eu-west-1.amazonaws.com/eo-images/
+  image:
+    registry: 702886132326.dkr.ecr.eu-west-1.amazonaws.com/eo-images
+  imageRegistry: 702886132326.dkr.ecr.eu-west-1.amazonaws.com/eo-images
+
+  # Disable Presto to Stella migrations in SaaS environments because these migration
+  # jobs have assumptions as to how they can connect to mongo, which don't hold true in SaaS.
+  enablePrestoToStellaMigrations: false
+
+  pgAdmin:
+    deploy: false
+  
+  # Disable oob enabled flag as it is required only in case of on prem environment
+  oob:
+    oobEnabled: false
+
+  eceSimulator:
+    deploy: false
+
+  natsBox:
+    deploy: false
+
+  iamProxyTest:
+    deploy: false
+
+  smokeTest:
+    deploy: false
+
+  ingress:
+    fqdn: 'myeo.dev.nativeedge.dell.com'
+    ingressClassName: alb
+    exposeQAServices: false
+    enableNetworkPolicies: true
+  istio:
+    deploy: false
+    defaultPrefix:
+      mTLSHost: "mtls-"
+      mTLSHostRecovery: "mtls-recovery-"
+    ingress:
+      annotations:
+        alb.ingress.kubernetes.io/group.name: eoaas-development
+        alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:eu-west-1:702886132326:certificate/87a36f47-14d2-44b3-9551-665ef7a84688
+        alb.ingress.kubernetes.io/scheme: internal
+        alb.ingress.kubernetes.io/backend-protocol: HTTPS
+        alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=3900,client_keep_alive.seconds=7200
+        alb.ingress.kubernetes.io/actions.ssl-redirect: '{"Type": "redirect", "RedirectConfig": { "Protocol": "HTTPS", "Port": "443", "StatusCode": "HTTP_301"}}'
+        alb.ingress.kubernetes.io/healthcheck-interval-seconds: '60'
+        alb.ingress.kubernetes.io/healthcheck-path: /
+        alb.ingress.kubernetes.io/healthcheck-port: traffic-port
+        alb.ingress.kubernetes.io/healthcheck-protocol: HTTPS
+        alb.ingress.kubernetes.io/healthcheck-timeout-seconds: '20'
+        alb.ingress.kubernetes.io/listen-ports: '[{"HTTPS":443}, {"HTTP":80}]'
+        alb.ingress.kubernetes.io/success-codes: '200,302'
+        alb.ingress.kubernetes.io/target-type: ip
+    ingressgateway:
+      internal: false
+      type: LoadBalancer
+      annotations:
+        external-dns.alpha.kubernetes.io/hostname: mtls-myeo.dev.nativeedge.dell.com
+        service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+        service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: 'true'
+        service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: 'ip'
+        service.beta.kubernetes.io/aws-load-balancer-type: 'external'
+
+  nginx_gw:
+    enabled: true
+
+  clusterResourcesPrefix: '{{ .Release.Namespace }}-'
+
+  microsegmentation:
+    deploy: true
+
+  istio-crd:
+    deploy: false
+
+  fido:
+    global_rv_flag: "enabled"
+
+  isPipelineDeploy: true
+
+  keycloak:
+    settings:
+      # pending to set to false: https://gitlab.dell.com/frontier/cloud-hosted-beta/eoaas-deployment-pipeline/-/blob/main/.gitlab-ci.yml?ref_type=heads#L474
+      forceAdminUserPostFirstLoginActions: false
+
+  test:
+    enabled: false
+
+  iamV2AuthZEnabled: true
+  iamAuthZEnabled: true
+
+  fluentbit:
+    enabled: false
+
+  opensearch:
+    resources:
+      storageSize: 45Gi
+  
+  instrumentation:
+    enabled: true       
+
+smoke-test:
+  test:
+    enabled: false
+
+microsegmentation:
+  networkPolicies:
+    kubeEndpointsCidrs:
+      - 172.20.0.1/32 # EKS-specific endpoint for kubernetes.default.svc.cluster.local
+
+eo-management:
+  nginx_gw:
+    ingress:
+      enabled: true
+  keycloak:
+    ingress:
+      enabled: false
+  vault:
+    server:
+      ingress:
+        enabled: false
+
+  postgresql:
+    primary:
+      persistence:
+        size: 50Gi
+    readReplicas:
+      persistence:
+        size: 50Gi
+  seaweedfs:
+    volume:
+      data:
+        size: "300Gi"
+  nats:
+    nats:
+      jetStream:
+        pvc:
+          resources:
+            storage: "30Gi"
+
+# subchart: EO Services
+edge-orchestrator-services:
+  pgAdmin:
+    service:
+      type: ClusterIP
+  hzp-ingress-authz-svc:
+    svc:
+      internalIngressNamespace: '{{ .Release.Namespace }}'
+  hzp-catalog-svc:
+    hostosInit:
+      image:
+        name: hzp-host-configuration-exe-staging
+  hzp-ece-firmwareupdate-svc:
+    svc:
+      pvc:
+        fu:
+          storageSize: 3Gi
+  hzp-product-svc:
+    ese:
+      pvc:
+        enabled: false
+        resources:
+          storage: 1Gi
+    shared:
+      pvc:
+        resources:
+          storage: 30Gi
+  hzp-datacollection-svc:
+    job:
+      logsMigrationEnabled: false
+mist-ee:
+  deployment:
+    portal:
+      pendo:
+        enabled: true
+  spire:
+    enabled: false
+  image:
+    registry: 702886132326.dkr.ecr.eu-west-1.amazonaws.com/eo-images
+  portalAdmin:
+    edgeServiceCloudURI: "nginx-gw"
+  sharedvolume:
+    storageSize: "125Gi"
+  opensearch:
+    resources:
+      storageSize: "45Gi"
+
+fusion-services-helm:
+  mgmtworker:
+    env:
+      EO_URL: "nginx-gw"
+  rabbitmq:
+    image:
+      registry: 702886132326.dkr.ecr.eu-west-1.amazonaws.com/eo-images
+  eventLogger:
+    enabled: true
+    env:
+      NATS_URL: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"

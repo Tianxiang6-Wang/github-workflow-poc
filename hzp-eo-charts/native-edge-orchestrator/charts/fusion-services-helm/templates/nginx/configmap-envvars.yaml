@@ -1,0 +1,36 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "fusion-services.name" . }}-nginx-envvars
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+data:
+  WORKER_PROCESS: auto
+  WORKER_CONNECTIONS: "4096"
+  REST_SERVICE_HOST: {{ template "fusion-services.name" . }}-rest-service
+  REST_SERVICE_SERVICE_PORT: {{ .Values.rest_service.port | quote }}
+  API_SERVICE_HOST: {{ template "fusion-services.name" . }}-api-service
+  API_SERVICE_SERVICE_PORT: {{ .Values.api_service.port | quote }}
+  STAGE_FRONTEND_HOST: {{ template "fusion-services.name" . }}-stage-frontend
+  STAGE_FRONTEND_SERVICE_PORT: {{ .Values.stage_frontend.port | quote }}
+  STAGE_BACKEND_HOST: {{ template "fusion-services.name" . }}-stage-backend
+  STAGE_BACKEND_SERVICE_PORT: {{ .Values.stage_backend.port | quote }}
+  {{- if (.Values.composer).enabled }}
+  COMPOSER_FRONTEND_HOST: {{ template "fusion-services.name" . }}-composer-frontend
+  COMPOSER_FRONTEND_SERVICE_PORT: {{ .Values.composer_frontend.port | quote }}
+  COMPOSER_BACKEND_HOST: {{ template "fusion-services.name" . }}-composer-backend
+  COMPOSER_BACKEND_SERVICE_PORT: {{ .Values.composer_backend.port | quote }}
+  {{- end }}
+  BLUEPRINTS_SERVICE_HOST: {{ if .Values.blueprint.enabled -}}{{ template "fusion-services.name" . }}-blueprint{{- else -}}{{ template "fusion-services.name" . }}-rest-service{{- end }}
+  BLUEPRINTS_SERVICE_PORT: {{ if .Values.blueprint.enabled -}}{{ .Values.blueprint.port | quote }}{{- else -}}{{ .Values.rest_service.port | quote }}{{- end }}
+  AGENTS_SERVICE_HOST: {{ if .Values.agent.enabled -}}{{ template "fusion-services.name" . }}-agent{{- else -}}{{ template "fusion-services.name" . }}-rest-service{{- end }}
+  AGENTS_SERVICE_PORT: {{ if .Values.agent.enabled -}}{{ .Values.agent.port | quote }}{{- else -}}{{ .Values.rest_service.port | quote }}{{- end }}
+  SECRETS_SERVICE_HOST: {{ if .Values.secrets.enabled -}}{{ template "fusion-services.name" . }}-secrets{{- else -}}{{ template "fusion-services.name" . }}-rest-service{{- end }}
+  SECRETS_SERVICE_PORT: {{ if .Values.secrets.enabled -}}{{ .Values.secrets.port | quote }}{{- else -}}{{ .Values.rest_service.port | quote }}{{- end }}
+  PLUGINS_SERVICE_HOST: {{ if .Values.plugins.enabled -}}{{ template "fusion-services.name" . }}-plugins{{- else -}}{{ template "fusion-services.name" . }}-rest-service{{- end }}
+  PLUGINS_SERVICE_PORT: {{ if .Values.plugins.enabled -}}{{ .Values.plugins.port | quote }}{{- else -}}{{ .Values.rest_service.port | quote }}{{- end }}
+  DEPLOYMENTS_SERVICE_HOST: {{ if .Values.deployments.enabled -}}{{ template "fusion-services.name" . }}-deployments{{- else -}}{{ template "fusion-services.name" . }}-rest-service{{- end }}
+  DEPLOYMENTS_SERVICE_PORT: {{ if .Values.deployments.enabled -}}{{ .Values.deployments.port | quote }}{{- else -}}{{ .Values.rest_service.port | quote }}{{- end }}
+  DRIFT_SERVICE_HOST: {{ if .Values.drift.enabled -}}{{ template "fusion-services.name" . }}-drift{{- else -}}{{ template "fusion-services.name" . }}-rest-service{{- end }}
+  DRIFT_SERVICE_PORT: {{ if .Values.drift.enabled -}}{{ .Values.drift.port | quote }}{{- else -}}{{ .Values.rest_service.port | quote }}{{- end }}
+

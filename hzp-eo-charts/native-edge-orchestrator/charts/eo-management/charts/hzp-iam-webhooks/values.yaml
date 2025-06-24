@@ -1,0 +1,133 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  clusterResourcesPrefix: ""
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  dsp:
+    portal:
+      orgId: ""
+      url: ""
+      orchId: 'af9eae0b-8530-4e2b-a6a2-ea4934c515d6'
+      token: ""
+components:
+  iam-webhook-svc:
+    image: iam-webhook-svc
+    version: latest
+    project: hzp/
+  hzp-iam-proxy:
+    image: hzp-iam-proxy
+    version: latest
+    project: hzp/
+  hzp-iam-proxy-init:
+    image: hzp-iam-proxy-init
+    version: latest
+    project: hzp/
+  kubectl:
+    image: kubectl
+    version: 1.30.5
+    project: bitnami/
+bootstrap:
+  idrac:
+    configmap:
+      name: idrac-client-config
+    clientName: idrac
+  configmap:
+    name: iam-bootstrap-config
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    sidecar.istio.io/inject: "false"
+    hzp-app: iam-bootstrap-job
+    hzp-role: eo-service
+  name: iam-bootstrap
+  image:
+    name: iam-bootstrap-job
+
+spire:
+  enabled: "false"
+containerSpecConfig:
+  name: iam-injection-specs
+webhook:
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    sidecar.istio.io/inject: "false"
+    hzp-app: &netpolApp hzp-iam-webhook
+    hzp-role: &netpolRole eo-service
+# Subchart values
+proxyConfig:
+  name: &proxyConfigMapName hzp-iam-proxy-config
+  initCertSecretName: init-cert-proxy
+  port: &proxyPort "15006"
+  bundleStrategy: "POLICY_SERVICE" # FILE_SYSTEM, POLICY_SERVICE, NONE
+  outPort: &proxyPort "15001"
+  destinationPort: &externalPort "8012"
+  healthCheckPort: "15022"
+  externalRequestHeader: "X-Eo-External-Request"
+  keysProviderURL: "http://dsp-iam-token-svc"
+  externalRequestHeaderName: "EXTERNAL_REQUEST_HEADER"
+
+proxyInitialize:
+  jobAnnotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation
+    "helm.sh/hook-weight": "2"
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    sidecar.istio.io/inject: "false"
+    hzp-app: *netpolApp
+    hzp-role: *netpolRole
+
+proxyContainer:
+  name: hzp-iam-proxy
+  image:
+    name: hzp-iam-proxy
+    pullPolicy: Always
+    repository:
+    tag: latest
+  proxyConfigMapName: *proxyConfigMapName
+
+initConfig:
+  # Subchart values
+  name: &initConfigMapName hzp-iam-init-config
+  srcPort: *externalPort # External port
+  dstPort: *proxyPort # Proxy port
+
+initContainer:
+  # Subchart values
+  name: hzp-iam-proxy-init
+  image:
+    name: hzp-iam-proxy-init
+    pullPolicy: Always
+    repository:
+    tag: latest
+  initConfigMapName: *initConfigMapName
+
+bundleInitContainer:
+  # Subchart values
+  name: hzp-iam-proxy-bundle-init
+  image:
+    pullPolicy: Always
+
+webhookSvc:
+  name: hzp-iam-webhook
+  configName: hzp-iam-sidecar-injector
+  replicaCount: 1
+  port: &webhookPort "8443"
+  healthCheckPort: "15022"
+  servicePort: "443"
+  config:
+    excludeOutboundCIDRList:
+  image:
+    name: iam-webhook-svc
+    repository:
+    pullPolicy: Always
+    tag: latest
+  env:
+    - name: CERT_FILE_PATH
+      value: "/etc/ssl/certs/cert.pem"
+    - name: KEY_FILE_PATH
+      value: "/etc/ssl/keys/key.pem"
+    - name: APP_PORT
+      value: *webhookPort

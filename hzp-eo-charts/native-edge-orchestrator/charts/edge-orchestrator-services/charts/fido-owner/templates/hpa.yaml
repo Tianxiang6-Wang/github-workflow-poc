@@ -1,0 +1,39 @@
+{{- if .Values.svc.autoScaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.svc.security.name }}
+  labels:
+    hzp-app: {{ .Values.svc.security.netpolName }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.svc.security.name }}
+  minReplicas: {{ .Values.svc.autoScaling.minReplicas }}
+  maxReplicas: {{ .Values.svc.autoScaling.maxReplicas }}
+  metrics:
+    {{- toYaml .Values.svc.autoScaling.metrics | nindent 4 }}
+  behavior:
+    {{- toYaml .Values.svc.autoScaling.behavior | nindent 4 }}
+{{- end }}
+
+{{- if .Values.fidoOwner.autoScaling.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ .Values.svc.name }}
+  labels:
+    hzp-app: {{ .Values.svc.name }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ .Values.svc.name }}
+  minReplicas: {{ .Values.fidoOwner.autoScaling.minReplicas }}
+  maxReplicas: {{ .Values.fidoOwner.autoScaling.maxReplicas }}
+  metrics:
+    {{- toYaml .Values.fidoOwner.autoScaling.metrics | nindent 4 }}
+  behavior:
+    {{- toYaml .Values.fidoOwner.autoScaling.behavior | nindent 4 }}
+{{- end }}

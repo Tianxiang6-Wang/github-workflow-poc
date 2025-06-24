@@ -1,0 +1,108 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+  - docker-secret
+  fidoRv:
+    smoketestEnabled: false
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+components:
+  hzp-fido-rv:
+    image: hzp-fido-rv
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+svc:
+  name: &serviceName fido-rv
+  resources:
+    limits:
+      cpu: 2
+      memory: 1800Mi
+    requests:
+      cpu: 5m
+      memory: 256Mi
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: "{{ .Values.global.nginx_gw.enabled | quote }}"
+  autoScaling:
+    enabled: false
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 60
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+# Subchart values
+port: 8040
+image:
+  name: hzp-fido-rv
+  pullPolicy: Always
+  tag: latest
+
+env:
+- name: DB_HOST
+  valueFrom:
+    configMapKeyRef:
+      name: create-postgres-host-configmap
+      key: postgresHost
+- name: DB_PORT
+  valueFrom:
+    configMapKeyRef:
+      name: create-postgres-host-configmap
+      key: postgresPort
+- name: DB_NAME
+  value: "est_rv_db"
+- name: DB_USER
+  value: "est_rv_db"
+- name: DB_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: postgres-secret
+      key: est_rv_db-password
+- name: encrypt_password
+  valueFrom:
+    secretKeyRef:
+      name: fido-secret
+      key: encrypt-password
+- name: api_password
+  valueFrom:
+    secretKeyRef:
+      name: fido-secret
+      key: api-password
+- name: ssl_password
+  valueFrom:
+    secretKeyRef:
+      name: fido-secret
+      key: ssl-password
+- name: DB_CONNECTION_RETRIES
+  value: "3"
+- name: DB_MAX_SIZE
+  value: "50"

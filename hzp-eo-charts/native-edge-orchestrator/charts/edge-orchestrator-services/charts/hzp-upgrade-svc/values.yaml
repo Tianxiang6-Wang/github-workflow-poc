@@ -1,0 +1,196 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  vault:
+    host: "http://edgevault.{{ .Release.Namespace }}.svc.cluster.local"
+    port: &vaultPort "8200"
+  message:
+    type: nats
+    url: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+  ingress:
+    fqdn: localhost
+  eoName: "NativeEdge Orchestrator"
+  brandName: "NativeEdge"
+  upgradeSvc:
+    smoketestEnabled: false
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  s3:
+    downloadUrl: http://eo-management-seaweedfs-s3.{{ .Release.Namespace }}.svc.cluster.local:8333
+  dsp:
+    enabled: false
+  instrumentation:
+    enabled: false
+components:
+  upgrade-svc:
+    image: upgrade-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  upgrade-smoke-test:
+    image: upgrade-smoke-test
+    version: latest
+    project: hzp/
+
+brand: ne
+
+# Subchart values
+svc:
+  name: &serviceName hzp-upgrade-svc
+  replicaCount: 1
+  port: 8080
+  image:
+    name: upgrade-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: "true"
+  podAnnotations:
+    checksum/config: '{{ include (print $.Template.BasePath "/init-config.yaml") . | sha256sum }}'
+    rollme: '{{ randAlphaNum 5 | quote }}'
+    hzp.iam.webhook/resources-limits-memory: "500Mi"
+    hzp.iam.webhook/resources-requests-memory: "100Mi"
+  resources:
+    limits:
+      cpu: 2
+      memory: 3Gi
+    requests:
+      cpu: 5m
+      memory: 25Mi
+  env:
+    - name: ENABLE_PLAYGROUND
+      value: "false"
+    - name: APP_PORT
+      value: "8080"
+    - name: DB_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresHost
+    - name: DB_PORT
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresPort
+    - name: DB_USER
+      value: "hzp_upgrade_svc"
+    - name: DB_PA
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: hzp_upgrade_svc-password
+    - name: CM_NAME
+      value: delco-config
+    - name: UPGRADE_REGISTRY_NAME
+      value: hzp-update-bundles-registry
+    - name: HEALTH_CHECK_SCRIPT_PATH
+      value: "/app/config/healthCheck.sh"
+    - name: CIPHER_KEY
+      valueFrom:
+        secretKeyRef:
+          name: eo-keys-secret
+          key: cipher-key
+    - name: EO_KEY_1
+      valueFrom:
+        secretKeyRef:
+          name: eo-keys-secret
+          key: eo-key-1
+    - name: EO_KEY_2
+      valueFrom:
+        secretKeyRef:
+          name: eo-keys-secret
+          key: eo-key-2
+    - name: VAULT_PORT
+      value: *vaultPort
+    - name: APPROLE_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-upgrade-svc-vault-secret
+          key: role-id
+    - name: APPROLE_SECRET_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-upgrade-svc-vault-secret
+          key: secret-id
+    - name: APPROLE_ID_PATH
+      value: eo-approle
+    - name: KV_ENGINE_PATH
+      value: "kv/eo/hzp-upgrade-svc"
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  autoScaling:
+    enabled: true
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 6667 # (5mi from upgrade + 10mi from istio-proxy) * 6667% = 1 core
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 300
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 300
+      scaleUp:
+        stabilizationWindowSeconds: 15
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 15
+  initConfigName: upgrade-svc-init-config
+  brownfieldHealthCheckEnabled: "True"
+rbac:
+  cmName: delco-config
+  namePrefix: configmap-update
+  perm: get,update
+  crPerm: list
+
+test:
+  # Subchart values
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    hzp-app: hzp-upgrade-svc-regression
+    hzp-role: smoke-test
+  testsuite: test-suites/smoke.xml
+  replicaCount: 1
+  image:
+    name: upgrade-smoke-test
+    pullPolicy: Always
+    tag: latest
+  cpu: 0.25
+  memory: 512Mi
+  postgresql:
+    service:
+      fullname: postgres
+      port: 5432
+  upgrade:
+    service:
+      fullname: *serviceName
+      port: 80
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 599361
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    runid: 1
+    release: 1
+    suite: 1
+

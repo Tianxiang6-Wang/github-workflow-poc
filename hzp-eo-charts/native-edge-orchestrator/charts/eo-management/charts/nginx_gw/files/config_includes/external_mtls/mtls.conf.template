@@ -1,0 +1,171 @@
+{{- $s3Url := ternary (tpl .Values.global.s3.url .) (printf "https://s3.%s.amazonaws.com" .Values.global.s3.region) (ne .Values.global.s3.url "") -}}
+{{- $s3HostPort := index ( urlParse $s3Url ) "host" }}
+
+{{- if eq .Values.global.s3.url "" }}{{/* If using AWS S3 */}}
+location /repository/ {
+      proxy_pass https://{{ .Values.global.s3.bucketPrefix }}repository.s3.{{ .Values.global.s3.region }}.amazonaws.com/;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      # NOTE: Disable proxy for fix issue for vNEE on site with slow link
+      proxy_buffering off;
+}
+{{- end }}
+
+location /nats {
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      set $upstream http://jetstream.{{$.Release.Namespace}}.svc.cluster.local:8080;
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      # ip address allowlist
+      include /etc/nginx/ip-sources/ip-allowlist.txt;
+      deny all;
+}
+
+location /metrics {
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      set $upstream http://jetstream-metrics.{{$.Release.Namespace}}.svc.cluster.local:8080;
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      # ip address allowlist
+      include /etc/nginx/ip-sources/ip-allowlist.txt;
+      deny all;
+}
+
+
+location /leaf {
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      set $upstream http://jetstream.{{$.Release.Namespace}}.svc.cluster.local:8080;
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+}
+
+location /repository {
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host "{{ $s3HostPort }}";
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      set $upstream http://{{ $s3HostPort }};
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      proxy_buffering off;
+      # Apply the request rate limiting
+      limit_req zone=repository_rate_limit burst={{ .Values.rateLimits.repository.burst }} nodelay;
+      limit_req_status 429;
+      # ip address allowlist
+      include /etc/nginx/ip-sources/ip-allowlist.txt;
+      deny all;
+}
+
+{{- range ( list
+  "/api/v2/ese-config-status"
+  "/api/v2/ese-status"
+) }}
+location {{ . }} {
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      set $upstream http://hzp-product-svc.{{$.Release.Namespace}}.svc.cluster.local:80;
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      # ip address allowlist
+      include /etc/nginx/ip-sources/ip-allowlist.txt;
+      deny all;
+}
+{{- end }}
+
+location /ingress/ {
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      proxy_set_header Authorization "";
+      set $upstream http://mist-ee-gocky.{{$.Release.Namespace}}.svc.cluster.local:9096;
+      rewrite ^/ingress/(.*) /$1 break;
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+      # Apply the request rate limiting
+      limit_req zone=ingress_rate_limit burst={{ .Values.rateLimits.metrics.burst }} nodelay;
+      limit_req_status 429;
+}
+
+{{- range $.Values.eoServicesMTLS }}
+{{- if eq .serviceName "certificate" }}
+location /{{ .serviceName | lower }}/api/v1/signcertificate {
+{{- else }}
+location /{{ .serviceName | lower }}/api/ {
+{{- end }}
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host hzp-{{ .serviceName | lower }}-svc.{{$.Release.Namespace}}.svc.cluster.local;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    {{- if eq .serviceName "certificate" }}
+      set $upstream http://hzp-{{ .serviceName | lower }}-svc.{{$.Release.Namespace}}.svc.cluster.local:80/api/v1/signcertificate;
+    {{- else }}
+      set $upstream http://hzp-{{ .serviceName | lower }}-svc.{{$.Release.Namespace}}.svc.cluster.local:80;
+      rewrite ^/{{ .serviceName | lower }}/api/(.*) /api/$1 break;
+    {{- end }}
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+}
+{{- end }}
+
+location ~ /eoproxy/(tcp|ssh)/(?<eoProxyInstance>hzp-eoproxy-svc-[0-9]+) {
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host $eoProxyInstance.eoproxy-headless.{{$.Release.Namespace}}.svc.cluster.local;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      set $upstream http://$eoProxyInstance.eoproxy-headless.{{$.Release.Namespace}}.svc.cluster.local:8088/tcp;
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_buffering off;
+      proxy_read_timeout 7200s;
+      proxy_send_timeout 7200s;
+      keepalive_timeout 7200s;
+      proxy_connect_timeout 7200s;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+}
+
+{{- range ( list
+  "/api/v1/rv"
+  "/api/v1/owner"
+  "/fdo/101/msg"
+  "/catalog/api"
+  "/oe-template-mgr/api"
+  "/security/api"
+  "/time/api"
+  "/datacollection/api"
+  "/certificate/api"
+  "/recovery/api"
+) }}
+location {{ . }} {
+      include /etc/nginx/ip-sources/ip-allowlist.txt;
+      deny all;
+}
+{{- end }}

@@ -1,0 +1,4 @@
+global:
+  rulesSvc:
+    deploy: true
+    smoketestEnabled: true

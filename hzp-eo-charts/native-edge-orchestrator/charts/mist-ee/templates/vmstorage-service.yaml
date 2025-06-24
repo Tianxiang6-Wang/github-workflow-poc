@@ -1,0 +1,22 @@
+{{ if .Values.victoriametrics.deploy }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "chart.fullname" . }}-vmstorage
+  labels:
+    app: vmstorage
+    chart: {{ include "chart.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  ports:
+  - name: vmselect
+    port: 8400
+  - name: vminsert
+    port: 8401
+  - name: vmstorage
+    port: 8482
+  selector:
+    app: vmstorage
+    release: {{ include "selector.label.release.name" . }}
+{{- end }}

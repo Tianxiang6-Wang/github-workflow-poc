@@ -1,0 +1,12 @@
+annotations:
+  containerImages: |
+    - busybox
+    - dell-ese
+    - product-svc
+    - product-smoke-test
+apiVersion: v2
+appVersion: latest
+description: Another ese client
+name: hzp-product-svc
+type: application
+version: 0.1.0

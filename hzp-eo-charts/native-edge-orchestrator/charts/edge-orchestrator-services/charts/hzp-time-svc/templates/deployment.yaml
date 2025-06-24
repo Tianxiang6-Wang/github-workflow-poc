@@ -1,0 +1,69 @@
+{{- $svc := .Values.svc -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.svc.name }}
+  labels:
+    hzp-app: {{ .Values.svc.name }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: {{ .Values.svc.port }}
+      protocol: TCP
+      name: http
+  selector:
+    hzp-app: {{ .Values.svc.name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+spec:
+{{- if not .Values.svc.autoScaling.enabled }}
+  replicas: {{ .Values.svc.replicaCount }}
+{{- end }}
+  selector:
+    matchLabels:
+      hzp-app: {{ .Values.svc.name }}
+  template:
+    metadata:
+      annotations:
+        hzp.iam.webhook/authentication-enabled: "false"
+        hzp.iam.webhook/authorization-enabled: "false"
+{{- if .Values.global.instrumentation.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "{{ $svc.port }}"
+{{- end }}		        
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          name: {{ .Values.svc.name }}
+          imagePullPolicy: {{ $svc.image.pullPolicy }}
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          ports:
+            - containerPort: {{ $svc.port }}
+          env:
+            - name: ENABLE_INSTRUMENTATION
+              value: {{ .Values.global.instrumentation.enabled | quote }}
+          {{- toYaml .Values.svc.env | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          volumeMounts:
+            {{- include "logLevel.configMap.mount" $ | indent 12 }}
+      volumes:
+        {{- include "logLevel.configMap.volume" $ | indent 8 }}

@@ -1,0 +1,27 @@
+# Global values
+global:
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+components:
+  mist-opensearch:
+    image: mist-opensearch
+    version: latest
+    project: hzp/
+  mist-opensearch-manage:
+    image: mist-opensearch-manage
+    version: latest
+    project: hzp/
+# Settings for docker images used in the chart.
+image:
+  tag: latest
+  pullPolicy: Always
+  secrets:
+    - docker-secret
+chart:
+  fullname: eo-management
+# Deployment options (replicas, resource quotas etc).
+deployment:
+  defaults:
+    serviceAccountName: ''
+    secretEnvVars: {}

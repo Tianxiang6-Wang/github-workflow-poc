@@ -1,0 +1,9 @@
+annotations:
+  containerImages: |
+    - nginx-lua
+apiVersion: v2
+appVersion: 0.1.0
+description: Nginx gateway chart
+name: nginx_gw
+type: application
+version: 0.1.0

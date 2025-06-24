@@ -1,0 +1,74 @@
+{{- if eq (include "isDelcoSvcDisabled" .) "false" }}
+{{- $svc := .Values.svc -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+  labels:
+    hzp-app: {{ $svc.name }}
+  annotations: 
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "1"
+    "helm.sh/hook-delete-policy": "before-hook-creation"
+spec:
+  selector:
+    matchLabels:
+      hzp-app: {{ $svc.name }}
+  template:
+    metadata:
+      annotations:
+{{- tpl (toYaml .Values.svc.podAnnotations) . | replace "'" "" | nindent 8 }}
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      imagePullSecrets:
+      {{- range .Values.global.imagePullSecrets }}
+        - name: {{ . | quote }}
+      {{- end }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ ) | trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          name: {{ $svc.name }}
+          imagePullPolicy: {{ $svc.image.pullPolicy }}
+          ports:
+          - containerPort: {{ $svc.port }}
+            name: {{ $svc.name }}
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          env:
+            {{- toYaml $svc.env | nindent 12 }}
+            - name: UPGRADE_SVC_URL
+              value: "http://hzp-upgrade-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: UPGRADE_EXECUTION_ID
+              value: "{{ $svc.upgrade_execution_id_env_var }}"
+            {{- if .Values.global.isPipelineDeploy }}
+            - name: EO_VERSION
+              value: "{{ $svc.manifest_eo_version }}"
+            {{- end }}
+          volumeMounts:
+            - name: delco-init-volume
+              mountPath: /app/data
+      initContainers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.initialization.image.name ) "repo" .Values.global.repository) }}
+          name: delco-svc-init
+          imagePullPolicy: {{ $svc.initialization.image.pullPolicy }}
+          securityContext:
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          command:
+            - sh
+            - -c
+            - |
+              cp -r /init/* /app/data
+          volumeMounts:
+            - name: delco-init-volume
+              mountPath: /app/data
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: delco-init-volume
+          emptyDir: {}
+{{ end }}

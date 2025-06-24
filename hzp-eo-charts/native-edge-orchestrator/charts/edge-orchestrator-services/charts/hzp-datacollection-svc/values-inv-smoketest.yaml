@@ -1,0 +1,11 @@
+global:
+  dataCollectionSvc:
+    deploy: true
+    smoketestEnabled: true
+  productSvc:
+    deploy: true
+  # dependencies for product svc
+  eoInitializationSvc:
+    deploy: true
+  fido:
+    deploy: true

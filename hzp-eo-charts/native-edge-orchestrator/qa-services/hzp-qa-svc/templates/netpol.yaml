@@ -1,0 +1,66 @@
+{{- if $.Values.networkPoliciesQaEnabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hzp-qa-svc
+  namespace: {{ .Release.Namespace }}
+spec:
+  egress:
+    - to:
+        - podSelector:
+            matchExpressions:
+            - key: hzp-app
+              operator: Exists              
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: dapp
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+            - key: hzp-app
+              operator: Exists             
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: dapp
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+  podSelector:
+    matchLabels:
+      hzp-app: hzp-qa-svc
+  policyTypes:
+    - Ingress
+    - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: hzp-qa-svc-to-all-svc
+  namespace: {{ .Release.Namespace }}
+spec:  
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              hzp-app: hzp-qa-svc
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              hzp-app: hzp-qa-svc
+  podSelector:
+    matchExpressions:
+      - key: hzp-app
+        operator: Exists
+  policyTypes:
+    - Ingress
+    - Egress
+{{- end }}

@@ -1,0 +1,4 @@
+global:
+  certificateSvc:
+    deploy: true
+    smoketestEnabled: true

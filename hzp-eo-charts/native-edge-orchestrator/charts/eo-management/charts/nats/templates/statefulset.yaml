@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: nats-jetstream
+  labels:
+    app: nats-jetstream
+spec:
+  serviceName: nats-jetstream
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nats-jetstream
+  template:
+    metadata:
+      labels:
+        app: nats-jetstream
+        hzp-app: nats-jetstream
+        hzp-role: nats
+        hzp.iam.webhook/active: '{{ .Values.global.nginx_gw.enabled }}'
+      annotations:
+        hzp.iam.webhook/authentication-enabled: "false"
+        hzp.iam.webhook/authorization-enabled: "false"
+        hzp.iam.webhook/resources-limits-memory: "2500Mi"
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        fsGroup: 2000
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.nats.jetStream $ ) | trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.nats.jetStream $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.nats.jetStream $ ) | trim | nindent 8 }}
+      containers:
+        - name: nats-jetstream
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "nats" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: IfNotPresent
+          args:
+            - -D
+            - --jetstream
+            - --port=4222
+            - --config=/etc/nats-jetstream/jetstream.conf
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          ports:
+            - containerPort: 4222
+              name: tcp-client
+              protocol: TCP
+            - containerPort: 8222
+              name: monitoring
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /data/nats-server
+              name: datadir
+            - mountPath: /etc/nats-jetstream/
+              name: config-volume
+          resources:
+            requests:
+              cpu: "50m"
+              memory: "125M"
+            limits:
+              memory: {{ .Values.nats.jetStream.maxMemory }}
+              cpu: "500m"
+      volumes:
+        - configMap:
+            name: nats-jetstream
+          name: config-volume
+  volumeClaimTemplates:
+    - metadata:
+        name: datadir
+      spec:
+        accessModes:
+          - "ReadWriteOnce"
+        resources:
+          requests:
+            storage: {{ .Values.nats.jetStream.pvc.resources.storage }}
+        {{ include "pvc.storage.class.name" (dict "global" .Values.global) }}

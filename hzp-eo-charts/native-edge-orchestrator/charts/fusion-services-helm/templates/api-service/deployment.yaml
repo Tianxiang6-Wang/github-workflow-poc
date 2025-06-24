@@ -1,0 +1,145 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: api-service
+  {{ with .Values.api_service.podLabels }}
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+  name: {{ template "fusion-services.name" . }}-api-service
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  replicas: {{ .Values.api_service.replicas }}
+  selector:
+    matchLabels:
+      app: api-service
+  template:
+    metadata:
+      labels:
+        app: api-service
+        fusion-name: fusion-api
+      {{ with .Values.api_service.podLabels }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      annotations:
+        {{- include "fusion-services.merge" ( list .Values.commonAnnotations .Values.api_service.podAnnotations ) | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.api_service $ )| trim | nindent 8 }}
+      tolerations: {{- include "fusion-services.tolerations" ( list .Values.api_service $ ) | trim | nindent 8 }}
+      affinity: {{- include "fusion-services.affinity" ( list .Values.api_service $ ) | trim | nindent 8 }}
+      initContainers:
+        - name: api-service-init
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-restservice" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-restservice" ).pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 100Mi
+              cpu: 0.1
+            limits:
+              memory: 100Mi
+              cpu: 0.1
+          env:
+            {{- include "fusion-services.postgres_env_vars" (dict "root" $) | nindent 12 }}
+            - name: ENTRYPOINT
+              value: localhost
+            - name: ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fusion-services.name" . }}-manager-security
+                  key: encryptionKey
+          command:
+            - /usr/bin/env
+            - -S
+            - bash
+            - -exuc
+            - |
+              python -m manager_rest.configure_manager --db-initialized-wait {{ .Values.db.host }}
+      containers:
+        - name: api-service
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-apiservice" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-apiservice" ).pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          env:
+            {{- include "fusion-services.postgres_env_vars" (dict "root" $) | nindent 12 }}
+            {{- include "fusion-services.s3_env_vars" . | nindent 12 }}
+            {{- include "fusion-services.restservice_keys" . | nindent 12 }}
+            - name: FUSION_AUTH_PSK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fusion-services.name" . }}-auth-signing
+                  key: psk
+            {{- if .Values.blueprint.enabled }}
+            - name: BLUEPRINT_HOST
+              value: {{ template "fusion-services.name" . }}-blueprint
+            - name: BLUEPRINT_PORT
+              value: {{ .Values.blueprint.port | quote }}
+            - name: BLUEPRINT_PROTOCOL
+              value: http
+            {{- end }}
+            - name: LOGGING_LEVEL_CONFIGURATION_PATH
+              value: {{ tpl .Values.api_service.logging.configMountPath $}}
+            - name: LOGGING_LEVEL_GLOBAL_PATH
+              value: {{ tpl .Values.api_service.logging.configMountPath $ }}/{{ tpl .Values.api_service.logging.globalConfigFile $ }}
+            - name: LOGGING_LEVEL_SERVICE_PATH
+              value: {{ tpl .Values.api_service.logging.configMountPath $ }}/{{ tpl .Values.api_service.logging.serviceConfigFile $ }}
+            {{- if (.Values.global).useHzpMultitenancy }}
+            - name: "HZP_MULTITENANCY"
+              value: "true"
+            {{- end }}
+            {{- toYaml .Values.api_service.env | nindent 12 }}
+          volumeMounts:
+            - name: logging
+              mountPath: {{ tpl .Values.api_service.logging.configMountPath $ }}
+              readOnly: true
+          ports:
+            - containerPort: {{ .Values.api_service.port }}
+          resources: {{- toYaml .Values.api_service.resources | nindent 12 }}
+          {{- if .Values.api_service.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              port: {{ .Values.api_service.port}}
+              path: /health
+            initialDelaySeconds: {{ .Values.api_service.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.api_service.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.api_service.probes.liveness.timeoutSeconds }}
+            successThreshold: {{ .Values.api_service.probes.liveness.successThreshold }}
+            failureThreshold: {{ .Values.api_service.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.api_service.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              port: {{ .Values.api_service.port}}
+              path: /health
+            initialDelaySeconds: {{ .Values.api_service.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.api_service.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.api_service.probes.readiness.timeoutSeconds }}
+            successThreshold: {{ .Values.api_service.probes.readiness.successThreshold }}
+            failureThreshold: {{ .Values.api_service.probes.readiness.failureThreshold }}
+          {{- end }}
+      restartPolicy: Always
+      {{- include "fusion-services.images.pullSecrets" . | nindent 6 }}
+      volumes:
+        - name: logging
+          configMap:
+            name: {{ include "fusion-loglevel-configmap.name" $ }}

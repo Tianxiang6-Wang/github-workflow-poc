@@ -1,0 +1,88 @@
+global:
+  microsegmentation:
+    deploy: false
+  mist:
+    deploy: false
+  fusionServices:
+    deploy: false
+  edgeOrchestrator:
+    deploy: true
+  fido:
+    deploy: false
+  fidoRv:
+    deploy: false
+  fidoManufacturer:
+    deploy: false
+  catalogSvc:
+    deploy: false
+  # event svc is considered as a platform level svc used by many
+  eventSvc:
+    deploy: true
+  healthCheckSvc:
+    deploy: false
+  dataCollectionSvc:
+    deploy: false
+  inventorySvc:
+    deploy: false
+  jobSvc:
+    deploy: false
+  oeTemplateMgr:
+    deploy: false
+  smokeTest:
+    deploy: false
+  iam:
+    deploy: false
+  iamConfiguration:
+    deploy: false
+  iamProxyTest:
+    deploy: false
+  eceAgentTest:
+    deploy: false
+  upgradeSvc:
+    deploy: false
+  eoProxy:
+    deploy: false
+  recoverySvc:
+    deploy: false
+  certificateSvc:
+    deploy: false
+  eceFirmwareUpdateSvc:
+    deploy: false
+  fruCruSvc:
+    deploy: false
+  ingressAuthzSvc:
+    deploy: false
+  timeSvc:
+    deploy: false
+  eoInitializationSvc:
+    deploy: false
+  productSvc:
+    deploy: false
+  pgAdmin:
+    deploy: false
+  natsBox:
+    deploy: false
+  eventDisplay:
+    deploy: false
+  eceSimulator:
+    deploy: false
+  rulesSvc:
+    deploy: false
+  mockServer:
+    deploy: false
+  computeSvc:
+    deploy: false
+  # scheduler svc is considered as a platform level svc used by many
+  schedulerSvc:
+    deploy: true
+  # required for the iam proxy sidecar to function
+  iamSessionSvc:
+    deploy: true
+  notification:
+    deploy: false
+  tagsSvc:
+    deploy: false
+  attestationSvc:
+    deploy: false
+  apiGateway:
+    deploy: false

@@ -1,0 +1,13 @@
+annotations:
+  containerImages: |
+    - job-svc
+    - busybox
+    - common-locales-bundle
+    - job-smoke-test
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for hzp-job-svc, a proxy service to hzp-workflow-engine
+  API to initiate and monitor deployment jobs
+name: hzp-job-svc
+type: application
+version: 0.1.0

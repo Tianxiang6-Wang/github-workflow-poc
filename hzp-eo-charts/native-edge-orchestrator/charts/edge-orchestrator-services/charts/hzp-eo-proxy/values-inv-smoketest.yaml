@@ -1,0 +1,4 @@
+global:
+  eoProxy:
+    deploy: true
+    smoketestEnabled: true

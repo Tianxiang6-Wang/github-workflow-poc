@@ -1,0 +1,59 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hostos-upgrade-job
+  annotations:
+{{- tpl (toYaml .Values.hostosUpgrade.jobAnnotations) . | replace "'" "" | nindent 8 }}
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      name: hostos-upgrade-job
+      labels:
+{{- tpl (toYaml .Values.job.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.hostosInit $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.hostosInit $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.hostosInit $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.hostosInit.image.name ) "repo" .Values.global.repository) }}
+          name: hostos-upgrade-job-container
+          imagePullPolicy: Always
+          resources:
+            {{- toYaml .Values.job.resources | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: CATALOG_SVC_URL
+              value: "http://hzp-catalog-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: OE_TEMPLATE_MGR_SVC_URL
+              value: "http://hzp-oe-template-mgr-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: JOB_TYPE
+              value: "upgrade"
+      initContainers:
+      - name: init-catalog
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          allowPrivilegeEscalation: false
+          seccompProfile:
+              type: RuntimeDefault
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for Catalog Svc to become ready...'
+            until printf "." && nc -z -w 2 hzp-catalog-svc 80; do
+                sleep 2;
+            done;
+            echo 'Catalog Svc OK ✓'
+      restartPolicy: Never

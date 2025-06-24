@@ -1,0 +1,211 @@
+{{- $svc := .Values.svc -}}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ $svc.name }}
+  labels:
+    app.kubernetes.io/app: {{ $svc.name }}
+    hzp.iam.webhook/active: 'true'
+spec:
+  serviceName: {{ $svc.headlessService.name }}
+  replicas: {{ $svc.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/app: {{ $svc.name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/app: {{ $svc.name }}
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+      annotations:
+        rollme: {{ randAlphaNum 5 | quote }}
+        {{- if .Values.global.oob.oobEnabled }}
+        k8s.v1.cni.cncf.io/networks: '[{
+              "name": "ipvlan-static-nad",
+              "namespace": "{{ .Release.Namespace }}",
+              "interface": "{{ .Values.global.oob.oobInterfaceName }}"
+            }]'
+        {{- end }}
+{{- tpl (toYaml .Values.svc.annotations) . | replace "'" "" | nindent 8 }}
+{{- if .Values.global.instrumentation.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "{{ $svc.httpPort }}"
+{{- end }}      
+    spec:
+      serviceAccountName: {{ $svc.rbac.name }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity:
+        {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+        {{- if .Values.global.oob.oobEnabled }}
+        nodeAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: {{ .Values.svc.network.nodeAffinityWeight }}
+              preference:
+                matchExpressions:
+                  - key: {{ .Values.svc.network.nodeAffinityKey }}
+                    operator: In
+                    values:
+                      - "enabled"
+        {{- end }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.svc.image.pullPolicy }}
+          {{ $_ := set .Values "iamProxyEntry" "./main" }}
+          {{ tpl (toYaml .Values.global.iamProxy.commandDecorator) . | nindent 10 }}
+          name: {{ $svc.name }}
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          ports:
+            - name: websocket
+              containerPort: {{ $svc.websocketPort }}
+            - name: http
+              containerPort: {{ $svc.httpPort }}
+          env:
+            - name: SIDECAR_INJECTED
+              value: "{{ .Values.global.iamProxy.sidecarEnabled }}"
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NATS_SERVER_MONITORING_URL
+              value: "http://jetstream.{{ .Release.Namespace }}.svc.cluster.local:8222"
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            - name: NAMESPACE
+              value: {{ .Release.Namespace }}
+            - name: INVENTORY_SVC_URL
+              value: "http://hzp-inventory-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: FQDN
+              value: {{ .Values.global.ingress.fqdn }}
+            - name: ENABLE_INSTRUMENTATION
+              value: {{ .Values.global.instrumentation.enabled | quote }}
+            - name: MTLS_HOST
+              value: {{ template "GetMTLSHost" (dict "namespace" .Release.Namespace "prefix" $.Values.global.istio.defaultPrefix.mTLSHost "default" $.Values.global.istio.mTLSHost "fqdn" $.Values.global.ingress.fqdn) }}
+            - name: MTLS_RECOVERY_HOST
+              value: {{ template "GetMTLSHost" (dict "namespace" .Release.Namespace "prefix" $.Values.global.istio.defaultPrefix.mTLSHostRecovery "default" $.Values.global.istio.mTLSHostRecovery "fqdn" $.Values.global.ingress.fqdn) }}
+            - name: OOB_INTERFACE_NAME
+              value: "{{ .Values.global.oob.oobInterfaceName }}"
+            # FIXME: temporary workaround before eo-proxy will be fixed in NE-41317
+            {{- if $.Values.global.nginx_gw.enabled }}
+            - name: ISTIO_DISABLE
+              value: "true"
+            {{- end }}
+            {{- toYaml $svc.env | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            {{- include "logLevel.configMap.mount" $ | indent 12 }}
+      initContainers:
+        - name: init-postgres
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: Always
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          env:
+            - name: waiting_for_postgres_to_be_initialized
+              valueFrom:
+                configMapKeyRef:
+                  key: waiting_for_postgres_to_be_initialized
+                  name: infra-status-config
+                  {{- toYaml $svc.env | nindent 12 }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for PostgreSQL to become ready...'
+              until printf "." && nc -z -w 2 $DB_HOST 5432; do
+                  sleep 2;
+              done;
+              echo 'PostgreSQL OK ✓'
+    
+        {{- if .Values.global.oob.oobEnabled }}
+        - name: init-network
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser:  {{ .Values.global.podSecurityContext.runAsRootUser }}
+            allowPrivilegeEscalation: true
+            capabilities:
+              add: [ "NET_ADMIN" ]
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: OOB_INTERFACE_NAME
+              value: "{{ .Values.global.oob.oobInterfaceName }}"
+            - name: OOB_GATEWAY
+              value: "{{ .Values.global.oob.oobGateway }}"
+            - name: OOB_IPS
+              value: '{{ join " " .Values.global.oob.oobListOfIpAddress }}'
+            - name: OOB_TABLE
+              value: "1000"
+            {{- toYaml $svc.env | nindent 12 }}
+          command:
+            - /bin/sh
+          args:
+            - -c
+            - |
+              set +e
+              trap 'echo "[ERROR] A command failed, but continuing..."' ERR
+              echo "[INFO] Container: init-network"
+              echo "[INFO] Pod Name: $POD_NAME"
+              echo "[INFO] User-defined IPs: $OOB_IPS"
+
+              INDEX=$(echo "$POD_NAME" | grep -oE "[0-9]+$")
+              echo "[INFO] Pod index: $INDEX"
+
+              i=0
+              for ip in $OOB_IPS; do
+                if [ "$i" -eq "$INDEX" ]; then
+                  NET_IP=$ip
+                  echo "[DEBUG] Assigning ip $NET_IP"
+                  break
+                fi
+              i=$((i + 1))
+              done
+
+              CIDR="$NET_IP"
+              echo "[DEBUG] CIDR : $CIDR"
+
+              for i in $(seq 1 10); do
+                if ip link show "$OOB_INTERFACE_NAME" > /dev/null 2>&1; then
+                  echo "[INFO] Found interface $OOB_INTERFACE_NAME ✓"
+                  break
+                fi
+                echo "[INFO] Waiting for interface $OOB_INTERFACE_NAME..."
+                sleep 2
+              done
+
+              NETWORK_ADDRESS=$(ipcalc -n "$CIDR" | cut -d= -f2)
+              PREFIX=$(echo "$CIDR" | cut -d/ -f2)
+              NETWORK_ADDRESS_CIDR="${NETWORK_ADDRESS}/${PREFIX}"
+
+              echo "[INFO] Calculated network address: $NETWORK_ADDRESS_CIDR"
+              echo "[INFO] Assigning IP $NET_IP to interface $OOB_INTERFACE_NAME"
+              ip addr flush dev "$OOB_INTERFACE_NAME"
+              ip addr add "$NET_IP" dev "$OOB_INTERFACE_NAME" || echo "[WARN] Failed to assign IP, continuing..."
+              echo "[INFO] Adding custom IP rules and routes"
+
+              NET_IP_NO_MASK="${NET_IP%%/*}"
+              echo "[INFO] Adding ip rule"
+              ip rule add from "$NET_IP_NO_MASK" lookup "${OOB_TABLE}" || true
+              echo "[INFO] Adding static routes and default gateway to routing table"
+              ip route add "$NETWORK_ADDRESS_CIDR" dev "$OOB_INTERFACE_NAME" scope link src "$NET_IP_NO_MASK" table "${OOB_TABLE}" || true
+              ip route add default via "$OOB_GATEWAY" dev "$OOB_INTERFACE_NAME" table "${OOB_TABLE}" || true
+              echo "[INFO] init-network complete"
+        {{- end }}
+      volumes:
+        {{- include "logLevel.configMap.volume" $ | indent 8 }}

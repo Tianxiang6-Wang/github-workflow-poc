@@ -1,0 +1,6 @@
+global:
+  healthCheckSvc:
+    deploy: true
+    smoketestEnabled: true
+  upgradeSvc:
+    deploy: true

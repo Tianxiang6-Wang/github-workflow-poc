@@ -1,0 +1,17 @@
+global:
+  inventorySvc:
+    deploy: true
+    smoketestEnabled: true
+    initJobEnabled: false
+  schedulerSvc:
+    deploy: true
+  eoInitializationSvc:
+    deploy: true
+  # dependency for eo-init
+  fido:
+    deploy: true
+  # dependency for eo-keys-secret since that is created from upgrade svc
+  upgradeSvc:
+    deploy: true
+  healthCheckSvc:
+    deploy: true

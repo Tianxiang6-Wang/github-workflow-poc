@@ -1,0 +1,145 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "fusion-services.name" . }}-mgmtworker
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  replicas: {{ .Values.mgmtworker.replicas }}
+  selector:
+    matchLabels:
+      app: mgmtworker
+  template:
+    metadata:
+      labels:
+        app: mgmtworker
+        fusion-name: fusion-mgmtworker
+      {{ with .Values.mgmtworker.podLabels }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      annotations:
+        {{- include "fusion-services.merge" ( list .Values.commonAnnotations .Values.mgmtworker.podAnnotations ) | nindent 8 }}
+    spec:
+      {{- if .Values.mgmtworker.access.localCluster }}
+      automountServiceAccountToken: true
+      serviceAccountName: {{ template "fusion-services.name" . }}-mgmtworker-serviceaccount
+      {{- else }}
+      automountServiceAccountToken: false
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.mgmtworker $ )| trim | nindent 8 }}
+      tolerations: {{- include "fusion-services.tolerations" ( list .Values.mgmtworker $ ) | trim | nindent 8 }}
+      affinity: {{- include "fusion-services.affinity" ( list .Values.mgmtworker $ ) | trim | nindent 8 }}
+      containers:
+        - name: mgmtworker
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-mgmtworker" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-mgmtworker" ).pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - NET_BIND_SERVICE
+          resources: {{- toYaml .Values.mgmtworker.resources | nindent 12 }}
+          env:
+            {{- include "fusion-services.rabbitmq_env_vars" (dict "root" $) | nindent 12 }}
+            {{- if .Values.rabbitmq.enabled }}
+            - name: RABBITMQ_CA_CERT_PATH
+              value: "/etc/nativeedge/ssl/cloudify_internal_ca_cert.pem"
+            {{- else }}
+            - name: RABBITMQ_CA_CERT_PATH
+              value: {{ .Values.externalRabbitmq.ca_cert }}
+            {{- end }}
+            - name: RUNTIME_ENVIRONMENT
+              value: "k8s"
+            - name: AGENT_LOG_LEVEL
+              value: {{ .Values.mgmtworker.logLevel | quote }}
+            - name: MGMTWORKER_QUEUE
+              value: {{ .Values.mgmtworker.queue | quote }}
+            - name: MGMTWORKER_HOOKS_QUEUE
+              value: {{ .Values.mgmtworker.hooks_queue | quote }}
+            - name: MGMTWORKER_MAX_WORKERS
+              value: {{ .Values.mgmtworker.max_workers | quote }}
+            - name: MGMTWORKER_MAX_OPERATION_WORKERS
+              value: {{ .Values.mgmtworker.max_operation_workers | quote }}
+            - name: MGMTWORKER_WORKERS_WATCHDOG_IDLE_PERIOD
+              value: {{ .Values.mgmtworker.workers_watchdog_idle_period | quote }}
+            - name: LOGGING_LEVEL_GLOBAL_PATH
+              value: {{ tpl .Values.mgmtworker.logging.configMountPath $ }}/{{ tpl .Values.mgmtworker.logging.globalConfigFile $ }}
+            - name: LOGGING_LEVEL_SERVICE_PATH
+              value: {{ tpl .Values.mgmtworker.logging.configMountPath $ }}/{{ tpl .Values.mgmtworker.logging.serviceConfigFile $ }}
+            {{- if (.Values.mgmtworker.logging).audit_logs_subject }}
+            - name: AUDIT_LOGS_SUBJECT
+              value: {{ tpl .Values.mgmtworker.logging.audit_logs_subject $ | quote }}
+            {{- end }}
+            {{- if (.Values.mgmtworker.eventing).stream_url }}
+            - name: NATS_URL
+              value: {{ tpl .Values.mgmtworker.eventing.stream_url $ | quote}}
+            {{- else if (.Values.nats).enabled }}
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            {{- end }}
+            - name: APP_VERSION
+              value: {{ .Chart.AppVersion | quote }}
+            - name: APP_NAME
+            {{- if (.Values.appName) }}
+              value: {{ .Values.appName | quote }}
+            {{- else }}
+              value: {{ .Release.Name | quote }}
+            {{- end }}
+            {{- if .Values.mgmtworker.agent_image }}
+            - name: AGENT_IMAGE
+              value: "{{ .Values.global.repository }}{{ .Values.mgmtworker.agent_image.name | default "fusion-agent"}}:{{ .Values.mgmtworker.agent_image.version | default "latest"}}"
+            - name: AGENT_IMAGE_PULL_SECRETS
+              value: "{{ join "," .Values.global.imagePullSecrets }}"
+            {{- end}}
+            {{- range $item := .Values.mgmtworker.extraEnv }}
+            - name: {{ $item.name }}
+              value: {{ tpl $item.value $ | quote }}
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: {{ template "fusion-services.name" . }}-mgmtworker-envvars
+            {{- range $ref := .Values.mgmtworker.extraEnvFromSecrets }}
+            - secretRef:
+                name: {{ $ref }}
+            {{- end }}
+          volumeMounts:
+            - mountPath: /etc/nativeedge/ssl
+              name: ssl
+              readOnly: true
+            - mountPath: /opt/mgmtworker/work
+              name: workdir-volume
+            - name: logging
+              mountPath: {{ tpl .Values.mgmtworker.logging.configMountPath $ }}
+              readOnly: true
+          {{- range $mnt := .Values.mgmtworker.certVolumeMounts }}
+            - name: {{ $mnt.name }}
+              mountPath: {{ $mnt.mountPath }}
+              readOnly: {{ $mnt.readOnly }}
+          {{- end }}
+      restartPolicy: Always
+      volumes:
+        - name: ssl
+          secret:
+            secretName: {{ template "fusion-services.name" . }}-ssl-certs
+            optional: false
+        - name: workdir-volume
+          emptyDir: {}
+        - name: logging
+          configMap:
+            name: {{ include "fusion-loglevel-configmap.name" $ }}
+        {{- range $vol := .Values.mgmtworker.certVolumes }}
+        - name: {{ $vol.name }}
+          secret:
+            secretName: {{ $vol.secret.secretName }}
+            optional: {{ $vol.secret.optional }}
+        {{- end }}
+      {{- include "fusion-services.images.pullSecrets" . | nindent 6 }}

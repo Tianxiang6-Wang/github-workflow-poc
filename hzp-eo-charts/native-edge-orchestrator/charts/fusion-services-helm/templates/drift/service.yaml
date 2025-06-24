@@ -1,0 +1,14 @@
+{{- if .Values.drift.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "fusion-services.name" . }}-drift
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  ports:
+    - port: {{ .Values.drift.port }}
+  selector:
+    app: drift
+  type: ClusterIP
+{{- end }}

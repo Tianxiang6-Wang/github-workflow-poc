@@ -1,0 +1,13 @@
+global:
+  oeTemplateMgr:
+    deploy: true
+    smoketestEnabled: true
+  eventSvc:
+    deploy: true
+  inventorySvc:
+    deploy: true
+  # dependencies for inventory
+  eoInitializationSvc:
+    deploy: true
+  fido:
+    deploy: true

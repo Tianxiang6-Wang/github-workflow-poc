@@ -1,0 +1,15 @@
+annotations:
+  containerImages: |
+    - catalog-svc
+    - busybox
+    - hzp-host-configuration-exe
+    - hzp-host-configuration-exe-staging
+    - hzp-ece-factory-os
+    - hzp-ece-factory-reset
+    - catalog-smoke-test
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for hzp-catalog-svc.
+name: hzp-catalog-svc
+type: application
+version: 0.1.0

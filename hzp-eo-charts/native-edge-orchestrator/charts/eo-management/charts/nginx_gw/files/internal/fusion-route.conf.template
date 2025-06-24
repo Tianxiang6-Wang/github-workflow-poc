@@ -1,0 +1,12 @@
+location /fusion/api/v3.1/ {
+    resolver kube-dns.kube-system.svc.cluster.local;
+    proxy_set_header Host fusion-entrypoint.{{ $.Release.Namespace }}.svc.cluster.local;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    set $upstream http://fusion-entrypoint.{{ $.Release.Namespace }}.svc.cluster.local:80;
+    rewrite ^/fusion/api/(.*) /api/$1 break;
+    proxy_pass $upstream;
+    proxy_http_version 1.1;
+    proxy_ssl_verify off;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+}

@@ -1,0 +1,122 @@
+global:
+  imagePullPolicy: IfNotPresent
+  restartPolicy: Always
+  imagePullSecrets:
+  - docker-secret
+
+components:
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  hzp-util:
+    image: hzp-util
+    version: 0.1.3
+    project: hzp/
+  nginx-lua:
+    image: nginx-lua
+    version: 1.25-ubuntu22.04
+    project: fusion/
+
+image:
+  pullPolicy: IfNotPresent
+
+seaweedfs:
+  filer:
+    username: admin
+    url: http://eo-management-seaweedfs-filer.{{ .Release.Namespace }}.svc.cluster.local:8888
+
+fusion:
+  secretsSvc:
+    tenant: default_tenant
+    url: http://fusion-secrets.{{ .Release.Namespace }}.svc.cluster.local:8100
+  restSvc:
+    config: fusion-rest-service-config
+  auth: admin:admin
+
+nginx:
+  clientMaxBodySize: 20480M
+  proxyConnectTimeout: 30
+  sendTimeout: 1800
+  proxySendTimeout: 1800
+  proxyReadTimeout: 1800
+  clientBodyTimeout: 1800
+  clientHeaderTimeout: 30
+  keepaliveTimeout: 60
+  uwsgiReadTimeout: 1800
+  keepalive: 8
+
+front:
+  repository: null
+  imageName: null
+  imageTag: null
+  imageOverride: null
+  restartPolicy: null
+
+  # Toleration Settings for server pods
+  # This should be a multi-line string matching the Toleration array
+  # in a PodSpec.
+  tolerations: ""
+
+  # nodeSelector labels for server pod assignment, formatted as a muli-line string.
+  # ref: https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#nodeselector
+  # Example:
+  nodeSelector: |
+    kubernetes.io/arch: amd64
+
+filerFrontPort: &filerFrontPort 80
+
+podAnnotations:
+  hzp.iam.webhook/authentication-enabled: "false"
+  hzp.iam.webhook/authorization-enabled: "false"
+  hzp.iam.webhook/exclude-inbound-ports: "443"
+  hzp.iam.webhook/resources-limits-memory: "2500Mi"
+podLabels:
+  hzp-app: public-fileserver
+  hzp-role: eo-service
+
+deployment: {}
+
+service:
+  type: ClusterIP
+  port: *filerFrontPort
+  targetPort: *filerFrontPort
+  annotations: {}
+  labels: {}
+
+resources: {}
+
+replicaCount: 1
+containerPort: *filerFrontPort
+
+containerSecurityContext:
+  enabled: true
+  seLinuxOptions: {}
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+    - ALL
+  privileged: false
+  readOnlyRootFilesystem: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  runAsNonRoot: true
+  seccompProfile:
+    type: RuntimeDefault
+
+securityContext:
+  enabled: true
+  fsGroupChangePolicy: Always
+  sysctls: []
+  supplementalGroups: []
+  fsGroup: 1000
+
+job:
+  podLabels:
+    hzp-app: public-fileserver-job
+    hzp.iam.webhook/active: "false"
+    sidecar.istio.io/inject: "false"
+  image:
+    pullPolicy: IfNotPresent
+    repository: isgedge.artifactory.cec.lab.emc.com/isgedge-docker-virtual/busybox
+    tag: 1.37

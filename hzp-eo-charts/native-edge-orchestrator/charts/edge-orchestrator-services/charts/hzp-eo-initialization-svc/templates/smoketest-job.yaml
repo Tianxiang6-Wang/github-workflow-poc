@@ -1,0 +1,140 @@
+{{- if or (.Values.global.regressionEnabled) (.Values.global.eoInitializationSvc.smoketestEnabled) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: eo-initialization-smoke-test
+spec:
+  template:
+    metadata:
+      name: eo-initialization-smoke-test
+      labels:
+{{- tpl (toYaml .Values.test.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - name: eo-initialization-smoke-test-container
+          env:
+            - name: BASE_URL
+              value: "http://{{ .Values.test.initialization.service.fullname }}.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: EO_INITIALIZATION_SUBSCRIPTION_URL
+              value: "ws://{{ .Values.test.initialization.service.fullname }}.{{ .Release.Namespace }}.svc.cluster.local/api/v1/eo-initialization"
+            - name: ONBOARDING_SVC_BASE_URL
+              value: "http://hzp-security-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: FRU_CRU_SVC_BASE_URL
+              value: "http://hzp-fru-cru-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: EDGE_VAULT_URL
+              value: "http://edgevault.{{ .Release.Namespace }}.svc.cluster.local:8200"
+            - name: MANUFACTURER_SVC_BASE_URL
+              value: "http://fido-manufacturer.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: MOCK_SERVER_BASE_URL
+              value: "http://mockserver.{{ .Release.Namespace }}.svc.cluster.local:443"
+            - name: RP_ENDPOINT
+              value: "{{ .Values.test.reportportal.rpendpoint }}"
+            - name: RP_API_KEY
+              value: "{{ .Values.test.reportportal.rpuuid }}"
+            - name: RP_MODE
+              value: default
+            - name: RP_PROJECT
+              value: HZP_EO_SERVICES
+            - name: RP_LAUNCH
+              value: "{{ .Values.test.initialization.service.fullname }}"
+            - name: RP_ATTRIBUTES
+              value: "RELEASE_VERSION:{{ .Values.test.reportportal.release }};EO_IP:{{ .Values.test.reportportal.eourl }};EO_MANIFEST:{{ .Values.test.reportportal.manifest }};TEST_GROUP:{{ .Values.test.reportportal.suite }};RP_LAUNCH_KEY_ATTRIBUTE:{{ .Values.test.reportportal.runid }};;RELEASE_VERSION:{{ .Values.test.reportportal.release }};"
+            - name: MESSAGING_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            - name: IAM_SVC_BASE_URL
+              value: "http://hzp-iam-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: SESSION_SVC_BASE_URL
+              value: "http://hzp-iam-session-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: ISTIO_INGRESS_GATEWAY_URL
+            {{- if $.Values.global.istio.deploy }}
+              value: "https://istio-ingressgateway.istio-system.svc.cluster.local"
+            {{- else if $.Values.global.nginx_gw.enabled }}
+              value: "https://nginx-gw.{{ .Release.Namespace }}.svc.cluster.local"
+            {{- else }}
+              {{- fail ".Values.global.istio.deploy or .Values.global.nginx_gw.enabled should be true" }}
+            {{- end }}
+          {{- toYaml .Values.test.env | nindent 12 }}
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.test.image.name ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          command: ['/bin/sh', '-c']
+          # Sleep before test to allow netpol and istio-proxy to take effect
+          # Sleep after the test is to enable pipeline to copy the test result when pod is running state
+          args:
+            - |
+              sleep 60; echo All dependent components are running. Start testing!;
+              java -jar tests.jar {{ .Values.test.testsuite }}; sleep 60;
+              if curl -sf -XPOST http://127.0.0.1:15020/quitquitquit 2>/dev/null; then
+                  echo "Terminated istio-proxy."
+              fi
+      initContainers:
+        - name: init-postgres
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for Hzp Eo Initialization to become ready...'
+              
+              until printf "." && nc -z -w 2 {{ .Values.test.postgresql.service.fullname }} {{ .Values.test.postgresql.service.port }}; do
+                  sleep 2;
+              done;
+              
+              echo 'PostgreSQL OK ✓'
+        - name: init-eo-initialization
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for hzp-eo-initialization to become ready...'
+              
+              until printf "." && nc -z -w 2 {{ .Values.test.initialization.service.fullname }} {{ .Values.test.initialization.service.port }}; do
+                  sleep 2;
+              done;
+              
+              echo 'Hzp-initialization OK ✓'
+      serviceAccountName: {{ .Values.test.rbac.namePrefix }}-sa
+      restartPolicy: Never
+
+---
+
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ .Values.test.rbac.namePrefix }}-sa
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ .Values.test.rbac.namePrefix }}-role
+rules:
+  - apiGroups: [ "apps" ]
+    resources: [ "*" ]
+    verbs: [ "*" ]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ .Values.test.rbac.namePrefix }}-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ .Values.test.rbac.namePrefix }}-role
+subjects:
+  - kind: ServiceAccount
+    name: {{ .Values.test.rbac.namePrefix }}-sa
+    namespace: {{ .Release.Namespace }}
+
+{{- end }}

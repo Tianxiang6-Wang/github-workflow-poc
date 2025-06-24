@@ -1,0 +1,20 @@
+{{ $config := .Values.bootstrap.idrac }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $config.configmap.name }}
+  labels:
+    iam.bootstrap/config-type: create-client-config
+data:
+  NAME: "{{ $config.clientName }}"
+  ATTRIBUTES_JSON: |
+    [
+      {
+        "name": "scope",
+        "values": ["device.power_edge"]
+      },
+      {
+        "name": "orc_id",
+        "values": ["{{ .Values.global.dsp.portal.orchId }}"]
+      }
+    ]

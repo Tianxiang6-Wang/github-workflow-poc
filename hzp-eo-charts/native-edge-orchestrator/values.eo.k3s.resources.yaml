@@ -1,0 +1,628 @@
+edge-orchestrator-services:
+  fido-manufacturer:
+    svc:
+      resources:
+        limits:
+          cpu: 100m
+          memory: 400Mi
+        requests:
+          cpu: 5m
+          memory: 25Mi
+  fido-owner:
+    svc:
+      resources:
+        limits:
+          cpu: 2
+          memory: 2048Mi
+        requests:
+          cpu: 10m
+          memory: 256Mi
+  fido-rv:
+    svc:
+      resources:
+        limits:
+          cpu: 2
+          memory: 1800Mi
+        requests:
+          cpu: 5m
+          memory: 256Mi
+  hzp-api-gateway-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-attention-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-catalog-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-certificate-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-component-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-datacollection-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-ece-firmwareupdate-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+      pvc:
+        fu:
+          storageSize: 3Gi
+  hzp-ece-simulator:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-eo-initialization-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-eo-proxy:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-event-display:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-event-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-fru-cru-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-health-check-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-iam:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-iam-configuration:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-iam-session-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-ingress-authz-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-inventory:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-job-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-metrics-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-notification-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-eo-template-mgr:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-product-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+    ese:
+      pvc:
+        resources:
+          storage: 1Gi
+    shared:
+      pvc:
+        resources:
+          storage: 30Gi
+  hzp-recovery-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-rules-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-scheduler-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-tags-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-time-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  hzp-upgrade-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+  nats-box:
+    svc:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+
+eo-management:
+  container-registry:
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    persistence:
+      size: 10Gi
+  delco-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 100m
+          memory: 128Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
+  fluentbit:
+    resources:
+      limits:
+        cpu: 100m
+        memory: 200Mi
+      requests:
+        cpu: 100m
+        memory: 200Mi
+  hzp-iam-policy-svc:
+    svc:
+      resources:
+        limits:
+          cpu: 100m
+          memory: 200Mi
+        requests:
+          cpu: 50m
+          memory: 25Mi
+  keycloak:
+    resources:
+      limits:
+        cpu: "500m"
+        memory: "1024Mi"
+      requests:
+        cpu: "5m"
+        memory: "256Mi"
+    dbchecker:
+      resources:
+        limits:
+          cpu: "20m"
+          memory: "32Mi"
+        requests:
+          cpu: "20m"
+          memory: "32Mi"
+  nats:
+    nats:
+      jetStream:
+        pvc:
+          resources:
+            storage: 30Gi
+        maxMemory: "8589934592"
+        maxStorage: "12884901888"
+  nginx_gw:
+    nginx:
+      clientMaxBodySize: 100M
+      resources:
+        requests:
+          memory: 512Mi
+          cpu: 0.5
+        limits:
+          memory: 1Gi
+          cpu: 1
+  opensearch:
+    pvc:
+      create: true
+    resources:
+      heapSize: "-Xms1g -Xmx1g"
+      limits:
+        memory: 1536Mi
+        cpu: 2000m
+      requests:
+        memory: 1536Mi
+        cpu: 5m
+      storageSize: 45Gi
+  postgresql:
+    primary:
+      persistence:
+        size: 50Gi
+      resources:
+        limits:
+          memory: 2500Mi
+          cpu: 2000m
+        requests:
+          memory: 256Mi
+          cpu: 10m
+  public-fileserver:
+    resources:
+      limits:
+        memory: 256Mi
+        cpu: 100m
+      requests:
+        memory: 64Mi
+        cpu: 10m
+  seaweedfs:
+    volume:
+      data:
+        size: 100Gi
+      resources: |
+        requests:
+          memory: 256Mi
+          cpu: 0.1
+        limits:
+          memory: 512Mi
+          cpu: 0.5
+    master:
+      data:
+        size: 1Gi
+      resources: |
+        requests:
+          memory: 128Mi
+          cpu: 0.1
+        limits:
+          memory: 512Mi
+          cpu: 0.5
+    filer:
+      data:
+        size: 1Gi
+      resources: |
+        requests:
+          memory: 128Mi
+          cpu: 0.1
+        limits:
+          memory: 2Gi
+          cpu: 1
+    s3:
+      resources: |
+        requests:
+          memory: 128Mi
+          cpu: 0.1
+        limits:
+          memory: 512Mi
+          cpu: 0.5
+  vault:
+    server:
+      resources:
+        limits:
+          memory: 1Gi
+          cpu: 1000m
+        requests:
+          memory: 25Mi
+          cpu: 5m
+
+fusion-services-helm:
+  execution_scheduler:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 1000Mi
+      requests:
+        cpu: 5m
+        memory: 64Mi
+  mgmtworker:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 1000Mi
+      requests:
+        cpu: 5m
+        memory: 64Mi
+  rest_service:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 1000Mi
+      requests:
+        cpu: 5m
+        memory: 64Mi
+  stage_backend:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 1000Mi
+      requests:
+        cpu: 5m
+        memory: 64Mi
+  stage_frontend:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 1000Mi
+      requests:
+        cpu: 5m
+        memory: 64Mi
+  blueprint:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 1000Mi
+      requests:
+        cpu: 5m
+        memory: 64Mi
+  plugins:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 1000Mi
+      requests:
+        cpu: 5m
+        memory: 64Mi
+  secrets:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 1000Mi
+      requests:
+        cpu: 5m
+        memory: 64Mi
+  deployments:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 1000Mi
+      requests:
+        cpu: 5m
+        memory: 64Mi
+  nginx:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 1000Mi
+      requests:
+        cpu: 5m
+        memory: 64Mi
+  drift:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 1000Mi
+      requests:
+        cpu: 5m
+        memory: 64Mi
+  resource-uploader-job:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 1000Mi
+      requests:
+        cpu: 5m
+        memory: 64Mi
+  plugin-loader-job:
+    resources:
+      limits:
+        cpu: 200m
+        memory: 1000Mi
+      requests:
+        cpu: 5m
+        memory: 64Mi
+
+mist-ee:
+  victoriametrics:
+    vmselect:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+    vminsert:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+    vmstorage:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+        storageSize: 8Gi
+  deployment:
+    gocky:
+      resources:
+        limits:
+          cpu: 200m
+          memory: 1000Mi
+        requests:
+          cpu: 5m
+          memory: 64Mi
+    eseclient:
+      resources:
+        requests:
+          cpu: 5m
+          memory: 50Mi
+    eventws:
+      resources:
+        requests:
+          cpu: 3m
+    scheduler:
+      scheduler:
+        resources:
+          requests:
+            cpu: 5m
+  sharedvolume:
+    storageSize: 125Gi

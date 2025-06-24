@@ -1,0 +1,45 @@
+# QA should modify this file, to make sure the test runs in order
+# For example, test would be started from Group0 and ends at the last group
+# Later group would pending for the finish of the former group
+EO:
+  execute_order:
+    group0:
+      - smoke-test
+      - hzp-health-check-svc
+      - hzp-iam
+    group1:
+      - hzp-time-svc
+      - hzp-job-svc
+      - hzp-datacollection-svc
+      - hzp-oe-template-mgr
+      - fido-owner
+      - hzp-fru-cru-svc
+      - hzp-ingress-authz-svc
+      - hzp-catalog-svc
+      - hzp-event-svc
+      - hzp-upgrade-svc
+      - hzp-scheduler-svc
+    group2:
+      - hzp-eo-initialization-svc
+    group3:
+      - hzp-certificate-svc
+      - hzp-product-svc
+      - hzp-iam-policy-svc
+      - hzp-notification-svc
+      - hzp-rules-svc
+      - hzp-tags-svc
+    group4:
+      - hzp-inventory
+      - hzp-iam-configuration
+
+EO-ECE:
+  execute_order:
+    group0:
+      - hzp-job-svc
+      - hzp-inventory
+      - hzp-health-check-svc
+      - hzp-eo-proxy
+    group1:
+      - hzp-compute-svc
+    group2:
+      - ece-agent-test

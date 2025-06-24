@@ -1,0 +1,10 @@
+annotations:
+  containerImages: |
+    - attestation-svc
+    - busybox
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for the Attestation service
+name: hzp-attestation-svc
+type: application
+version: 0.1.0

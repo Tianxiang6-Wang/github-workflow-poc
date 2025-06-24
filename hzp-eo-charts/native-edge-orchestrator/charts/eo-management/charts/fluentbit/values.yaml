@@ -1,0 +1,75 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+
+global:
+  registry: ""
+  repository: ""
+  clusterResourcesPrefix: ""
+  fluentbit:
+    image: fluent/fluent-bit
+    version: 3.2.6
+  s3:
+    url: http://eo-management-seaweedfs-s3.{{ .Release.Namespace }}.svc.cluster.local:8333
+    region: us-east-1
+    bucketPrefix: ""
+    serviceAccountAnnotations: {} # Required to link service account to AWS role.
+    credentials:
+    - name: AWS_ACCESS_KEY_ID
+      valueFrom:
+        secretKeyRef:
+          name: eo-management-seaweedfs-s3-secret
+          key: AWS_ACCESS_KEY_ID
+    - name: AWS_SECRET_ACCESS_KEY
+      valueFrom:
+        secretKeyRef:
+          name: eo-management-seaweedfs-s3-secret
+          key: AWS_SECRET_ACCESS_KEY
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  dsp:
+    enabled: false
+    portal:
+      namespace: dsp-portal
+  ova:
+    enabled: false
+components:
+  fluent-bit:
+    image: fluent-bit
+    version: 3.2.6
+    project: fluent/
+  seaweedfs:
+    image: seaweedfs
+    version: 3.85
+    project: chrislusf/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+svc:
+  image:
+    name: fluent-bit
+  name: fluentbit
+  resources:
+    limits:
+      cpu: 5000m
+      memory: 4Gi
+    requests:
+      cpu: 100m
+      memory: 200Mi
+  port: 80
+  targetPort: 8080
+  s3:
+    bucketName: eo-logs
+    dapoBucketName: dapo-logs
+    vaBucketName: va-logs
+    portalBucketName: dapp-logs
+    logBundleBucketName: dap-log-bundle
+volume:
+  enabled: true
+  repository: null
+  imageName: null
+  imageTag: null
+  imageOverride: null
+image:
+  registry: ""
+  repository: "isgedge.artifactory.cec.lab.emc.com/isgedge-docker-virtual/"

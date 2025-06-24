@@ -1,0 +1,14 @@
+{{- if .Values.blueprint.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "fusion-services.name" . }}-blueprint
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  ports:
+    - port: {{ .Values.blueprint.port }}
+  selector:
+    app: blueprint
+  type: ClusterIP
+{{- end }}

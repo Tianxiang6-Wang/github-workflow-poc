@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: ConfigMap
+data:
+  init.json: {{ include "init.db" . | fromYaml | toJson | quote }}
+metadata:
+  creationTimestamp: null
+  name: oe-template-mgr-init-config

@@ -1,0 +1,28 @@
+{{- if or (.Values.global.regressionEnabled) (.Values.global.iamProxyTest.smoketestEnabled) }}
+{{- $namespace := .Release.Namespace -}}
+{{- $internalIngressNamespace := .Values.test.ingress.namespace -}}
+{{- $test := .Values.test -}}
+apiVersion: networking.istio.io/v1alpha3
+kind: VirtualService
+metadata:
+  name: {{ $test.svc.virtual_service_name | lower }}-ingress
+  namespace: {{ $namespace }}
+spec:
+  gateways:
+    - {{ $namespace }}/{{ $namespace }}-ingress-gateway
+  hosts:
+    - '*'
+  http:
+    - match:
+        - uri:
+            prefix: "/{{ $test.svc.external_uri | lower }}"
+          ignoreUriCase: true
+      rewrite:
+        authority: {{ $test.svc.name | lower }}.{{ $namespace }}.svc.cluster.local
+        uri: "/api/"
+      route:
+        - destination:
+            host: hzp-{{ .serviceName  | lower }}-.{{ $namespace }}.svc.cluster.local
+            port:
+              number: 80
+  {{- end }}

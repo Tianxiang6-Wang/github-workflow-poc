@@ -1,0 +1,71 @@
+---
+{{- if .Values.global.s3.enableHA }}
+{{- $replicas := include "ha.replicas" . | trim | int }}
+{{- $upgradeVolumeHook := .Values.hook.upgradeVolume -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: post-{{ $upgradeVolumeHook.name }}-copy
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+{{- tpl (toYaml $upgradeVolumeHook.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      serviceAccountName: delete-jobs-sa
+      initContainers:
+      - name: init-seaweedfs
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for SeaweedFS Master to become ready...'
+            MASTER="eo-management-seaweedfs-master.{{ .Release.Namespace }}.svc.cluster.local:9333"
+            until [ "$response" = "200" ]; do
+              response=$(wget -S -O /dev/null $MASTER/cluster/healthz 2>&1 | awk '/HTTP\/1.1/ {print $2}')
+              printf "." && sleep 2
+            done
+            echo 'SeaweedFS Master OK ✓'
+      containers:
+        - name: copy-from-source-volume
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "seaweedfs" ) "repo" .Values.global.repository) }}
+          command:
+            - "/bin/sh"
+            - "-ec"
+            - |
+              set -e
+              VOLUME_REPLICAS={{ sub $replicas 1 }}
+              REPLICATION={{ include "ha.replicationPlacement" . | quote }}
+              MASTER="eo-management-seaweedfs-master.{{ .Release.Namespace }}.svc.cluster.local:9333"
+              SOURCE_VOL="eo-management-seaweedfs-volume-0.eo-management-seaweedfs-volume.{{ .Release.Namespace }}.svc.cluster.local:8080"
+              VOLUME_COUNT=$(wget -qO- "http://$SOURCE_VOL/status?pretty=y" | grep -o '"Id": [0-9]*' | tail -n 1 | awk '{print $2}')
+
+              for i in $(seq 1 $VOLUME_REPLICAS); do
+                TARGET_VOL="eo-management-seaweedfs-volume-$i-0.eo-management-seaweedfs-volume.{{ .Release.Namespace }}.svc.cluster.local:8080"
+                for j in $(seq $VOLUME_COUNT); do
+                  echo "lock; volume.configure.replication -volumeId=$j -replication=$REPLICATION; unlock" | /usr/bin/weed shell -master="$MASTER"
+                  if wget -qO- "http://$TARGET_VOL/status?pretty=y" | grep -q -w "\"Id\": $j"; then
+                      echo "VolumeId $j already exist in $TARGET_VOL, skipping copy"
+                      continue
+                  fi
+                  echo "Copying volumeId $j from $SOURCE_VOL to $TARGET_VOL"
+                  echo "lock; volume.copy -source $SOURCE_VOL -target $TARGET_VOL -volumeId=$j; unlock" | /usr/bin/weed shell -master="$MASTER"
+                done
+              done
+
+              echo "$VOLUME_COUNT volumes from $SOURCE_VOL copied successfully"
+          imagePullPolicy: {{ default "IfNotPresent" .Values.global.imagePullPolicy }}
+{{- end }}

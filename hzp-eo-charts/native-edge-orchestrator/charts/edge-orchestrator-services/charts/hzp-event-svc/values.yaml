@@ -1,0 +1,152 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  ingress:
+    fqdn: localhost
+  opensearch:
+    deploy: true
+    host: eo-management-opensearch
+    logstash:
+      username: logstash
+    username: readOnly
+    newchart: eo-management
+    address: "https://eo-management-opensearch.{{ .Release.Namespace }}.svc.cluster.local:9200"
+    mode: aoss
+    region: region
+    serviceAccountName: ''
+  eventSvc:
+    smoketestEnabled: false
+  istio:
+    deploy: true
+    ingressgateway:
+      internal: true
+  nginx_gw:
+    enabled: false
+  clusterResourcesPrefix: ""
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  instrumentation:
+    enabled: false
+components:
+  event-svc:
+    image: event-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  common-locales-bundle:
+    image: common-locales-bundle
+    version: latest
+    project: hzp/
+  event-smoke-test:
+    image: event-smoke-test
+    version: latest
+    project: hzp/
+# Subchart values
+svc:
+  name: &serviceName hzp-events-svc
+  replicaCount: 1
+  port: 8080
+  image:
+    name: event-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: 'true'
+  resources:
+    limits:
+      cpu: 600m
+      memory: 300Mi
+    requests:
+      cpu: 10m
+      memory: 25Mi
+  env:
+    - name: APP_PORT
+      value: "8080"
+    - name: DB_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresHost
+    - name: DB_PORT
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresPort
+    - name: DB_USER
+      value: "hzp_event_svc"
+    - name: DB_PA
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: hzp_event_svc-password
+  localization:
+    image:
+      name: common-locales-bundle
+      tag: magicp1-2.0.0
+      pullPolicy: Always
+  autoScaling:
+    enabled: true
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+test:
+  # Subchart values
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    hzp-app: hzp-events-svc-regression
+    hzp-role: smoke-test
+  testsuite: test-suites/smoke.xml
+  replicaCount: 1
+  image:
+    name: event-smoke-test
+    pullPolicy: Always
+    tag: latest
+  env:
+    - name: MESSAGING_STREAM_NAME
+      value: "K-ORDERS"
+  cpu: 0.25
+  memory: 512Mi
+  eventsvc:
+    service:
+      fullname: *serviceName
+      port: 80
+  rbac:
+    namePrefix: event-svc-smoke-test
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 473428
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    runid: 1
+    release: 1
+    suite: 1

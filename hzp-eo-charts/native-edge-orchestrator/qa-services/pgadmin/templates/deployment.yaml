@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.name }}
+  labels:
+    hzp-app: {{ .Values.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      hzp-app: {{ .Values.name }}
+  template:
+    metadata:
+      name: {{ .Values.name }}
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      securityContext:
+        runAsUser: 0
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values $ ) | trim | nindent 8 }}
+      containers:
+        - name: {{ .Values.name }}
+          env:
+            - name: PGADMIN_DEFAULT_EMAIL
+              value: "admin@admin.com"
+            - name: PGADMIN_DEFAULT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.pgadmin.auth.secretName }}
+                  key: pgadmin-password
+          image: "{{ .Values.global.repository }}{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.Annotations.imagetag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            {{- toYaml .Values.image.ports | nindent 12 }}
+          volumeMounts:
+            - name: pgadmin-data
+              mountPath: /var/lib/pgadmin
+            {{- if .Values.servers.enabled }}
+            - name: servers-config
+              mountPath: /pgadmin4/servers.json
+              subPath: servers.json
+            {{- end }}
+      volumes:
+        - name: pgadmin-data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.persistence.existingClaim | default (include "pgadmin.fullname" .) }}
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        {{- if .Values.servers.enabled }}
+        - name: servers-config
+          configMap:
+            name: {{ .Values.name }}
+            items:
+              - key: servers.json
+                path: servers.json
+        {{- end }}

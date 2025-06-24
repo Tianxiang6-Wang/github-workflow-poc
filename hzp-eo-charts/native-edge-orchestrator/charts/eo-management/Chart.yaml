@@ -1,0 +1,55 @@
+annotations:
+  containerImages: |
+    - hzp-util
+    - busybox
+apiVersion: v2
+appVersion: 1.16.0
+dependencies:
+- condition: global.delcosvc.deploy
+  name: delco-svc
+  repository: ""
+  version: 0.1.0
+- name: hzp-iam-webhooks
+  repository: ""
+  version: 0.1.0
+- condition: global.vault.deploy
+  name: vault
+  repository: ""
+  version: 0.22.1
+- condition: global.keycloak.deploy
+  name: keycloak
+  repository: ""
+  version: 26.0.7
+- condition: global.postgresql.deploy
+  name: postgresql
+  repository: ""
+  version: 11.9.14
+- name: secrets
+  repository: ""
+  version: 0.1.0
+- condition: global.seaweedfs.enabled
+  name: seaweedfs
+  repository: ""
+  version: 3.63.0
+- condition: global.containerRegistry.enabled
+  name: container-registry
+  repository: ""
+  version: 3.0.0-rc.3
+- name: public-fileserver
+  repository: ""
+  version: 0.1.0
+- name: opensearch
+  repository: ""
+  version: 0.1.0
+- condition: global.fluentbit.enabled
+  name: fluentbit
+  repository: ""
+  version: 3.2.6
+- condition: global.nginx_gw.enabled
+  name: nginx_gw
+  repository: ""
+  version: 0.1.0
+description: A Helm chart for Kubernetes
+name: eo-management
+type: application
+version: 0.1.1

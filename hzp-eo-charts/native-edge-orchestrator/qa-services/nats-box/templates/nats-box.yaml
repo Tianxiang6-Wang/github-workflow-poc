@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nats-box
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      hzp-app: nats-box
+  template:
+    metadata:
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+      - name: nats-box
+        {{- $image := include "helper.image.name" (dict "name" "nats-box" "globals" .Values.global.components "repo" .Values.global.repository) }}
+        {{- if gt (len $image) 0 }}
+        {{- $image | trim | nindent 8 }}
+        {{- else }}
+        image:  "{{ .Values.svc.image.repository | default (include "nats_box.repo" .)}}{{ .Values.svc.image.name }}:{{ .Values.svc.image.tag | default .Chart.Annotations.imagetag }}"
+        {{- end }}
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          allowPrivilegeEscalation: false
+        command:
+        - "tail"
+        - "-f"
+        - "/dev/null"
+        resources:
+          {{- toYaml .Values.svc.resources | nindent 12 }}

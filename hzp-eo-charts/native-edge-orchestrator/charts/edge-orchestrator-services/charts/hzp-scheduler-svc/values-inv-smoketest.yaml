@@ -1,0 +1,4 @@
+global:
+  schedulerSvc:
+    deploy: true
+    smoketestEnabled: true

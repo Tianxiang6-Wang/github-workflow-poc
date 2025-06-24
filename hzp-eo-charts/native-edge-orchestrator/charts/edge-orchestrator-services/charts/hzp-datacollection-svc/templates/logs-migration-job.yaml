@@ -1,0 +1,91 @@
+{{- if .Values.job.logsMigrationEnabled -}}
+{{- $svc := .Values.svc -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: dc-logs-migration-job
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+spec:
+  template:
+    metadata:
+      labels:
+        hzp-app: {{ $svc.name }}
+        hzp-role: eo-service
+        hzp.iam.webhook/active: "false"
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: {{ if .Values.global.s3.serviceAccountAnnotations }}{{ .Values.svc.name }}{{ end }}
+      securityContext:
+        fsGroup: 2000
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          name: "dc-logs-migration-job"
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          volumeMounts:
+            - mountPath: {{ $svc.pvc.ese.mountPath }}
+              name: {{ $svc.pvc.ese.name }}
+          env:
+            - name: RETENTION_PERIOD_DAYS
+              value: "30"
+            - name: S3_URL
+              value: {{ tpl .Values.global.s3.url . | quote }}
+            - name: SEAWEEDFS_S3_URL  # For backwards-compatibility.
+              value: {{ tpl .Values.global.s3.url . | quote }}
+            - name: S3_REGION
+              value: {{ .Values.global.s3.region | default "us-east-1" }}
+            - name: EO_NAME
+              value: {{ .Values.global.eoName }}
+            - name: S3_BUCKET
+              value: {{ .Values.global.s3.bucketPrefix }}eo-logs
+            {{- if .Values.global.s3.credentials }}{{- toYaml .Values.global.s3.credentials | nindent 12 }}{{ end }}
+            {{- toYaml .Values.svc.env | nindent 12 }}
+          command:
+            - "/home/datacollectionsvc/logs-migrator"
+      volumes:
+        - name: {{ $svc.pvc.ese.name }}
+          persistentVolumeClaim:
+            claimName: {{ $svc.pvc.ese.name }}
+      initContainers:
+        - name: init-postgres
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.svc.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for PostgreSQL to become ready...'
+
+              until printf "." && nc -z -w 2 {{ .Values.svc.postgresql.service.fullname }} {{ .Values.svc.postgresql.service.port }}; do
+                  sleep 2;
+              done;
+
+              echo 'PostgreSQL OK ✓'
+        - name: init-datacollection-svc
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.svc.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for datacollection service to become ready...'
+
+              until printf "." && nc -z -w 2 {{ .Values.svc.service.fullname }} {{ .Values.svc.service.port }}; do
+                  sleep 2;
+              done;
+
+              echo 'Hzp-datacollection-svc OK ✓'
+      restartPolicy: Never
+{{ end }}

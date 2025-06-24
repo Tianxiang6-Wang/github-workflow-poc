@@ -1,0 +1,8 @@
+global:
+  catalogSvc:
+    deploy: true
+    smoketestEnabled: true
+  oeTemplateMgr:
+    deploy: true
+  schedulerSvc:
+    deploy: true

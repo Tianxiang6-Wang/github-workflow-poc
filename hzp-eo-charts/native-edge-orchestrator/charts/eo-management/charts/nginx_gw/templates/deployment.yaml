@@ -1,0 +1,148 @@
+# NOTE: workaround because .Files.Glob "files/**.template" | sha256sum calculated different checksum for some reason
+{{ $checksumConfigsIncludedExternalApigateway := sha256sum (tpl (.Files.Glob "files/config_includes/external_apigateway/*").AsConfig . ) }}
+{{ $checksumConfigsIncludedExternalFido := sha256sum (tpl (.Files.Glob "files/config_includes/external_fido/*").AsConfig . ) }}
+{{ $checksumConfigsIncludedExternalMtls := sha256sum (tpl (.Files.Glob "files/config_includes/external_mtls/*").AsConfig . ) }}
+{{ $checksumConfigsIncludedExternalMtlsRecovery := sha256sum (tpl (.Files.Glob "files/config_includes/external_mtls_recovery/*").AsConfig . ) }}
+{{ $checksumConfigsIncludedExternalTls := sha256sum (tpl (.Files.Glob "files/config_includes/external_tls/*").AsConfig . ) }}
+{{ $checksumConfigsIncludedInternal := sha256sum (tpl (.Files.Glob "files/internal/*").AsConfig . ) }}
+{{ $checksumConfigsIncluded := sha256sum (print $checksumConfigsIncludedExternalApigateway $checksumConfigsIncludedExternalFido $checksumConfigsIncludedExternalMtls $checksumConfigsIncludedExternalMtlsRecovery $checksumConfigsIncludedExternalTls $checksumConfigsIncludedInternal) }}
+
+apiVersion: apps/v1
+{{- if not $.Values.global.ip_mode }}
+kind: Deployment
+{{- else }}
+kind: DaemonSet
+{{- end }}
+metadata:
+  name: nginx-gw
+  namespace: {{ .Release.Namespace | quote }}
+spec:
+{{- if not $.Values.global.ip_mode }}
+  replicas: {{ .Values.replicas }}
+{{- end }}
+  selector:
+    matchLabels:
+      app: nginx-gw
+  template:
+    metadata:
+      labels:
+        app: nginx-gw
+        hzp-app: nginx-gw
+        hzp-role: eo-gateway
+        hzp.iam.webhook/active: "{{ .Values.global.nginx_gw.enabled }}"
+      annotations:
+        checksum/configsMain: {{ include (print $.Template.BasePath "/configmap-main.yaml") . | sha256sum }}
+        checksum/configsIncluded: {{ $checksumConfigsIncluded }}
+        checksum/configsLua: {{ tpl (.Files.Glob "files/lua/*").AsConfig . | sha256sum }}
+        hzp.iam.webhook/authentication-enabled: "false"
+        hzp.iam.webhook/authorization-enabled: "false"
+        hzp.iam.webhook/exclude-inbound-ports: "443"
+        hzp.iam.webhook/resources-limits-memory: "2500Mi"
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      volumes:
+        - name: nginx-conf
+          configMap:
+            name: nginx-gw-conf-main
+            items:
+              - key: nginx.conf
+                path: nginx.conf
+            defaultMode: 420
+        - name: ip-allowlist-conf
+          configMap:
+            name: nginx-ip-allowlist-config
+        - name: log
+          emptyDir: {}
+        - name: nginx-conf-includes-internal
+          configMap:
+            name: nginx-gw-conf-includes-internal
+        - name: tls-credentials
+          secret:
+            secretName: tls-credential
+        - name: mtls-credentials
+          secret:
+            secretName: mtls-credential
+        - name: mtls-credentials-recovery
+          secret:
+            secretName: mtls-credential-recovery
+        - name: nginx-conf-includes-main
+          configMap:
+            name: nginx-gw-conf-includes-main
+        - name: nginx-conf-includes-fido
+          configMap:
+            name: nginx-gw-conf-includes-fido
+        - name: nginx-lua-scripts
+          configMap:
+            name: nginx-gw-lua-scripts
+        - name: nginx-conf-includes-mtls
+          configMap:
+            name: nginx-gw-conf-includes-mtls
+        - name: nginx-conf-includes-mtls-recovery
+          configMap:
+            name: nginx-gw-conf-includes-mtls-recovery
+        - name: nginx-gw-conf-includes-external-apigw
+          configMap:
+            name: nginx-gw-conf-includes-external-apigw
+        - name: nginx-gw-maintenance-config
+          configMap:
+            name: nginx-gw-maintenance-config
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values $ ) | trim | nindent 8 }}
+      containers:
+        - name: nginx
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "nginx-lua" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.image.imagePullPolicy }}
+          ports:
+            - containerPort: 80
+              protocol: TCP
+          resources: {{- toYaml .Values.nginx.resources | nindent 12 }}
+          volumeMounts:
+            - name: nginx-conf
+              readOnly: true
+              mountPath: /etc/nginx
+            - name: ip-allowlist-conf
+              readOnly: true
+              mountPath: /etc/nginx/ip-sources
+            - name: log
+              mountPath: /var/log/nginx
+            - name: nginx-conf-includes-internal
+              mountPath: /etc/nginx/includes-internal
+            - name: tls-credentials
+              mountPath: "/etc/nginx/tls-credentials"
+              readOnly: true
+            - name: mtls-credentials
+              mountPath: "/etc/nginx/mtls-credentials"
+              readOnly: true
+            - name: mtls-credentials-recovery
+              mountPath: "/etc/nginx/mtls-credentials-recovery"
+              readOnly: true
+            - mountPath: /etc/nginx/includes-main
+              name: nginx-conf-includes-main
+            - mountPath: /etc/nginx/includes-fido
+              name: nginx-conf-includes-fido
+            - mountPath: /etc/nginx/lua
+              name: nginx-lua-scripts
+            - mountPath: /etc/nginx/includes-mtls
+              name: nginx-conf-includes-mtls
+            - mountPath: /etc/nginx/includes-mtls-recovery
+              name: nginx-conf-includes-mtls-recovery
+            - mountPath: /etc/nginx/includes-external-apigw
+              name: nginx-gw-conf-includes-external-apigw
+            - mountPath: /etc/nginx/maintenance
+              name: nginx-gw-maintenance-config
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          imagePullPolicy: IfNotPresent
+      restartPolicy: Always
+      terminationGracePeriodSeconds: 30
+      dnsPolicy: ClusterFirst
+      securityContext: {}
+      schedulerName: default-scheduler
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  revisionHistoryLimit: 10
+  progressDeadlineSeconds: 600

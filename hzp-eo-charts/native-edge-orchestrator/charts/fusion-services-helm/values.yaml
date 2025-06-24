@@ -1,0 +1,1292 @@
+agent:
+  config:
+    manager:
+      hostname: fusion-manager
+      private_ip: localhost
+      prometheus_url: '{{ ternary  "http://prometheus-server:9090" "" .Values.prometheus.enabled
+        }}'
+      public_ip: localhost
+  configPath: /tmp/config.yaml
+  db:
+    dbName: agents
+  dbMigrator:
+    db:
+      dbName: null
+      host: null
+      k8sSecret:
+        key: null
+        name: null
+      port: null
+      user: null
+    podAnnotations: {}
+    podLabels: {}
+  enableNetworkPolicy: true
+  enabled: false
+  env: {}
+  eventing:
+    stream_url: null
+  initContainerSecurityContext:
+    runAsGroup: 1000
+    runAsUser: 1000
+  logging:
+    audit_logs_subject: hzp.audit.events
+    configMountPath: /opt/logging
+    globalConfigFile: '{{ include "fusion-loglevel-configmap.globalLogLevelKey" $
+      }}'
+    logLevel: info
+    serviceConfigFile: fusion-agents
+  migrateDbJobSecurityContext:
+    runAsGroup: 1000
+    runAsUser: 1000
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsGroup: 1000
+    runAsUser: 1000
+  port: 8100
+  probes:
+    liveness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 10
+    readiness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+  replicas: 1
+  resources:
+    limits:
+      cpu: 1
+      memory: 2Gi
+    requests:
+      cpu: 0.5
+      ephemeral-storage: 100Mi
+      memory: 1Gi
+api_service:
+  enableNetworkPolicy: true
+  env:
+  - name: FILE_SERVER_TYPE
+    value: s3
+  logging:
+    audit_logs_subject: hzp.audit.events
+    configMountPath: /opt/logging
+    globalConfigFile: '{{ include "fusion-loglevel-configmap.globalLogLevelKey" $
+      }}'
+    logLevel: info
+    serviceConfigFile: fusion-api-service
+  podAnnotations: {}
+  podLabels: {}
+  port: 8101
+  probes:
+    liveness:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 10
+    readiness:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+  replicas: 1
+  resources:
+    limits:
+      cpu: 1
+      memory: 1Gi
+    requests:
+      cpu: 0.1
+      ephemeral-storage: 100Mi
+      memory: 128Mi
+appName: Dell Cloudify
+blueprint:
+  config:
+    manager:
+      file_server_type: s3
+      hostname: fusion-manager
+      private_ip: localhost
+      prometheus_url: '{{ ternary  "http://prometheus-server:9090" "" .Values.prometheus.enabled
+        }}'
+      public_ip: localhost
+  configPath: /tmp/config.yaml
+  db:
+    dbName: blueprints
+  dbMigrator:
+    batchSize: 1000
+    db:
+      dbName: null
+      host: null
+      k8sSecret:
+        key: null
+        name: null
+      port: null
+      user: null
+    podAnnotations: {}
+    podLabels: {}
+  enableNetworkPolicy: true
+  enabled: true
+  env: {}
+  eventing:
+    stream_url: null
+  logging:
+    audit_logs_subject: hzp.audit.events
+    configMountPath: /opt/logging
+    globalConfigFile: '{{ include "fusion-loglevel-configmap.globalLogLevelKey" $
+      }}'
+    logLevel: info
+    serviceConfigFile: fusion-blueprint
+  podAnnotations: {}
+  podLabels: {}
+  port: 8100
+  probes:
+    liveness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 10
+    readiness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+  replicas: 1
+  resources:
+    limits:
+      cpu: 1
+      memory: 2Gi
+    requests:
+      cpu: 0.5
+      ephemeral-storage: 100Mi
+      memory: 1Gi
+certs:
+  ca_cert: ''
+  ca_key: ''
+  external_cert: ''
+  external_key: ''
+  internal_cert: ''
+  internal_key: ''
+  rabbitmq_cert: ''
+  rabbitmq_key: ''
+commonAnnotations: {}
+components:
+  busybox:
+    image: busybox
+    project: ''
+    repository: docker.io/
+    version: '1.36'
+  curl:
+    image: curl
+    project: alpine/
+    repository: docker.io/
+    version: 8.2.0
+  drift-svc:
+    image: drift-svc
+    project: eo-images/
+    repository: 702886132326.dkr.ecr.eu-west-1.amazonaws.com/
+    version: latest
+  fusion-manager-agent-service:
+    image: fusion-manager-agent-service
+    project: ''
+    version: latest
+  fusion-manager-apiservice:
+    image: fusion-manager-apiservice
+    project: ''
+    version: latest
+  fusion-manager-blueprint-service:
+    image: fusion-manager-blueprint-service
+    project: ''
+    version: latest
+  fusion-manager-composer-backend:
+    image: fusion-manager-composer-backend
+    project: ''
+    version: latest
+  fusion-manager-composer-frontend:
+    image: fusion-manager-composer-frontend
+    project: ''
+    version: latest
+  fusion-manager-deployments-service:
+    image: fusion-manager-deployments-service
+    project: ''
+    version: latest
+  fusion-manager-execution-scheduler:
+    image: fusion-manager-execution-scheduler
+    project: ''
+    version: latest
+  fusion-manager-mgmtworker:
+    image: fusion-manager-mgmtworker
+    project: ''
+    version: latest
+  fusion-manager-plugins-service:
+    image: fusion-manager-plugins-service
+    project: ''
+    version: latest
+  fusion-manager-resource-uploader:
+    image: fusion-manager-resource-uploader
+    project: ''
+    version: latest
+  fusion-manager-restservice:
+    image: fusion-manager-restservice
+    project: ''
+    version: latest
+  fusion-manager-secrets-service:
+    image: fusion-manager-secrets-service
+    project: ''
+    version: latest
+  fusion-manager-stage-backend:
+    image: fusion-manager-stage-backend
+    project: ''
+    version: latest
+  fusion-manager-stage-frontend:
+    image: fusion-manager-stage-frontend
+    project: ''
+    version: latest
+  fusion-nginx:
+    image: fusion-nginx
+    project: ''
+    version: '1.28'
+  fusion-plugin-loader-svc:
+    image: fusion-plugin-loader-svc
+    project: eo-images/hzp/
+    repository: 702886132326.dkr.ecr.eu-west-1.amazonaws.com/
+    version: latest
+  kubectl:
+    image: kubectl
+    project: bitnami/
+    repository: docker.io/
+    version: 1.27.6
+composer:
+  enabled: true
+composer_backend:
+  enableNetworkPolicy: true
+  podAnnotations: {}
+  podLabels: {}
+  port: 3000
+  probes:
+    liveness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 10
+    readiness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+  replicas: 1
+  resources:
+    limits:
+      cpu: 0.5
+      memory: 512Mi
+    requests:
+      cpu: 0.3
+      ephemeral-storage: 10Mi
+      memory: 256Mi
+composer_frontend:
+  enableNetworkPolicy: true
+  podAnnotations: {}
+  podLabels: {}
+  port: 8188
+  probes:
+    liveness:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 10
+    readiness:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+  replicas: 1
+  resources:
+    limits:
+      cpu: 0.3
+      memory: 256Mi
+    requests:
+      cpu: 0.1
+      ephemeral-storage: 10Mi
+      memory: 128Mi
+db:
+  dbName: fusion_db
+  host: postgresql
+  k8sSecret:
+    create: true
+    key: password
+    name: fusion-db-creds
+  password: ''
+  user: fusion
+deployments:
+  config:
+    manager:
+      file_server_type: s3
+      hostname: fusion-manager
+      private_ip: localhost
+      prometheus_url: '{{ ternary  "http://prometheus-server:9090" "" .Values.prometheus.enabled
+        }}'
+      public_ip: localhost
+  configPath: /tmp/config.yaml
+  db:
+    dbName: deployments
+  enableNetworkPolicy: true
+  enabled: true
+  env: {}
+  initContainerSecurityContext:
+    runAsGroup: 1000
+    runAsUser: 1000
+  inventory_url: ''
+  logging:
+    audit_logs_subject: hzp.audit.events
+    configMountPath: /opt/logging
+    globalConfigFile: '{{ include "fusion-loglevel-configmap.globalLogLevelKey" $
+      }}'
+    logLevel: info
+    serviceConfigFile: fusion-deployments
+  metrics_url: ''
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsGroup: 1000
+    runAsUser: 1000
+  port: 8100
+  probes:
+    liveness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 10
+    readiness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+  replicas: 1
+  resources:
+    limits:
+      cpu: 1
+      memory: 2Gi
+    requests:
+      cpu: 0.5
+      ephemeral-storage: 100Mi
+      memory: 1Gi
+drift:
+  config:
+    drift:
+      hostname: fusion-drift
+      private_ip: localhost
+      public_ip: localhost
+  configPath: /tmp/config.yaml
+  db:
+    dbName: fusion_drift_svc
+  enabled: true
+  env: {}
+  eventing:
+    stream_url: null
+  logging:
+    audit_logs_subject: hzp.audit.events
+    configMountPath: /opt/logging
+    globalConfigFile: '{{ include "fusion-loglevel-configmap.globalLogLevelKey" $
+      }}'
+    logLevel: info
+    serviceConfigFile: fusion-drift
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsGroup: 1000
+    runAsUser: 1000
+  port: 8100
+  probes:
+    liveness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 10
+    readiness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+  replicas: 1
+  resources:
+    limits:
+      cpu: 1
+      memory: 2Gi
+    requests:
+      cpu: 0.5
+      ephemeral-storage: 50Mi
+      memory: 1Gi
+entrypoint:
+  name: fusion-entrypoint
+  port: 80
+  protocol: http
+execution_scheduler:
+  enableNetworkPolicy: true
+  logging:
+    audit_logs_subject: hzp.audit.events
+    configMountPath: /opt/logging
+    globalConfigFile: '{{ include "fusion-loglevel-configmap.globalLogLevelKey" $
+      }}'
+    logLevel: info
+    serviceConfigFile: fusion-execution-scheduler
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsGroup: 1000
+    runAsUser: 1000
+  replicas: 1
+  resources:
+    limits:
+      cpu: 0.3
+      memory: 256Mi
+    requests:
+      cpu: 0.1
+      ephemeral-storage: 50Mi
+      memory: 128Mi
+externalRabbitmq:
+  ca_cert: /etc/ssl/certs/ca-certificates.crt
+  existingSecret: ''
+  host: ''
+  managementPort: ''
+  password: ''
+  passwordKey: ''
+  username: ''
+fullnameOverride: ''
+global:
+  affinity: {}
+  createClusterRole: false
+  dsp:
+    enabled: false
+    portal:
+      enabled: false
+      externalServiceName: nats
+      namespace: dsp-portal
+      orgId: ''
+      url: ''
+  eoName: ''
+  iamProxy:
+    commandDecorator:
+      command:
+      - sh
+      - -c
+      - "if [ \"$SIDECAR_INJECTED\" == \"true\" ]; then\n  echo 'Waiting for sidecar\
+        \ proxy to become ready...'\n  until printf \".\" && nc -z -w 2 127.0.0.1\
+        \ 15006; do\n      sleep 2;\n  done;\n  echo 'Sidecar proxy is ready \u2713\
+        '\nelse\n  echo 'No sidecar proxy detected \u2713'\nfi\necho 'sleeping for\
+        \ 10 seconds'\nsleep 10\nexec {{ .Values.iamProxyEntry }} &\npid=$!\ntrap\
+        \ 'kill -SIGTERM $pid; wait $pid' SIGTERM\nwait $pid\n"
+    sidecarEnabled: false
+  image:
+    pullPolicy: IfNotPresent
+  imagePullSecrets: []
+  ingress:
+    fqdn: localhost
+  nodeSelector: {}
+  repository: 163877087245.dkr.ecr.eu-west-1.amazonaws.com/
+  tolerations: []
+  useHzpMultitenancy: false
+ingress:
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: '0'
+  enabled: true
+  host: null
+  ingressClassName: null
+  tls:
+    enabled: false
+    secretName: fusion-secret-name
+kube-state-metrics:
+  enableNetworkPolicy: true
+  extraArgs:
+    metric-allowlist: kube_deployment_spec_replicas,kube_deployment_status_replicas,kube_deployment_status_replicas_ready,kube_deployment_status_replicas_unavailable
+  fullnameOverride: kube-state-metrics
+  kubeResources:
+    certificatesigningrequests: false
+    configmaps: false
+    cronjobs: false
+    daemonsets: false
+    deployments: true
+    endpoints: false
+    horizontalpodautoscalers: false
+    ingresses: false
+    jobs: false
+    limitranges: false
+    mutatingwebhookconfigurations: false
+    namespaces: false
+    networkpolicies: false
+    nodes: false
+    persistentvolumeclaims: false
+    persistentvolumes: false
+    poddisruptionbudgets: false
+    pods: false
+    replicasets: false
+    replicationcontrollers: false
+    resourcequotas: false
+    secrets: false
+    services: false
+    statefulsets: false
+    storageclasses: false
+    validatingwebhookconfigurations: false
+    verticalpodautoscalers: false
+    volumeattachments: false
+  namespaces: '{{ .Release.Namespace }}'
+  podLabels: {}
+logLevel:
+  configMap:
+    globalLogLevelKey: global-log-level
+    initialGlobalLogLevel: info
+    name: fusion-log-levels-config
+mgmtworker:
+  access:
+    localCluster: false
+  certVolumeMounts: []
+  certVolumes: []
+  enableNetworkPolicy: true
+  env:
+    CATALOG_TLS_VERIFY: 'true'
+    CATALOG_URL: http://hzp-catalog-svc.{{ .Release.Namespace }}.svc.cluster.local
+  eventing:
+    stream_url: null
+  extraEnv: []
+  extraEnvFromSecrets: []
+  hooks_queue: ''
+  logLevel: INFO
+  logging:
+    audit_logs_subject: hzp.audit.events
+    configMountPath: /opt/logging
+    globalConfigFile: '{{ include "fusion-loglevel-configmap.globalLogLevelKey" $
+      }}'
+    logLevel: info
+    serviceConfigFile: fusion-mgmtworker
+  max_operation_workers: 20
+  max_workers: 10
+  podAnnotations: {}
+  podLabels: {}
+  queue: ''
+  replicas: 1
+  resources:
+    limits:
+      cpu: 8
+      memory: 4Gi
+    requests:
+      cpu: 0.1
+      ephemeral-storage: 1Gi
+      memory: 128Mi
+  workers_watchdog_idle_period: 180
+nameOverride: ''
+nats:
+  components:
+    hzp-util:
+      image: hzp-util
+      project: eo-images/
+      repository: 702886132326.dkr.ecr.eu-west-1.amazonaws.com/
+      version: 0.1.3
+    nats:
+      image: nats
+      project: eo-images/
+      repository: 702886132326.dkr.ecr.eu-west-1.amazonaws.com/
+      version: 2.10.8
+  enabled: false
+  jetStream:
+    config:
+      maxMemory: '8589934592'
+      maxStorage: '10737418240'
+    pvc:
+      resources:
+        storage: 10Gi
+      storageClass: null
+    resources:
+      limits:
+        cpu: 0.5
+        memory: 8.5Gi
+      requests:
+        cpu: 0.1
+        ephemeral-storage: 100Mi
+        memory: 512Mi
+  job:
+    createStream:
+      enabled: true
+      maxMemory:
+        hzp: 5GiB
+        kOrders: 1GiB
+        metrics: 2GiB
+      retention: 3d
+nginx:
+  enableNetworkPolicy: true
+  http_port: 80
+  podAnnotations: {}
+  podLabels: {}
+  probes:
+    liveness:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 10
+    readiness:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+  rateLimit:
+    burst: 70
+    delay: 20
+    enabled: true
+    rate: 10r/s
+  replicas: 1
+  resources:
+    limits:
+      cpu: 0.3
+      memory: 512Mi
+    requests:
+      cpu: 0.1
+      ephemeral-storage: 100Mi
+      memory: 256Mi
+pluginLoaderJob:
+  enableNetworkPolicy: true
+  enabled: false
+  env:
+  - name: TENANT_NAME
+    value: default_tenant
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsGroup: 1000
+    runAsUser: 1000
+  public_catalog:
+    brand: ne
+plugins:
+  configPath: /tmp/config.yaml
+  db:
+    dbName: plugins
+  dbMigrator:
+    batchSize: 1000
+    db:
+      dbName: null
+      host: null
+      k8sSecret:
+        key: null
+        name: null
+      port: null
+      user: null
+    podAnnotations: {}
+    podLabels: {}
+  enableNetworkPolicy: true
+  enabled: true
+  env:
+    CATALOG_TLS_VERIFY: 'true'
+    CATALOG_URL: http://hzp-catalog-svc.{{ .Release.Namespace }}.svc.cluster.local
+  eventing:
+    stream_url: null
+  initContainerSecurityContext:
+    runAsGroup: 1000
+    runAsUser: 1000
+  logging:
+    audit_logs_subject: hzp.audit.events
+    configMountPath: /opt/logging
+    globalConfigFile: '{{ include "fusion-loglevel-configmap.globalLogLevelKey" $
+      }}'
+    logLevel: info
+    serviceConfigFile: fusion-plugins
+  migrateDbJobSecurityContext:
+    runAsGroup: 1000
+    runAsUser: 1000
+  podAnnotations: {}
+  podLabels: {}
+  port: 8100
+  probes:
+    liveness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 10
+    readiness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+  replicas: 1
+  resources:
+    limits:
+      cpu: 1
+      memory: 2Gi
+    requests:
+      cpu: 0.5
+      ephemeral-storage: 50Mi
+      memory: 1Gi
+postgresql:
+  auth:
+    database: fusion_db
+    existingSecret: fusion-db-creds
+    secretKeys:
+      adminPasswordKey: password
+      userPasswordKey: password
+    username: fusion
+  containerPorts:
+    postgresql: 5432
+  enableNetworkPolicy: true
+  enabled: false
+  fullnameOverride: postgresql
+  image:
+    pullPolicy: IfNotPresent
+    tag: 15.3.0-debian-11-r17
+  metrics:
+    enabled: true
+  podLabels: {}
+  primary:
+    initdb:
+      scripts:
+        initdb.sql: 'CREATE DATABASE blueprints;
+
+          CREATE DATABASE agents;
+
+          CREATE DATABASE deployments;
+
+          CREATE DATABASE plugins;
+
+          CREATE DATABASE secrets;
+
+          CREATE DATABASE fusion_drift_svc;
+
+          '
+    resources:
+      limits:
+        cpu: 2
+        ephemeral-storage: 100Mi
+        memory: 2Gi
+      requests:
+        cpu: 0.5
+        memory: 256Mi
+prometheus:
+  alertmanager:
+    enabled: false
+  enableNetworkPolicy: true
+  enabled: false
+  fullnameOverride: prometheus
+  podLabels: {}
+  server:
+    alertingRules:
+      groups:
+      - name: postgresql
+        rules:
+        - expr: pg_up{job="postgresql-metrics"} > 0 and up{job="postgresql-metrics"}
+            > 0
+          labels: null
+          record: postgresql_healthy
+        - alert: postgresql_down
+          annotations:
+            summary: PostgreSQL is down
+          expr: pg_up{job="postgresql-metrics"} == 0 or absent(up{job="postgresql-metrics"})
+          for: 15s
+          labels:
+            severity: critical
+      - name: rabbitmq
+        rules:
+        - expr: sum by(host, instance, job, monitor) (up{job="rabbitmq-metrics"})
+            > 0
+          labels: null
+          record: rabbitmq_healthy
+        - alert: rabbitmq_down
+          annotations:
+            summary: RabbitMQ is down
+          expr: up{job="rabbitmq-metrics"} == 0
+          for: 15s
+          labels:
+            severity: critical
+    configuration: "global:\n  {{- if .Values.server.scrapeInterval }}\n  scrape_interval:\
+      \ {{ .Values.server.scrapeInterval }}\n  {{- end }}\n  {{- if .Values.server.scrapeTimeout\
+      \ }}\n  scrape_timeout: {{ .Values.server.scrapeTimeout }}\n  {{- end }}\n \
+      \ {{- if .Values.server.evaluationInterval }}\n  evaluation_interval: {{ .Values.server.evaluationInterval\
+      \ }}\n  {{- end }}\n  external_labels:\n    monitor: {{ template \"common.names.fullname\"\
+      \ . }}\n    {{- if .Values.server.externalLabels }}\n    {{- include \"common.tplvalues.render\"\
+      \ (dict \"value\" .Values.server.externalLabels \"context\" $) | nindent 4 }}\n\
+      \    {{- end }}\n{{- if .Values.server.remoteWrite }}\nremote_write: {{- include\
+      \ \"common.tplvalues.render\" (dict \"value\" .Values.server.remoteWrite \"\
+      context\" $) | nindent 4 }}\n{{- end }}\nscrape_configs:\n  - job_name: prometheus\n\
+      \  {{- include \"prometheus.scrape_config\" (dict \"component\" \"server\" \"\
+      context\" $) | nindent 4 }}\n{{- if .Values.alertmanager.enabled }}\n  - job_name:\
+      \ alertmanager\n    {{- include \"prometheus.scrape_config\" (dict \"component\"\
+      \ \"alertmanager\" \"context\" $) | nindent 4 }}\n{{- end }}\n{{- if .Values.server.extraScrapeConfigs}}\n\
+      {{- include \"common.tplvalues.render\" (dict \"value\" .Values.server.extraScrapeConfigs\
+      \ \"context\" $) | nindent 2 }}\n{{- end }}\n{{- if or .Values.alertmanager.enabled\
+      \ .Values.server.alertingEndpoints}}\nalerting:\n  alertmanagers:\n    {{- if\
+      \ .Values.server.alertingEndpoints }}\n    {{- include \"common.tplvalues.render\"\
+      \ (dict \"value\" .Values.server.alertingEndpoints \"context\" $) | nindent\
+      \ 4 }}\n    {{- end }}\n    - scheme: HTTP\n      static_configs:\n        -\
+      \ targets: [ \"{{ printf \"%s.%s.svc.%s:%d\" (include \"prometheus.alertmanager.fullname\"\
+      \ .) (include \"common.names.namespace\" .) .Values.clusterDomain (int .Values.alertmanager.service.ports.http)\
+      \ }}\" ]\n{{- end }}\nrule_files:\n  - rules.yaml\n"
+    evaluationInterval: 15s
+    extraScrapeConfigs:
+    - job_name: kube-state-metrics
+      kubernetes_sd_configs:
+      - namespaces:
+          names:
+          - '{{ .Release.Namespace }}'
+        role: service
+      relabel_configs:
+      - action: keep
+        regex: kube-state-metrics
+        source_labels:
+        - __meta_kubernetes_service_label_app_kubernetes_io_name
+    - job_name: postgresql-metrics
+      kubernetes_sd_configs:
+      - namespaces:
+          names:
+          - '{{ .Release.Namespace }}'
+        role: service
+      relabel_configs:
+      - action: keep
+        regex: postgresql-metrics
+        source_labels:
+        - __meta_kubernetes_service_name
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_service_cluster_ip
+        target_label: host
+    - job_name: rabbitmq-metrics
+      kubernetes_sd_configs:
+      - namespaces:
+          names:
+          - '{{ .Release.Namespace }}'
+        role: service
+      relabel_configs:
+      - action: keep
+        regex: rabbitmq
+        source_labels:
+        - __meta_kubernetes_service_label_app_kubernetes_io_name
+      - action: keep
+        regex: metrics
+        source_labels:
+        - __meta_kubernetes_service_port_name
+      - action: replace
+        source_labels:
+        - __meta_kubernetes_service_cluster_ip
+        target_label: host
+    image:
+      pullPolicy: IfNotPresent
+      tag: 2.45.0
+    persistence:
+      enabled: true
+    replicaCount: 1
+    resources:
+      limits:
+        cpu: 1
+        ephemeral-storage: 10Mi
+        memory: 512Mi
+      requests:
+        cpu: 0.1
+        memory: 512Mi
+    scrapeInterval: 15s
+    service:
+      ports:
+        http: 9090
+      type: ClusterIP
+rabbitmq:
+  advancedConfiguration: "[\n  {rabbit, [\n    {consumer_timeout, undefined}\n  ]}\n\
+    ]."
+  auth:
+    erlangCookie: ''
+    password: ''
+    tls:
+      enabled: true
+      existingSecret: rabbitmq-ssl-certs
+      failIfNoPeerCert: false
+    username: cloudify
+  customLivenessProbe:
+    exec:
+      command:
+      - sh
+      - -ec
+      - rabbitmq-diagnostics -q ping
+    failureThreshold: 6
+    initialDelaySeconds: 120
+    periodSeconds: 30
+    successThreshold: 1
+    timeoutSeconds: 20
+  customReadinessProbe:
+    exec:
+      command:
+      - sh
+      - -ec
+      - rabbitmq-diagnostics -q check_running && rabbitmq-diagnostics -q check_local_alarms
+    failureThreshold: 3
+    initialDelaySeconds: 10
+    periodSeconds: 30
+    successThreshold: 1
+    timeoutSeconds: 20
+  enableNetworkPolicy: true
+  enabled: true
+  extraConfiguration: 'management.ssl.port       = 15671
+
+    management.ssl.cacertfile = /opt/bitnami/rabbitmq/certs/ca_certificate.pem
+
+    management.ssl.certfile   = /opt/bitnami/rabbitmq/certs/server_certificate.pem
+
+    management.ssl.keyfile    = /opt/bitnami/rabbitmq/certs/server_key.pem'
+  fullnameOverride: rabbitmq
+  image:
+    pullPolicy: IfNotPresent
+    tag: 3.12.2-debian-11-r8
+  metrics:
+    enabled: true
+  plugins: rabbitmq_management rabbitmq_prometheus rabbitmq_tracing rabbitmq_peer_discovery_k8s
+  podLabels: {}
+  rbac:
+    create: true
+  resources:
+    limits:
+      cpu: 4
+      memory: 1Gi
+    requests:
+      cpu: 0.5
+      ephemeral-storage: 50Mi
+      memory: 512Mi
+  service:
+    extraPorts:
+    - name: manager-ssl
+      port: 15671
+      targetPort: 15671
+    ports:
+      metrics: 15692
+resources:
+  fileserverWaitTimeout: 600
+  initContainerSecurityContext:
+    runAsGroup: 1000
+    runAsUser: 1000
+  podAnnotations: {}
+  podLabels: {}
+  upload: true
+rest_service:
+  config:
+    manager:
+      default_secrets_backend: '{{ ternary  "vault" "postgresql" .Values.vault.enabled
+        }}'
+      default_task_target: ''
+      file_server_type: s3
+      hostname: fusion-manager
+      private_ip: localhost
+      prometheus_url: '{{ ternary  "http://prometheus-server:9090" "" .Values.prometheus.enabled
+        }}'
+      public_ip: localhost
+      s3_resources_bucket: resources
+      s3_server_url: https://s3.{{ .Values.rest_service.s3_access.aws_region }}.amazonaws.com
+      vault_url: ''
+  configPath: /tmp/config.yaml
+  enableNetworkPolicy: true
+  env: {}
+  eventing:
+    resources:
+      limits:
+        cpu: 0.5
+        memory: 512Mi
+      requests:
+        cpu: 0.2
+        memory: 256Mi
+    stream_url: null
+  inventory_url: ''
+  irsa_service_account: ''
+  logging:
+    audit_logs_subject: hzp.audit.events
+    configMountPath: /opt/logging
+    globalConfigFile: '{{ include "fusion-loglevel-configmap.globalLogLevelKey" $
+      }}'
+    http_logs_sender_endpoint: ''
+    logLevel: info
+    serviceConfigFile: fusion-rest-service
+  podAnnotations: {}
+  podLabels: {}
+  port: 8100
+  probes:
+    liveness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 10
+    readiness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+  replicas: 1
+  resources:
+    limits:
+      cpu: 4
+      memory: 4Gi
+    requests:
+      cpu: 0.5
+      ephemeral-storage: 512Mi
+      memory: 512Mi
+  s3_access:
+    aws_access_key_id: ''
+    aws_region: eu-west-1
+    aws_secret_access_key: ''
+    aws_session_token: ''
+    k8s_secret_name: fusion-s3-credentials
+seaweedfs:
+  enableNetworkPolicy: true
+  enabled: false
+  filer:
+    affinity: ''
+    data:
+      size: 1Gi
+      type: persistentVolumeClaim
+    nodeSelector: ''
+    resources: "requests:\n  memory: 128Mi\n  cpu: 0.1\n  ephemeral-storage: 50Mi\n\
+      limits:\n  memory: 512Mi\n  cpu: 0.5\n"
+  master:
+    affinity: ''
+    data:
+      size: 1Gi
+      type: persistentVolumeClaim
+    nodeSelector: ''
+    resources: "requests:\n  memory: 128Mi\n  cpu: 0.1\n  ephemeral-storage: 50Mi\n\
+      limits:\n  memory: 512Mi\n  cpu: 0.5\n"
+  podAnnotations: {}
+  podLabels: {}
+  s3:
+    affinity: ''
+    enableAuth: true
+    enabled: true
+    nodeSelector: ''
+    port: 8333
+    resources: "requests:\n  memory: 128Mi\n  cpu: 0.1\n  ephemeral-storage: 50Mi\n\
+      limits:\n  memory: 512Mi\n  cpu: 0.5\n"
+  volume:
+    affinity: ''
+    data:
+      size: 10Gi
+      type: persistentVolumeClaim
+    maxVolumes: '50'
+    nodeSelector: ''
+    resources: "requests:\n  memory: 256Mi\n  cpu: 0.1\n  ephemeral-storage: 50Mi\n\
+      limits:\n  memory: 512Mi\n  cpu: 0.5\n"
+secrets:
+  config:
+    manager:
+      default_secrets_backend: '{{ ternary  "vault" "postgresql" .Values.vault.enabled
+        }}'
+      hostname: fusion-manager
+      private_ip: localhost
+      prometheus_url: '{{ ternary  "http://prometheus-server:9090" "" .Values.prometheus.enabled
+        }}'
+      public_ip: localhost
+  configPath: /tmp/config.yaml
+  db:
+    dbName: secrets
+  dbMigrator:
+    db:
+      dbName: null
+      host: null
+      k8sSecret:
+        key: null
+        name: null
+      port: null
+      user: null
+    podAnnotations: {}
+    podLabels: {}
+  enabled: true
+  env: {}
+  eventing:
+    stream_url: null
+  initContainerSecurityContext:
+    runAsGroup: 1000
+    runAsUser: 1000
+  logging:
+    audit_logs_subject: hzp.audit.events
+    configMountPath: /opt/logging
+    globalConfigFile: '{{ include "fusion-loglevel-configmap.globalLogLevelKey" $
+      }}'
+    logLevel: info
+    serviceConfigFile: fusion-secrets
+  migrateDbJobSecurityContext:
+    runAsGroup: 1000
+    runAsUser: 1000
+  port: 8100
+  probes:
+    liveness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 10
+    readiness:
+      enabled: false
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+  replicas: 1
+  resources:
+    limits:
+      cpu: 1
+      memory: 2Gi
+    requests:
+      cpu: 0.5
+      ephemeral-storage: 10Mi
+      memory: 1Gi
+  vaultSecretPath: /opt/vault/secret/
+service:
+  http:
+    port: 80
+  port: 80
+  type: ClusterIP
+serviceAccount:
+  annotations: {}
+  create: true
+  name: ''
+stage_backend:
+  enableNetworkPolicy: true
+  podAnnotations: {}
+  podLabels: {}
+  port: 8088
+  probes:
+    liveness:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 10
+    readiness:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+  replicas: 1
+  resources:
+    limits:
+      cpu: 0.5
+      memory: 1Gi
+    requests:
+      cpu: 0.1
+      ephemeral-storage: 50Mi
+      memory: 512Mi
+stage_frontend:
+  enableNetworkPolicy: true
+  enabled: true
+  podAnnotations: {}
+  podLabels: {}
+  podSecurityContext:
+    runAsGroup: 1000
+    runAsUser: 1000
+  port: 8188
+  probes:
+    liveness:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 20
+      periodSeconds: 20
+      successThreshold: 1
+      timeoutSeconds: 10
+    readiness:
+      enabled: true
+      failureThreshold: 3
+      initialDelaySeconds: 10
+      periodSeconds: 10
+      successThreshold: 1
+      timeoutSeconds: 10
+  replicas: 1
+  resources:
+    limits:
+      cpu: 0.3
+      memory: 256Mi
+    requests:
+      cpu: 0.1
+      ephemeral-storage: 10Mi
+      memory: 128Mi
+vault:
+  appRolePath: approle
+  authDelegator:
+    enabled: false
+  bootstrap:
+    enabled: true
+    jobTtl: 180
+    kvMountPath: kv/fusion-svc
+  componentName: fusion-svc
+  enabled: false
+  fullnameOverride: vault
+  injector:
+    enabled: false
+  podSecurityContext:
+    runAsGroup: 1000
+    runAsUser: 1000
+  server:
+    extraSecretEnvironmentVars:
+    - envName: VAULT_UNSEAL_KEYS
+      secretKey: VAULT_UNSEAL_KEYS
+      secretName: vault-unseal-keys
+    ha:
+      enabled: false
+      raft:
+        config: "ui = true\nlistener \"tcp\" {\n  tls_disable = 1\n  address = \"\
+          [::]:8200\"\n  cluster_address = \"[::]:8201\"\n}\nstorage \"raft\" {\n\
+          \  path = \"/vault/data\"\n  retry_join {\n    leader_api_addr = \"http://{{\
+          \ template \"vault.fullname\" . }}-0.{{ template \"vault.fullname\" . }}-internal:8200\"\
+          \n  }\n  retry_join {\n    leader_api_addr = \"http://{{ template \"vault.fullname\"\
+          \ . }}-1.{{ template \"vault.fullname\" . }}-internal:8200\"\n  }\n  retry_join\
+          \ {\n    leader_api_addr = \"http://{{ template \"vault.fullname\" . }}-2.{{\
+          \ template \"vault.fullname\" . }}-internal:8200\"\n  }\n}\n"
+        enabled: true
+        setNodeId: true
+      replicas: 3
+    image:
+      tag: 1.13.2
+    postStart:
+    - /bin/sh
+    - -c
+    - "for key in ${VAULT_UNSEAL_KEYS}; do\n  vault operator unseal ${key}\n  sleep\
+      \ 1\ndone\n"
+    resources:
+      limits:
+        cpu: 0.5
+        memory: 256Mi
+      requests:
+        cpu: 0.1
+        ephemeral-storage: 50Mi
+        memory: 128Mi
+    serviceAccount:
+      create: false
+      serviceDiscovery:
+        enabled: false

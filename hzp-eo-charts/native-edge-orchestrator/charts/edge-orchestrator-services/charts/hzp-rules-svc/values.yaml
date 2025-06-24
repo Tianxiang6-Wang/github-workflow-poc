@@ -1,0 +1,147 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  ingress:
+    fqdn: localhost
+  rulesSvc:
+    smoketestEnabled: false
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  instrumentation:
+    enabled: false
+components:
+  rules-svc:
+    image: rules-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  rules-smoke-test:
+    image: rules-smoke-test
+    version: latest
+    project: hzp/
+# Subchart values
+svc:
+  name: &serviceName hzp-rules-svc
+  replicaCount: 1
+  port: 8080
+  image:
+    name: rules-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: 'true'
+  resources:
+    limits:
+      cpu: 50m
+      memory: 256Mi
+    requests:
+      cpu: 5m
+      memory: 80Mi
+  env:
+    - name: ENABLE_PLAYGROUND
+      value: "true"
+    - name: APP_PORT
+      value: "8080"
+    - name: DB_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresHost
+    - name: DB_PORT
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresPort
+    - name: DB_USER
+      value: "hzp_rules"
+    - name: DB_PA
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: hzp_rules-password
+    - name: EVENT_THREAD_POOL_WORKER_COUNT
+      value: "200"
+    - name: EVENT_THREAD_POOL_QUEUE_SIZE
+      value: "150000"
+    - name: EVENT_PUBLISHER_POOL_SIZE
+      value: "100"
+  autoScaling:
+    enabled: true
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+      - type: Resource
+        resource:
+          name: memory
+          target:
+            type: Utilization
+            averageUtilization: 120
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+
+test:
+  # Subchart values
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    hzp-app: hzp-rules-svc-regression
+    hzp-role: smoke-test
+  testsuite: test-suites/smoke.xml 
+  replicaCount: 1
+  image:
+    name: rules-smoke-test
+    pullPolicy: Always
+    tag: latest
+  env:
+    - name: DATABASE_URL
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresUrl
+    - name: DATABASE_USERNAME
+      value: "test"
+    - name: DATABASE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: test-password
+  cpu: 0.25
+  memory: 512Mi
+  postgresql:
+    service:
+      fullname: postgres
+      port: 5432
+  service:
+    fullname: *serviceName
+    port: 80
+  rbac:
+    namePrefix: rules-svc-smoke-test
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 755176
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    runid: 1
+    release: 1
+    suite: 1

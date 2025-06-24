@@ -1,0 +1,121 @@
+{{- if .Values.global.iamAuthZEnabled }}
+{{- $svc := .Values.webhookSvc -}}
+{{- $proxyContainer := .Values.proxyContainer -}}
+{{- $initContainer := .Values.initContainer -}}
+{{ $specConfig := .Values.containerSpecConfig}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hzp-iam-webhook
+  labels:
+    hzp-app: hzp-iam-webhook
+spec:
+  replicas: {{ $svc.replicaCount }}
+  selector:
+    matchLabels:
+      hzp-app: {{ $svc.name }}
+  template:
+    metadata:
+      name: {{ $svc.name }}
+      labels:
+{{- tpl (toYaml .Values.webhook.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.webhookSvc $ ) | trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.webhookSvc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.webhookSvc $ ) | trim | nindent 8 }}
+      serviceAccountName: {{ .Values.bootstrap.name }}
+      containers:
+        - name: {{ $svc.name }}
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components $svc.image.name ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ $svc.image.pullPolicy }}
+          env:
+            - name: BOOT_TOKEN
+              value: "{{ .Values.global.dsp.portal.token }}"
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: IAM_CA_DIRECTORIES_PATHS
+              value: "/etc/dap-iam-commons/certs"
+            - name: TOKEN_SVC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.bootstrap.configmap.name }}
+                  key: PORTAL_URL
+            - name: IAM_SVC_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.bootstrap.configmap.name }}
+                  key: PORTAL_URL
+            - name: ORG_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.bootstrap.configmap.name }}
+                  key: ORG_ID
+            - name: ORC_ID
+              valueFrom:
+                configMapKeyRef:
+                  name: {{ .Values.bootstrap.configmap.name }}
+                  key: ORC_ID
+            {{- toYaml $svc.env | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ $specConfig.name }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          readinessProbe:
+            failureThreshold: 30
+            httpGet:
+              path: /admin/health/dependency
+              port: {{$svc.healthCheckPort}}
+              scheme: HTTP
+            initialDelaySeconds: 1
+            periodSeconds: 3
+            successThreshold: 1
+            timeoutSeconds: 1
+          volumeMounts:
+            - name: ca-cert-portal
+              mountPath: /etc/dap-iam-commons/certs
+              readOnly: true
+            - name: ca-pemstore
+              mountPath: /etc/ssl/certs/cert.pem
+              subPath: cert.pem
+              readOnly: true
+            - name: keystore
+              mountPath: /etc/ssl/keys/key.pem
+              subPath: key.pem
+              readOnly: true
+            {{ include "logLevel.configMap.mount" $ | indent 12 }}
+          resources:
+            limits:
+              cpu: 500m
+              memory: 128Mi
+            requests:
+              cpu: 50m
+              memory: 64Mi
+      volumes:
+        - name: ca-cert-portal
+          secret:
+            secretName: dapp-root-ca
+            optional: true
+        - name: ca-pemstore
+          secret:
+            secretName: {{ $svc.name }}
+            items:
+              - key: ca.crt
+                path: cert.pem
+        - name: keystore
+          secret:
+            secretName: {{ $svc.name }}
+            items:
+              - key: key.crt
+                path: key.pem
+       {{ include "logLevel.configMap.volume" $ | indent 8 }}
+  {{end}}

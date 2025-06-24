@@ -1,0 +1,10 @@
+annotations:
+  containerImages: |
+    - fluent-bit
+    - seaweedfs
+    - busybox
+apiVersion: v1
+appVersion: 3.2.6
+description: Fleuntbit
+name: fluentbit
+version: 3.2.6

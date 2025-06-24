@@ -1,0 +1,76 @@
+{{- if .Values.ingress.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nginx-gw
+  namespace: {{ .Release.Namespace | quote }}
+  {{- with .Values.global.istio.ingress.annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  ingressClassName: {{ .Values.global.ingress.ingressClassName }}
+  rules:
+    - host: {{ include "DisplayFqdnOrDefaultValue" (dict "prefix" "" "fqdn" .Values.global.ingress.fqdn "default" "") }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nginx-gw
+                port:
+                  number: 443
+{{- if not $.Values.global.temp.portalTransition.enableLoadBalancer }}
+    - host: {{ include "DisplayFqdnOrDefaultValue" (dict "prefix" .Values.global.istio.defaultPrefix.mTLSHost "fqdn" .Values.global.ingress.fqdn "default" (index .Values.global.istio.mTLSHost 0)) }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nginx-gw
+                port:
+                  number: 443
+    - host: {{ include "DisplayFqdnOrDefaultValue" (dict "prefix" .Values.global.istio.defaultPrefix.mTLSHostRecovery "fqdn" .Values.global.ingress.fqdn "default" (index .Values.global.istio.mTLSHostRecovery 0)) }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nginx-gw
+                port:
+                  number: 443
+    - host: "*.local.edge"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nginx-gw
+                port:
+                  number: 443
+    - host: "*.dell.fdo"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nginx-gw
+                port:
+                  number: 443
+    - host: "*.edge.internal.use.only"
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: nginx-gw
+                port:
+                  number: 443
+{{- end }}
+{{- end }}

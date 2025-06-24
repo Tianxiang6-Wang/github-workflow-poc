@@ -1,0 +1,115 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  tagsSvc:
+    smoketestEnabled: false
+  istio:
+    deploy: true
+  nginx_gw:
+    enabled: false
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  instrumentation:
+    enabled: false
+  ingress:
+    fqdn: localhost
+components:
+  tags-svc:
+    image: tags-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  tags-smoke-test:
+    image: tags-smoke-test
+    version: latest
+    project: hzp/
+# Subchart values
+svc:
+  name: &serviceName hzp-tags-svc
+  trigger: hzp-tags-svc-trigger
+  filters:
+    - cesql: "type = 'hzp.tags' OR type = 'hzp.inventory'"
+  replicaCount: 1
+  port: 8080
+  image:
+    name: tags-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp.iam.webhook/active: "true"
+    hzp-role: eo-service
+  resources:
+    limits:
+      cpu: 1
+      memory: 4Gi
+    requests:
+      cpu: 5m
+      memory: 50Mi
+  env:
+    - name: GIN_MODE
+      value: "release"
+    - name: DB_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresHost
+    - name: DB_PORT
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresPort
+    - name: DB_USER
+      value: "hzp_tags_svc"
+    - name: DB_PA
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: hzp_tags_svc-password
+test:
+  # Subchart values
+  testsuite: test-suites/smoke.xml
+  replicaCount: 1
+  image:
+    name: tags-smoke-test
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    sidecar.istio.io/inject: "false"
+    hzp-app: hzp-tags-svc-regression
+    hzp-role: smoke-test
+  env:
+    - name: DATABASE_URL
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresUrl
+    - name: DATABASE_USERNAME
+      value: "test"
+    - name: DATABASE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: test-password
+  cpu: 0.25
+  memory: 512Mi
+  tags:
+    service:
+      fullname: *serviceName
+      port: 80
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 795804
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    manifest: 1
+    runid: 1
+    release: 1
+    suite: 1

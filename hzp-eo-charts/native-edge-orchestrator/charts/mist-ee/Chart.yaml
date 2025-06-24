@@ -1,0 +1,13 @@
+annotations:
+  containerImages: |
+    - gocky-svc
+    - busybox
+    - portal
+    - mist-vminsert
+    - mist-vmselect
+    - mist-vmstorage
+apiVersion: v1
+appVersion: latest
+description: A Helm Chart for Mist EE.
+name: mist-ee
+version: 0.1.0

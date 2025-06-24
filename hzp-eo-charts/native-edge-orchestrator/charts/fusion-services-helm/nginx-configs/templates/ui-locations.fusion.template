@@ -1,0 +1,51 @@
+location / {
+  proxy_read_timeout 90;
+  proxy_buffering    off;
+
+  proxy_set_header   X-Scheme         $scheme;
+  proxy_set_header   Host             $http_host;
+  include "/etc/nginx/conf.d/cis_proxy_headers.fusion";
+
+{{- if .Values.stage_frontend.enabled }}
+  location ~* ^/console/static/(.*)$ {
+    proxy_pass         http://fusion-stage/static/$1;
+    include "/etc/nginx/conf.d/cis_proxy_headers.fusion";
+  }
+{{- end }}
+
+  location ~* ^/console/.*(?:css|js|map|jpe?g|gif|png)$ {
+    proxy_pass         http://fusion-stage-backend;
+    include "/etc/nginx/conf.d/cis_proxy_headers.fusion";
+  }
+
+  location / {
+    proxy_pass         http://fusion-stage-backend;
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header X-Xss-Protection "1; mode=block" always;
+    include "/etc/nginx/conf.d/cis_proxy_headers.fusion";
+  }
+}
+
+{{- if (.Values.composer).enabled }}
+location /composer {
+  proxy_read_timeout 90;
+  proxy_buffering    off;
+
+  proxy_set_header   X-Scheme         $scheme;
+  proxy_set_header   Host             $http_host;
+
+  proxy_pass http://fusion-composer/;
+  include "/etc/nginx/conf.d/cis_proxy_headers.fusion";
+
+  proxy_intercept_errors on;
+  error_page 404 = /composer;
+
+  location /composer/backend/ {
+    proxy_pass         http://fusion-composer-backend;
+    include "/etc/nginx/conf.d/cis_proxy_headers.fusion";
+    add_header X-Frame-Options SAMEORIGIN always;
+    add_header X-Xss-Protection "1; mode=block" always;
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-eval'; style-src https: 'self' 'unsafe-inline'; font-src https: data: 'unsafe-inline' 'self'; connect-src 'self' repository.fusionsource.org; img-src 'self' data: wp.fusion.co fusion.co";
+  }
+}
+{{- end }}

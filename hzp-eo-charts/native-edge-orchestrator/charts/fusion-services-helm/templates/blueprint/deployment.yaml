@@ -1,0 +1,188 @@
+{{- if .Values.blueprint.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: blueprint
+  name: {{ template "fusion-services.name" . }}-blueprint
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  replicas: {{ .Values.blueprint.replicas }}
+  selector:
+    matchLabels:
+      app: blueprint
+  template:
+    metadata:
+      labels:
+        app: blueprint
+      {{ with .Values.blueprint.podLabels }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      annotations:
+        {{- include "fusion-services.merge" ( list .Values.commonAnnotations .Values.blueprint.podAnnotations ) | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- if .Values.rest_service.irsa_service_account }}
+      serviceAccountName: {{ .Values.rest_service.irsa_service_account }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.blueprint $ )| trim | nindent 8 }}
+      tolerations: {{- include "fusion-services.tolerations" ( list .Values.blueprint $ ) | trim | nindent 8 }}
+      affinity: {{- include "fusion-services.affinity" ( list .Values.blueprint $ ) | trim | nindent 8 }}
+      initContainers:
+        - name: db-wait
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-restservice" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-restservice" ).pullPolicy }}
+          env:
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.blueprint "root" $) | nindent 12 }}
+            {{- include "fusion-services.restservice_keys" . | nindent 12 }}
+          command:
+            - /usr/bin/env
+            - -S
+            - bash
+            - -exuc
+            - |
+              python -m manager_rest.configure_manager --db-wait {{ .Values.blueprint.db.host | default .Values.db.host }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: "0.1"
+            limits:
+              memory: 512Mi
+              cpu: "1"
+        - name: blueprint-migrate-db
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-blueprint-service" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-blueprint-service" ).pullPolicy }}
+          env:
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.blueprint "root" $) | nindent 12 }}
+          command:
+            - /usr/bin/env
+            - -S
+            - bash
+            - -exuc
+            - |
+              cd /opt/manager/migrations
+              alembic upgrade head
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: "0.1"
+            limits:
+              memory: 512Mi
+              cpu: "1"
+      containers:
+        - name: blueprint
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-blueprint-service" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-blueprint-service" ).pullPolicy }}
+          env:
+            - name: FUSION_AUTH_PSK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fusion-services.name" . }}-auth-signing
+                  key: psk
+            {{- include "fusion-services.s3_env_vars" . | nindent 12 }}
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.blueprint "root" $) | nindent 12 }}
+            {{- include "fusion-services.eo_env_vars" . | nindent 12 }}
+            {{- if .Values.deployments.enabled }}
+            - name: DEPLOYMENTS_HOST
+              value: {{ template "fusion-services.name" . }}-deployments
+            - name: DEPLOYMENTS_PORT
+              value: {{ .Values.deployments.port | quote }}
+            - name: DEPLOYMENTS_PROTOCOL
+              value: http
+            {{- end }}
+            - name: LOGGING_LEVEL_CONFIGURATION_PATH
+              value: {{ tpl .Values.blueprint.logging.configMountPath $}}
+            - name: LOGGING_LEVEL_GLOBAL_PATH
+              value: {{ tpl .Values.blueprint.logging.configMountPath $ }}/{{ tpl .Values.blueprint.logging.globalConfigFile $ }}
+            - name: LOGGING_LEVEL_SERVICE_PATH
+              value: {{ tpl .Values.blueprint.logging.configMountPath $ }}/{{ tpl .Values.blueprint.logging.serviceConfigFile $ }}
+            {{- if (.Values.blueprint.eventing).stream_url }}
+            - name: NATS_URL
+              value: {{ tpl .Values.blueprint.eventing.stream_url $ | quote}}
+            {{- else if (.Values.nats).enabled }}
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            {{- end }}
+            {{- if and (.Values.global.dsp).enabled (.Values.global.dsp.portal).enabled }}
+            - name: PORTAL_NATS_URL
+              value: "nats://{{ (.Values.global.dsp.portal).externalServiceName }}.{{ (.Values.global.dsp.portal).namespace }}.svc.cluster.local:4222"
+            - name: ORG_ID
+              value: {{ (.Values.global.dsp.portal).orgId }}
+            {{- end }}
+            {{- if (.Values.blueprint.logging).audit_logs_subject }}
+            - name: AUDIT_LOGS_SUBJECT
+              value: {{ tpl .Values.blueprint.logging.audit_logs_subject $ | quote }}
+            {{- end }}
+            {{- if (.Values.global).useHzpMultitenancy }}
+            - name: "HZP_MULTITENANCY"
+              value: "true"
+            {{- end }}
+          volumeMounts:
+            - name: logging
+              mountPath: {{ tpl .Values.blueprint.logging.configMountPath $ }}
+              readOnly: true
+          ports:
+            - containerPort: {{ .Values.blueprint.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ template "fusion-services.name" . }}-blueprint-envvars
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources: {{- toYaml .Values.blueprint.resources | nindent 12 }}
+          {{- if .Values.blueprint.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              port: {{ .Values.blueprint.port}}
+              path: /health
+            initialDelaySeconds: {{ .Values.blueprint.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.blueprint.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.blueprint.probes.liveness.timeoutSeconds }}
+            successThreshold: {{ .Values.blueprint.probes.liveness.successThreshold }}
+            failureThreshold: {{ .Values.blueprint.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.blueprint.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              port: {{ .Values.blueprint.port}}
+              path: /health
+            initialDelaySeconds: {{ .Values.blueprint.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.blueprint.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.blueprint.probes.readiness.timeoutSeconds }}
+            successThreshold: {{ .Values.blueprint.probes.readiness.successThreshold }}
+            failureThreshold: {{ .Values.blueprint.probes.readiness.failureThreshold }}
+          {{- end }}
+      restartPolicy: Always
+      {{- include "fusion-services.images.pullSecrets" . | nindent 6 }}
+      volumes:
+        - name: logging
+          configMap:
+            name: {{ include "fusion-loglevel-configmap.name" $ }}
+
+{{- end }}

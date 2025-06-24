@@ -1,0 +1,172 @@
+{{- $namespace := .Release.Namespace }}
+{{- $mtlsHostList := include "GetMTLSHostList" (dict "namespace" $namespace "fqdn" $.Values.global.ingress.fqdn "prefix" $.Values.global.istio.defaultPrefix.mTLSHost "default" $.Values.global.istio.mTLSHost) }}
+{{- $mtlsHostList = print "mtls: \n " $mtlsHostList | fromYaml }}
+{{- $mtlsHosts := join " " $mtlsHostList.mtls -}}
+{{- $mtlsRecoveryHostList := include "GetMTLSHostList" (dict "namespace" $namespace "fqdn" $.Values.global.ingress.fqdn "prefix" $.Values.global.istio.defaultPrefix.mTLSHostRecovery "default" $.Values.global.istio.mTLSHostRecovery) }}
+{{- $mtlsRecoveryHostList = print "mtlsRecovery: \n " $mtlsRecoveryHostList | fromYaml }}
+{{- $mtlsHostsRecovery := join " " $mtlsRecoveryHostList.mtlsRecovery -}}
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-gw-conf-main
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+data:
+  allowlist.txt: |
+    allow 0.0.0.0/0;
+  nginx.conf: |
+    user nginx;
+    worker_processes  3;
+    error_log /dev/stderr warn;
+    events {
+      worker_connections  10240;
+    }
+    http {
+      server_names_hash_bucket_size  128;
+      underscores_in_headers on;
+    
+      # rate limits for required paths
+      limit_req_zone $server_name zone=repository_rate_limit:10m rate={{ .Values.rateLimits.repository.rate }};
+      limit_req_zone $server_name zone=ingress_rate_limit:10m rate={{ .Values.rateLimits.metrics.rate }};
+      limit_req_zone $server_name zone=api_gateway_rate_limit:10m rate={{ .Values.rateLimits.apiGateway.rate }};
+    
+      log_format main escape=none
+              '$time_iso8601  '
+              'remote_addr:$remote_addr  '
+              'method:$request_method  '
+              'uri:$request_uri  '
+              'host:$host  '
+              'upstream_addr:$upstream_addr  '
+              'status:$status  '
+              'bytes_sent:$body_bytes_sent  '
+              'referer:$http_referer  '
+              'useragent:$http_user_agent  '
+              'forwardedfor:$http_x_forwarded_for  '
+              'request_time:$request_time';
+
+      # CIS 5.2.1
+      client_body_timeout     60s;
+      client_header_timeout   60s;
+
+      # CIS 5.2.3
+      large_client_header_buffers 4 8k;
+
+      server {
+          listen       80;
+          server_name  _;
+          resolver kube-dns.kube-system.svc.cluster.local;
+          # location / {
+          #       proxy_set_header Host $http_host;
+          #       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          #       proxy_http_version 1.1;
+          #       proxy_ssl_verify off;
+          #       proxy_set_header Upgrade $http_upgrade;
+          #       proxy_set_header Connection "upgrade";
+          # }
+          include /etc/nginx/includes-internal/*.template;
+          access_log          /dev/stdout main;
+      }
+
+      # NOTE: replacement for istio gateway "ingress-gateway-tls", host "*", ALB endpoints should be routed to it
+      server {
+          listen       443 default_server ssl;
+          server_name  _;
+          ssl_certificate /etc/nginx/tls-credentials/cert;
+          ssl_certificate_key /etc/nginx/tls-credentials/key;
+
+          resolver kube-dns.kube-system.svc.cluster.local;
+
+          access_by_lua_file /etc/nginx/lua/maintenance_mode.lua;
+
+          rewrite_by_lua_file /etc/nginx/lua/ingress_filter.lua;
+
+          client_max_body_size {{ .Values.nginx.clientMaxBodySize }};
+
+          ssl_protocols {{ .Values.nginx.sslProtocols }};
+
+          # NOTE: microservices routes for external traffic
+          include /etc/nginx/includes-main/*.template;
+
+          # NOTE: apigateway routes (fusion) for external traffic
+          include /etc/nginx/includes-external-apigw/*.template;
+
+          access_log          /dev/stdout main;
+      }
+
+      # NOTE: replacement for istio gateway "ingress-gateway-tls", fido hosts
+      server {
+          listen       443 ssl;
+          server_name  {{ join " " .Values.tlsHostFidoRV }};
+          ssl_certificate /etc/nginx/tls-credentials/cert;
+          ssl_certificate_key /etc/nginx/tls-credentials/key;
+
+          resolver kube-dns.kube-system.svc.cluster.local;
+
+          access_by_lua_file /etc/nginx/lua/maintenance_mode.lua;
+
+          rewrite_by_lua_file /etc/nginx/lua/ingress_filter.lua;
+
+          ssl_protocols {{ .Values.nginx.sslProtocols }};
+
+          include /etc/nginx/includes-fido/*.template;
+
+          access_log          /dev/stdout main;
+      }
+
+      # NOTE: replacement for istio gateway "ingress-gateway-mtls", MTLS hosts
+      server {
+          listen       443 ssl;
+
+          server_name  {{ $mtlsHosts }};
+
+          ssl_certificate /etc/nginx/mtls-credentials/cert;
+          ssl_certificate_key /etc/nginx/mtls-credentials/key;
+          ssl_client_certificate /etc/nginx/mtls-credentials/cacert;
+          # ssl_ciphers         HIGH:!aNULL:!MD5;
+          ssl_ciphers         AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305;
+          ssl_verify_client on;
+
+          resolver kube-dns.kube-system.svc.cluster.local;
+
+          access_by_lua_file /etc/nginx/lua/maintenance_mode.lua;
+
+          client_max_body_size {{ .Values.nginx.clientMaxBodySize }};
+
+          rewrite_by_lua_file /etc/nginx/lua/ingress_filter.lua;
+
+          ssl_protocols {{ .Values.nginx.sslProtocols }};
+
+          include /etc/nginx/includes-mtls/*.template;
+
+          access_log          /dev/stdout main;
+      }
+
+      # NOTE: replacement for istio gateway "ingress-gateway-mtls-recovery", MTLS hosts
+      server {
+          listen       443 ssl;
+          server_name  {{ $mtlsHostsRecovery }};
+
+          ssl_certificate /etc/nginx/mtls-credentials-recovery/cert;
+          ssl_certificate_key /etc/nginx/mtls-credentials-recovery/key;
+          ssl_client_certificate /etc/nginx/mtls-credentials-recovery/cacert;
+          # ssl_ciphers         HIGH:!aNULL:!MD5;
+          ssl_ciphers         AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305;
+          ssl_verify_client on;
+
+          resolver kube-dns.kube-system.svc.cluster.local;
+
+          ssl_protocols {{ .Values.nginx.sslProtocols }};
+
+          access_by_lua_file /etc/nginx/lua/maintenance_mode.lua;
+
+          client_max_body_size {{ .Values.nginx.clientMaxBodySize }};
+
+          rewrite_by_lua_file /etc/nginx/lua/ingress_filter.lua;
+
+          include /etc/nginx/includes-mtls-recovery/*.template;
+
+          access_log          /dev/stdout main;
+      }
+
+    }

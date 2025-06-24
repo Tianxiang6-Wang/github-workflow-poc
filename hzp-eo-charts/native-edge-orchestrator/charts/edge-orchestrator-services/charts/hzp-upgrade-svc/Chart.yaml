@@ -1,0 +1,11 @@
+annotations:
+  containerImages: |
+    - upgrade-svc
+    - busybox
+    - upgrade-smoke-test
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for hzp-upgrade-svc.
+name: hzp-upgrade-svc
+type: application
+version: 0.1.0

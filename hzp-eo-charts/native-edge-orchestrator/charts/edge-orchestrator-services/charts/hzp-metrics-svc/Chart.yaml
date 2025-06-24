@@ -1,0 +1,11 @@
+annotations:
+  containerImages: |
+    - metrics-svc
+    - busybox
+    - metrics-smoke-test
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for hzp-metrics-svc
+name: hzp-metrics-svc
+type: application
+version: 0.1.0

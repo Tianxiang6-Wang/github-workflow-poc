@@ -1,0 +1,69 @@
+{{- if (eq (include "isDelcoSvcDisabled" .) "false") -}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  namespace: {{ .Release.Namespace }}
+  name: &serviceName neo-install-completion-job
+  labels:
+    hzp-app: hzp-delco-svc
+  annotations: 
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "10"
+spec:
+  template:
+    metadata:
+      labels:
+        hzp-app: hzp-delco-svc
+        hzp-role: eo-service
+        hzp.iam.webhook/active: "false"
+        sidecar.istio.io/inject: "false"
+    spec:
+      serviceAccountName: eula-update-service-account
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      {{- include "images.pullSecrets" . | indent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ ) | trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      initContainers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components "hzp-util" ) "repo" .Values.global.repository) }}
+          name: eula-update
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NAMESPACE
+              value: {{ .Release.Namespace }}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Sending install complete event"
+              until curl --location "http://hzp-delco-svc.$NAMESPACE.svc.cluster.local/api/v1/delco" --header "Content-Type: application/json" \
+              --data '{"query":"mutation($input: DelcoEvent!) {\r\n saveDelcoEvent(delcoEvent: $input) {\r\n ID\r\n }\r\n}\r\n","variables":{"input":{"eventType":"INFORMATION","reason":"Reconciling","k8sObject":"native-edge-orchestrator","operation":"1.0.0.0","message":"Completed INSTALL of Helm Release","chartKey":"NOT_APPLICABLE","operationType":"INSTALL","operationStatus":"COMPLETED"}}}' \
+              --retry 10 --retry-connrefused; do echo "Waiting to connect to the Delco service..."; sleep 5; done
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components "kubectl" ) "repo" .Values.global.repository) }}
+          name: disable-delco-svc
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: NAMESPACE
+              value: {{ .Release.Namespace }}
+          command:
+            - sh
+            - -c
+            - |
+              set -e
+              echo "Patching infra status config map"
+              kubectl patch configmap infra-status-config -n $(NAMESPACE) --type merge -p '{"data":{"disable_delco_svc":"true"}}'
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+      restartPolicy: OnFailure
+{{ end }}

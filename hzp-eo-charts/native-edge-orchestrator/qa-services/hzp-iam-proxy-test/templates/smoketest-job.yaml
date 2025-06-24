@@ -1,0 +1,87 @@
+{{- if or (.Values.global.regressionEnabled) (.Values.global.iamProxyTest.smoketestEnabled) }}
+{{- $test := .Values.test -}}
+{{- $internalURL := printf "http://%s.%s.svc.cluster.local" $test.svc.name .Release.Namespace }}
+{{- $baseExternalURL := printf "http://%s.%s.svc.cluster.local" $test.ingress.gatewayName $test.ingress.namespace }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: iam-proxy-smoke-test
+spec:
+  template:
+    metadata:
+      labels:
+{{- tpl (toYaml .Values.test.podLabels) . | replace "'" "" | nindent 8 }}
+      name: iam-proxy-smoke-test
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.test $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.test $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.test $ ) | trim | nindent 8 }}
+      containers:
+        - name: iam-proxy-smoke-test-container
+          env:
+            - name: BASE_EXTERNAL_URL
+              value: "{{ $baseExternalURL }}"
+            - name: EXTERNAL_URL
+              value: "{{ $baseExternalURL }}/iam-proxy-test/api"
+            - name: EXTERNAL_BYPASSED_URL
+              value: "{{ $baseExternalURL }}/iam-proxy-bypassed-test/api"
+            - name: INTERNAL_URL
+              value: "{{ $internalURL }}/iam-proxy-test/api"
+            - name: MASTER_REALM
+              value: {{ $test.keycloak.masterRealm }}
+            - name: USER_REALM
+              value: {{ $test.keycloak.userRealm }}
+            - name: KEYCLOAK_URL
+              value: {{ $test.keycloak.url }}
+            - name: CLIENT_ID
+              value: {{ $test.keycloak.clientId }}
+            - name: CREDENTIAL_USERNAME
+              value: {{ $test.keycloak.credentialsUsername }}
+            - name: CREDENTIAL_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: keycloak-password
+            - name: "EXTERNAL_REQUEST_HEADER"
+              valueFrom:
+                configMapKeyRef:
+                  name: "hzp-iam-proxy-config"
+                  key: "EXTERNAL_REQUEST_HEADER"
+          image: {{ include "manifest.image.name" (dict "name" .Values.test.image.name "globals" .Values.global.components "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ $test.image.pullPolicy }}
+          command: [ '/bin/sh', '-c' ]
+          # Sleep before test to allow netpol and istio-proxy to take effect
+          # Sleep after the test is to enable pipeline to copy the test result when pod is running state
+          args:
+            - |
+              sleep 60; echo All dependent components are running. Start testing!;
+              java -jar tests.jar {{ $test.testsuite }}; sleep 60;
+              if wget -q --post-data='' -S -O /dev/null http://127.0.0.1:15020/quitquitquit 2>/dev/null; then
+                  echo "Terminated istio-proxy."
+              fi
+      initContainers:
+        - name: init-iam-proxy-smoke-test
+          image: "{{ include "manifest.image.name" (dict "name" "busybox" "globals" .Values.global.components "repo" .Values.global.repository) }}"
+          imagePullPolicy: {{ $test.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for hzp-iam-proxy-test to become ready...'
+              resp=0
+              until [ $resp -eq 1 ]
+              do
+                  sleep 2;
+                  resp=$(wget --server-response {{ $internalURL }}/iam-proxy-test/api -O ip-current 2>&1| grep -c 'HTTP/1.1 200 OK')
+              done;
+              until [ $resp -eq 1 ]
+              do
+                  sleep 2;
+                  resp=$(wget --server-response {{ $test.keycloak.url }}/auth/realms/master -O ip-current 2>&1| grep -c 'HTTP/1.1 200 OK')
+              done;
+              echo 'Waiting for public key refresh...'
+              sleep 120;
+              echo 'Hzp-IAM-Proxy-Test OK ✓'
+      restartPolicy: Never
+  {{- end }}

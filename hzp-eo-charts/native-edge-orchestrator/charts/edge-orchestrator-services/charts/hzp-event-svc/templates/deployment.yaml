@@ -1,0 +1,188 @@
+{{- $svc := .Values.svc -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.svc.name }}
+  labels:
+    hzp-app: {{ .Values.svc.name }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: {{ $svc.port }}
+      protocol: TCP
+      name: http
+  selector:
+    hzp-app: {{ .Values.svc.name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: 
+  name: {{ $svc.name }}
+  labels:
+    hzp.iam.webhook/active: 'true'
+spec:
+{{- if not .Values.svc.autoScaling.enabled }}
+  replicas: {{ .Values.svc.replicaCount }}
+{{- end }}
+  selector:
+    matchLabels:
+      hzp-app: {{ .Values.svc.name }}
+  template:
+    metadata:
+      annotations:
+{{- if .Values.global.instrumentation.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "{{ $svc.port }}"
+{{- end }} 
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- if not .Values.global.opensearch.deploy }}
+      serviceAccountName: {{.Values.global.opensearch.serviceAccountName}}
+      {{- end}}
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          name: {{ .Values.svc.name }}
+          {{ $_ := set .Values "iamProxyEntry" "./hzp-event-svc" }}
+          {{ tpl (toYaml .Values.global.iamProxy.commandDecorator) . | nindent 10 }}
+          imagePullPolicy: {{ $svc.image.pullPolicy }}
+          ports:
+            - containerPort: {{ $svc.port }}
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          env:
+            - name: SIDECAR_INJECTED
+              value: "{{ .Values.global.iamProxy.sidecarEnabled }}"
+            - name: EO_INTERNAL_GW
+            {{- if and $.Values.global.istio.deploy $.Values.global.istio.ingressgateway.internal }}
+              value: internal-ingress-gateway.istio-system.svc.cluster.local
+            {{- else if $.Values.global.nginx_gw.enabled }}
+              value: nginx-gw.{{ .Release.Namespace }}.svc.cluster.local
+            {{- else }}
+              {{- fail ".Values.global.istio.deploy or .Values.global.nginx_gw.enabled should be true" }}
+            {{- end }}
+            - name: FQDN
+              value: {{ .Values.global.ingress.fqdn }}
+            - name: EO_NAME
+              value: {{ .Values.global.eoName }}
+            - name: PRODUCT_SVC_URL
+              value: "http://hzp-product-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: TAGS_SVC_URL
+              value: "http://hzp-tags-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: INVENTORY_SVC_URL
+              value: "http://hzp-inventory-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            - name: NATS_SERVER_MONITORING_URL
+              value: "http://jetstream.{{ .Release.Namespace }}.svc.cluster.local:8222/healthz"
+            - name: IS_INTERNAL_OPENSEARCH
+              value:  "{{.Values.global.opensearch.deploy}}"
+            - name: OPENSEARCH_ADDRESS
+              value: {{ tpl .Values.global.opensearch.address . | quote }}
+            {{- if .Values.global.opensearch.deploy }}
+            - name: OPENSEARCH_USERNAME
+              value: logstash
+            - name: OPENSEARCH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: eo-management-opensearch-secret
+                  key: logstashPassword
+            {{- else }}
+            - name: OPENSEARCH_MODE
+              value:  {{.Values.global.opensearch.mode}}
+            - name: OPENSEARCH_AWS_REGION
+              value:  {{.Values.global.opensearch.region}}
+            {{- end }}
+            {{- toYaml $svc.env | nindent 12 }}
+            - name: ENABLE_INSTRUMENTATION
+              value: {{ .Values.global.instrumentation.enabled | quote }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: events-locales-0
+              mountPath: /home/event_svc/locale/EventLocale
+            {{- include "logLevel.configMap.mount" $ | indent 12 }}
+      initContainers:
+        - name: init-dependencies
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: Always
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          env:
+            - name: NATS_HOST
+              value: "jetstream.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: NATS_MONITORING_PORT
+              value: "8222"
+            - name: waiting_for_nats_to_be_initialized
+              valueFrom:
+                configMapKeyRef:
+                  key: waiting_for_nats_to_be_initialized
+                  name: infra-status-config
+            - name: waiting_for_postgres_to_be_initialized
+              valueFrom:
+                configMapKeyRef:
+                  key: waiting_for_postgres_to_be_initialized
+                  name: infra-status-config
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: create-postgres-host-configmap
+                  key: postgresHost
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: create-postgres-host-configmap
+                  key: postgresPort
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for Jetstream NATS to become ready...'
+              command="wget -S ${NATS_HOST}:${NATS_MONITORING_PORT}/healthz  2>&1 | awk '/^  HTTP/{print $2}'"
+              status=$(eval "$command")
+              echo "status: $status"
+              while [[ "$status" != *"HTTP/1.1 200 OK"* ]]; do
+                  sleep 2;
+                  status=$(eval "$command")
+                  echo "status: $status"
+              done;
+              echo 'Jetstream OK ✓'
+              echo 'Waiting for PostgreSQL to become ready...'
+              until printf "." && nc -z -w 2 $DB_HOST $DB_PORT; do
+                  sleep 2;
+              done;
+              echo 'PostgreSQL OK ✓'
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.localization.image.name ) "repo" .Values.global.repository) }}
+          name: install-events-locales-container
+          imagePullPolicy: {{ $svc.localization.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          volumeMounts:
+            - mountPath: /translation/EventLocale
+              name: events-locales-0
+          command: [ '/bin/sh', '-c' ]
+          args:
+            - cp -r ./translation/* /translation/EventLocale;
+      volumes:
+        - name: events-locales-0
+          emptyDir: {}
+        {{- include "logLevel.configMap.volume" $ | indent 8 }}
+

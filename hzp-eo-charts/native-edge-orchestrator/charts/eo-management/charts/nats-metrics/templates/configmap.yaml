@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  labels:
+    app: nats-jetstream-metrics
+  name: nats-jetstream-metrics
+data:
+  jetstream.conf: |
+    # Configure 2nd nats stream Node connection
+    # configuration file used to override default NATS server settings
+    websocket {
+      port: 8080
+      no_tls: true
+      same_origin: false
+    }
+    http_port: 8222
+    ping_interval: "20s"
+
+    # enables jetstream, an empty block will enable and use defaults
+    jetstream {
+      # jetstream data will be in /data/nats-server/jetstream
+      store_dir: "/data/nats-server"
+      domain: {{ .Values.nats.jetStream.domain }}
+      max_memory_store: {{ .Values.nats.jetStream.maxMemory }}
+      max_file_store: {{ .Values.nats.jetStream.maxStorage }}
+    }

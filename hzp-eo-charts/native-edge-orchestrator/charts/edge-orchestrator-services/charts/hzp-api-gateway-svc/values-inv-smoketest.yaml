@@ -1,0 +1,4 @@
+global:
+  apiGateway:
+    deploy: true
+    smoketestEnabled: true

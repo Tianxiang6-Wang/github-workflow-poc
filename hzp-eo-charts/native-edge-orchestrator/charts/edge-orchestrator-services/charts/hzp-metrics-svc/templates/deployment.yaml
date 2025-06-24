@@ -1,0 +1,130 @@
+{{- $svc := .Values.svc -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.svc.name }}
+  labels:
+    hzp-app: {{ .Values.svc.name }}
+spec:
+  replicas: {{ .Values.svc.replicaCount }}
+  selector:
+    matchLabels:
+      hzp-app: {{ .Values.svc.name }}
+  template:
+    metadata:
+      name: {{ .Values.svc.name }}
+      annotations:
+{{- with .Values.svc.podAnnotations }}
+{{- tpl (toYaml .) $ | nindent 8 }}
+{{- end }}
+{{- if .Values.global.instrumentation.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "{{ .Values.svc.port }}"
+{{- end }}   	      
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          name: {{ .Values.svc.name }}
+          imagePullPolicy: {{ .Values.svc.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          ports:
+            - containerPort: {{ .Values.svc.port }}
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /admin/health/dependency
+              port: {{ .Values.svc.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          livenessProbe:
+            httpGet:
+              path: /admin/health/liveness
+              port: {{ .Values.svc.port }}
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          env:
+            - name: INVENTORY_SERVICE_URL
+              value: "http://hzp-inventory-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: EO_IP
+              value: {{ .Values.global.ingress.fqdn }}
+            - name: EO_NAME
+              value: {{ .Values.global.eoName }}
+            - name: ENABLE_INSTRUMENTATION
+              value: {{ .Values.global.instrumentation.enabled | quote }}
+            {{- toYaml .Values.svc.env | nindent 12 }}
+            - name: VICTORIA_METRICS_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: mist-ee-victoria-metrics
+                  key: username
+                  optional: true
+            - name: VICTORIA_METRICS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: mist-ee-victoria-metrics
+                  key: password
+                  optional: true
+            - name: ORG_ID
+              valueFrom:
+                secretKeyRef:
+                  name: mist-org-secret
+                  key: org-id
+                  optional: true
+            - name: VICTORIAMETRICS_URL
+              value: "http://$(VICTORIA_METRICS_USERNAME):$(VICTORIA_METRICS_PASSWORD)@mist-ee-vmselect:8481/select/<org_id>/prometheus"
+          volumeMounts:
+            {{- include "logLevel.configMap.mount" $ | indent 12 }}
+      volumes:
+        {{- include "logLevel.configMap.volume" $ | indent 8 }}
+      initContainers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: Always
+          name: init-vault
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for Vault to become ready...'
+              until printf "." && nc -z -w 2 edgevault 8200; do
+                sleep 2;
+              done;
+              echo 'Vault OK ✓'
+        {{- if $.Values.global.mist.deploy }}
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: Always
+          name: init-vmselect-metrics-svc
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for vmselect for metrics-svc to become ready...'
+              until printf "." && nc -z -w 2 mist-ee-vmselect 8481; do
+                sleep 2;
+              done;
+              echo 'vmselect for metrics-svc OK ✓'
+        {{- end }}

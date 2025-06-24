@@ -1,0 +1,72 @@
+{{- if (.Values.composer).enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: composer-frontend
+  name: {{ template "fusion-services.name" . }}-composer-frontend
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  replicas: {{ .Values.composer_frontend.replicas }}
+  selector:
+    matchLabels:
+      app: composer-frontend
+  template:
+    metadata:
+      labels:
+        app: composer-frontend
+        fusion-name: composer-frontend
+      {{ with .Values.composer_frontend.podLabels }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      annotations:
+        {{- include "fusion-services.merge" ( list .Values.commonAnnotations .Values.composer_frontend.podAnnotations ) | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.composer_frontend $ )| trim | nindent 8 }}
+      tolerations: {{- include "fusion-services.tolerations" ( list .Values.composer_frontend $ ) | trim | nindent 8 }}
+      affinity: {{- include "fusion-services.affinity" ( list .Values.composer_frontend $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-composer-frontend" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-composer-frontend" ).pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          name: composer-frontend
+          ports:
+            - containerPort: {{ .Values.composer_frontend.port }}
+          resources: {{- toYaml .Values.composer_frontend.resources | nindent 12 }}
+          {{- if .Values.composer_frontend.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              port: {{ .Values.composer_frontend.port}}
+            initialDelaySeconds: {{ .Values.composer_frontend.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.composer_frontend.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.composer_frontend.probes.liveness.timeoutSeconds }}
+            successThreshold: {{ .Values.composer_frontend.probes.liveness.successThreshold }}
+            failureThreshold: {{ .Values.composer_frontend.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.composer_frontend.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              port: {{ .Values.composer_frontend.port}}
+            initialDelaySeconds: {{ .Values.composer_frontend.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.composer_frontend.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.composer_frontend.probes.readiness.timeoutSeconds }}
+            successThreshold: {{ .Values.composer_frontend.probes.readiness.successThreshold }}
+            failureThreshold: {{ .Values.composer_frontend.probes.readiness.failureThreshold }}
+          {{- end }}
+      restartPolicy: Always
+      {{- include "fusion-services.images.pullSecrets" . | nindent 6 }}
+{{- end }}

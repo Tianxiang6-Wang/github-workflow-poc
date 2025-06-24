@@ -1,0 +1,14 @@
+{{- if .Values.plugins.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "fusion-services.name" . }}-plugins
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  ports:
+    - port: {{ .Values.plugins.port }}
+  selector:
+    app: plugins
+  type: ClusterIP
+{{- end }}

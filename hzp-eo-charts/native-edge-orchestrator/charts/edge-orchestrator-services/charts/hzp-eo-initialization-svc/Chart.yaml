@@ -1,0 +1,11 @@
+annotations:
+  containerImages: |
+    - eo-initialization-svc
+    - busybox
+    - eo-initialization-smoke-test
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for hzp-eo-initialization-svc.
+name: hzp-eo-initialization-svc
+type: application
+version: 0.1.0

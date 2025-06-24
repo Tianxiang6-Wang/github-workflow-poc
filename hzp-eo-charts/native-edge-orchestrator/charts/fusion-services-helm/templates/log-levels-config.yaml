@@ -1,0 +1,37 @@
+{{- if eq ( include "fusion-loglevel-configmap.name" $ ) "fusion-log-levels-config" -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fusion-log-levels-config
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+data:
+  {{ include "fusion-loglevel-configmap.globalLogLevelKey" $ }}: {{ include "fusion-loglevel-configmap.initialGlobalLogLevel" $ | quote }}
+  {{- if gt (int .Values.api_service.replicas) 0 }}
+  fusion-api-service: {{ if (.Values.api_service.logging).logLevel }}{{ tpl .Values.api_service.logging.logLevel $ | quote }}{{ end }}
+  {{- end }}
+  {{- if gt (int .Values.rest_service.replicas) 0 }}
+  fusion-rest-service: {{ if (.Values.rest_service.logging).logLevel }}{{ tpl .Values.rest_service.logging.logLevel $ | quote }}{{ end }}
+  {{- end }}
+  {{- if gt (int .Values.execution_scheduler.replicas) 0 }}
+  fusion-execution-scheduler: {{ if (.Values.execution_scheduler.logging).logLevel }}{{ tpl .Values.execution_scheduler.logging.logLevel $ | quote }}{{ end }}
+  {{- end }}
+  {{- if gt (int .Values.mgmtworker.replicas) 0 }}
+  fusion-mgmtworker: {{ if (.Values.mgmtworker.logging).logLevel }}{{ tpl .Values.mgmtworker.logging.logLevel $ | quote }}{{ end }}
+  {{- end }}
+  {{- if and .Values.agent.enabled (gt (int .Values.agent.replicas) 0) }}
+  fusion-agents: {{ if (.Values.agent.logging).logLevel }}{{ tpl .Values.agent.logging.logLevel $ | quote }}{{ end }}
+  {{- end }}
+  {{- if and .Values.blueprint.enabled (gt (int .Values.blueprint.replicas) 0) }}
+  fusion-blueprint: {{ if (.Values.blueprint.logging).logLevel }}{{ tpl .Values.blueprint.logging.logLevel $ | quote }}{{ end }}
+  {{- end }}
+  {{- if and .Values.secrets.enabled (gt (int .Values.secrets.replicas) 0) }}
+  fusion-secrets: {{ if (.Values.secrets.logging).logLevel }}{{ tpl .Values.secrets.logging.logLevel $ | quote }}{{ end }}
+  {{- end }}
+  {{- if and .Values.deployments.enabled (gt (int .Values.deployments.replicas) 0) }}
+  fusion-deployments: {{ if (.Values.deployments.logging).logLevel }}{{ tpl .Values.deployments.logging.logLevel $ | quote }}{{ end }}
+  {{- end }}
+  {{- if and .Values.plugins.enabled (gt (int .Values.plugins.replicas) 0) }}
+  fusion-plugins: {{ if (.Values.plugins.logging).logLevel }}{{ tpl .Values.plugins.logging.logLevel $ | quote }}{{ end }}
+  {{- end }}
+{{- end -}}

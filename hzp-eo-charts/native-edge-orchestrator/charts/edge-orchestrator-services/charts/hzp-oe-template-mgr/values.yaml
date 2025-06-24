@@ -1,0 +1,157 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  message:
+    type: nats
+    url: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+  oeTemplateMgr:
+    smoketestEnabled: false
+  ingress:
+    fqdn: localhost
+  eoName: "NativeEdge Orchestrator"
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  instrumentation:
+    enabled: false
+components:
+  oe-template-mgr-svc:
+    image: oe-template-mgr-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  oe-template-mgr-smoke-test:
+    image: oe-template-mgr-smoke-test
+    version: latest
+    project: hzp/
+
+# Subchart values
+svc:
+  name: &serviceName hzp-oe-template-mgr-svc
+  replicaCount: 1
+  port: 8080
+  image:
+    name: oe-template-mgr-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: "true"
+  podAnnotations:
+    hzp.iam.webhook/resources-limits-memory: "2500Mi"
+  resources:
+    limits:
+      cpu: 200m
+      memory: 500Mi
+    requests:
+      cpu: 5m
+      memory: 25Mi
+  env:
+    - name: APP_PORT
+      value: "8080"
+    - name: DB_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresHost
+    - name: DB_PORT
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresPort
+    - name: DB_USER
+      value: "hzp_oe_template_mgr"
+    - name: DB_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: hzp_oe_template_mgr-password
+  autoScaling:
+    enabled: false
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+
+test:
+  # Subchart values
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    hzp-app: hzp-oe-template-mgr-svc-regression
+    hzp-role: smoke-test
+  testsuite: test-suites/smoke.xml
+  replicaCount: 1
+  image:
+    name: oe-template-mgr-smoke-test
+    pullPolicy: Always
+    tag: latest
+  env:
+    - name: MESSAGING_URL
+      value: "nats://jetstream.hzp.svc.cluster.local"
+    - name: MESSAGING_STREAM_NAME
+      value: "K-ORDERS"
+    - name: DATABASE_URL
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresUrl
+    - name: DATABASE_USERNAME
+      value: "test"
+    - name: DATABASE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: test-password
+  cpu: 0.25
+  memory: 512Mi
+  postgresql:
+    service:
+      fullname: postgres
+      port: 5432
+  oetemplate:
+    service:
+      fullname: *serviceName
+      port: 80
+  inventory:
+    service:
+      fullname: hzp-inventory-svc
+      port: 80
+  eventsvc:
+    service:
+      fullname: hzp-events-svc
+      port: 80
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 488051
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    runid: 1
+    release: 1
+    suite: 1

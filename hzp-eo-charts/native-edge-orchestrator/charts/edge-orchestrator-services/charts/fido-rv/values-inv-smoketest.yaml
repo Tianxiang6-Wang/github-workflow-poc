@@ -1,0 +1,4 @@
+global:
+  fidoRv:
+    deploy: true
+    smoketestEnabled: true

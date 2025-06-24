@@ -1,0 +1,72 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  apiGateway:
+    smoketestEnabled: false
+  istio:
+    deploy: true
+    ingressgateway:
+      internal: true
+  nginx_gw:
+    enabled: false
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  instrumentation:
+    enabled: false
+components:
+  api-gateway-svc:
+    image: api-gateway-svc
+    version: latest
+    project: hzp/
+# Subchart values
+svc:
+  name: &serviceName hzp-api-gateway-svc
+  publicKeysProvider: http://localhost:8080
+  port: 8080
+  replicaCount: 1
+  image:
+    name: api-gateway-svc
+    pullPolicy: Always
+    tag: latest
+  resources:
+    limits:
+      cpu: 400m
+      memory: 600Mi
+    requests:
+      cpu: 50m
+      memory: 25Mi
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: "{{ .Values.global.nginx_gw.enabled | quote }}"
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  env:
+    - name: APP_PORT
+      value: "8080"
+autoscaling:
+  enabled: false
+  # The minimum and maximum number of replicas for the Deployment
+  minReplicas: 1
+  maxReplicas: 3
+  # The metrics to use for scaling
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+  # The scaling policy to use. This will scale up quickly but only scale down a single Pod per 5 minutes.
+  # This is important because caches are usually only replicated to 2 Pods and if one of those Pods is terminated this will give the cluster time to recover.
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 300

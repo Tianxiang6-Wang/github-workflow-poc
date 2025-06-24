@@ -1,0 +1,155 @@
+{{- $svc := .Values.svc -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.svc.name }}
+  labels:
+    hzp-app: {{ .Values.svc.name }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    hzp-app: {{ .Values.svc.name }}
+    app.kubernetes.io/app: {{ .Values.svc.name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.svc.name }}
+  labels:
+    hzp-app: {{ .Values.svc.name }}
+spec:
+{{- if not .Values.svc.autoScaling.enabled }}
+  replicas: {{ .Values.svc.replicaCount }}
+{{- end }}
+  selector:
+    matchLabels:
+      hzp-app: {{ .Values.svc.name }}
+  template:
+    metadata:
+      name: {{ .Values.svc.name }}
+      annotations:
+{{- if .Values.global.instrumentation.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "{{ .Values.svc.port }}"
+{{- end }}     
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          name: {{ .Values.svc.name }}
+          {{ $_ := set .Values "iamProxyEntry" "./main" }}
+          {{ tpl (toYaml .Values.global.iamProxy.commandDecorator) . | nindent 10 }}
+          imagePullPolicy: {{ .Values.svc.image.pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: true
+            privileged: true
+          ports:
+            - containerPort: {{ .Values.svc.port }}
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          env:
+            - name: SIDECAR_INJECTED
+              value: "{{ .Values.global.iamProxy.sidecarEnabled }}"
+            - name: ARCHIVA_URL
+              value: {{ tpl .Values.global.s3.url . | quote }}
+            - name: CATALOG_SERVICE_URL
+              value: "http://hzp-catalog-svc.{{ .Release.Namespace }}.svc.cluster.local/api/v1/catalog"
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            - name: NATS_SERVER_MONITORING_URL
+              value: "http://jetstream.{{ .Release.Namespace }}.svc.cluster.local:8222"
+            - name: EVENTING_TYPE
+              value: {{ .Values.global.message.type | quote }}
+            - name: OWNER_SERVICE_URL
+              value: "http://fido-owner.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: SCHEDULER_SVC_URL
+              value: "http://hzp-scheduler-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: MFG_SERVICE_URL
+              value: "http://fido-manufacturer.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: MFG_SERVICE_TCP_URL
+              value: "fido-manufacturer-headless.{{ .Release.Namespace }}:8039"
+            - name: INVENTORY_SERVICE_URL
+              value: "http://hzp-inventory-svc.{{ .Release.Namespace }}.svc.cluster.local/api/v1/eceinventory"
+            - name: RV_INFO
+              value: '[[[5,"rv.local.edge"]],[[5,"rv.dell.fdo"]],[[5,"{{ .Values.global.fido.global_rv_url }}"]],[[5,"rv.internal.use.only"]],[[5,"rv1.local.edge"]],[[5,"rv1.dell.fdo"]],[[5,"rv2.local.edge"]],[[5,"rv2.dell.fdo"]],[[5,"rv3.local.edge"]],[[5,"rv3.dell.fdo"]],[[5,"rv4.local.edge"]],[[5,"rv4.dell.fdo"]],[[5,"rv5.local.edge"]],[[5,"rv5.dell.fdo"]],[[5,"rv6.dell.fdo"]],[[5,"rv7.dell.fdo"]],[[5,"rv8.dell.fdo"]],[[5,"rv9.dell.fdo"]],[[5,"rv10.dell.fdo"]],[[5,"rv11.dell.fdo"]],[[5,"rv12.dell.fdo"]],[[5,"rv13.dell.fdo"]],[[5,"rv14.dell.fdo"]],[[5,"rv15.dell.fdo"]],[[5,"rv16.dell.fdo"]],[[5,"rv17.dell.fdo"]],[[5,"rv18.dell.fdo"]],[[5,"rv19.dell.fdo"]],[[5,"rv20.dell.fdo"]],[[5,"fido-rv.hzp"],[3,80],[12,1],[4,80]]]'
+            - name: EO_IP
+              value: {{ .Values.global.ingress.fqdn }}
+            - name: EO_NAME
+              value: {{ .Values.global.eoName }}
+            - name: ENABLE_INSTRUMENTATION
+              value: {{ .Values.global.instrumentation.enabled | quote }}
+            {{- toYaml .Values.svc.env | nindent 12 }}
+          volumeMounts:
+            {{- include "logLevel.configMap.mount" $ | indent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /admin/health/dependency
+              port: {{ .Values.svc.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /admin/health/liveness
+              port: {{ .Values.svc.port }}
+            periodSeconds: 20
+          startupProbe:
+            httpGet:
+              path: /admin/health/liveness
+              port: {{ .Values.svc.port }}
+              scheme: HTTP
+            initialDelaySeconds: 20
+            failureThreshold: 30
+            periodSeconds: 10
+      initContainers:
+        - name: init-dependencies
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: Always
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          env:
+            - name: waiting_for_postgres_to_be_initialized
+              valueFrom:
+                configMapKeyRef:
+                  key: waiting_for_postgres_to_be_initialized
+                  name: infra-status-config
+            {{- toYaml .Values.svc.env | nindent 12 }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for PostgreSQL to become ready...'
+              until printf "." && nc -z -w 2 $DB_HOST $DB_PORT; do
+                  sleep 2;
+              done;
+              echo 'PostgreSQL OK ✓'
+              echo 'Waiting for Vault to become ready...'
+              until printf "." && nc -z -w 2 edgevault 8200; do
+                sleep 2;
+              done;
+              echo 'Vault OK ✓'
+              echo 'Waiting for scheduler svc to become ready...'
+              until printf "." && nc -z -w 2 hzp-scheduler-svc 80; do
+                  sleep 2;
+              done;
+              echo 'scheduler svc OK ✓'
+      volumes:
+        {{- include "logLevel.configMap.volume" $ | indent 8 }}

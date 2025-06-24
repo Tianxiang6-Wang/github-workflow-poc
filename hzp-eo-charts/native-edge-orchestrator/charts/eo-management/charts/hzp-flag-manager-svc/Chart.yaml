@@ -1,0 +1,9 @@
+annotations:
+  containerImages: |
+    - flag-manager-svc
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for hzp-flag-manager-svc
+name: hzp-flag-manager-svc
+type: application
+version: 0.1.0

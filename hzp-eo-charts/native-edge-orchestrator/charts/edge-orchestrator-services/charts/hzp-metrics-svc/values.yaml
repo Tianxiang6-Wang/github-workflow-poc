@@ -1,0 +1,104 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  ingress:
+    fqdn: localhost
+  eoName: "NativeEdge Orchestrator"
+  vault:
+    host: "http://edgevault.{{ .Release.Namespace }}.svc.cluster.local"
+    port: "8200"
+  metricsSvc:
+    smoketestEnabled: false
+  istio:
+    deploy: true
+    ingressgateway:
+      internal: true
+  nginx_gw:
+    enabled: false
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  mist:
+    deploy: false
+  instrumentation:
+    enabled: false
+components:
+  metrics-svc:
+    image: metrics-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+# Subchart values
+svc:
+  name: &serviceName hzp-metrics-svc
+  replicaCount: 1
+  port: 8080
+  image:
+    name: metrics-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: "true"
+  resources:
+    limits:
+      cpu: 100m
+      memory: 200Mi
+    requests:
+      cpu: 5m
+      memory: 25Mi
+  env:
+    - name: LOG_LEVEL
+      value: "info"
+    - name: APPROLE_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-metrics-svc-vault-secret
+          key: role-id
+          optional: false
+    - name: APPROLE_SECRET_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-metrics-svc-vault-secret
+          key: secret-id
+          optional: false
+    - name: APPROLE_ID_PATH
+      value: "eo-approle"
+    - name: AUTH_CLIENT_ID
+      value: "hzp-metrics-svc"
+    - name: VAULT_CERTS_KV_MOUNT_POINT
+      value: "kv/m2m/hzp-metrics-svc"
+test:
+  # Subchart values
+  enabled: false
+  testsuite: test-suites/smoke.xml
+  replicaCount: 1
+  image:
+    name: metrics-smoke-test
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: hzp-metrics-svc-regression
+    hzp-role: smoke-test
+  cpu: 0.25
+  memory: 512Mi
+  metrics:
+    service:
+      fullname: *serviceName
+      port: 80
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 869483
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    runid: 1
+    release: 1
+    suite: 1

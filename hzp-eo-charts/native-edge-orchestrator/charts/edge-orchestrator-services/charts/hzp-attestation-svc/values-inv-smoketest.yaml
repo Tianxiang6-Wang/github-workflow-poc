@@ -1,0 +1,4 @@
+global:
+  attestationSvc:
+    deploy: true
+    smoketestEnabled: true

@@ -1,0 +1,142 @@
+{{- $svc := .Values.svc -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+  labels:
+    hzp-app: {{ $svc.name }}
+spec:
+  replicas: {{ $svc.replicaCount }}
+  selector:
+    matchLabels:
+      hzp-app: {{ $svc.name }}
+  template:
+    metadata:
+      annotations:
+{{- tpl (toYaml .Values.svc.podAnnotations) . | replace "'" "" | nindent 8 }}
+{{- if .Values.global.instrumentation.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "{{ $svc.port }}"
+{{- end }}
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      serviceAccountName: {{ $svc.rbac.name }}
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          imagePullPolicy: "Always"
+          {{ $_ := set .Values "iamProxyEntry" "./main" }}
+          {{ tpl (toYaml .Values.global.iamProxy.commandDecorator) . | nindent 10 }}
+          name: {{ $svc.name }}
+          ports:
+            - containerPort: {{ $svc.port }}
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          env:
+            - name: SIDECAR_INJECTED
+              value: "{{ .Values.global.iamProxy.sidecarEnabled }}"
+            - name: SERVICE_VERSION
+              value: {{ .Chart.Version }}
+            - name: VAULT_HOST
+              value: "http://edgevault.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: INVENTORY_SVC_URL
+              value: 'http://hzp-inventory-svc.{{ .Release.Namespace }}.svc.cluster.local'
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            - name: NATS_SERVER_MONITORING_URL
+              value: "http://jetstream.{{ .Release.Namespace }}.svc.cluster.local:8222/varz"
+            - name: FUSION_SVC_INTERNAL_URL
+              {{- if and $.Values.global.istio.deploy $.Values.global.istio.ingressgateway.internal }}
+              value: "http://internal-ingress-gateway.istio-system.svc.cluster.local/fusion"
+              {{- else if $.Values.global.nginx_gw.enabled }}
+              value: "http://nginx-gw.{{ .Release.Namespace }}.svc.cluster.local/fusion"
+              {{- else }}
+              {{- fail ".Values.global.istio.deploy or .Values.global.nginx_gw.enabled should be true" }}
+              {{- end }}
+            - name: EO_IP
+              value: {{ .Values.global.ingress.fqdn }}
+            - name: EO_NAME
+              value: {{ .Values.global.eoName }}
+            - name: NAMESPACE
+              value: {{ .Release.Namespace }}
+            - name: APPROLE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: hzp-attestation-svc-vault-secret
+                  key: role-id
+                  optional: false
+            - name: APPROLE_SECRET_ID
+              valueFrom:
+                secretKeyRef:
+                  name: hzp-attestation-svc-vault-secret
+                  key: secret-id
+                  optional: false
+            - name: APPROLE_ID_PATH
+              value: "eo-approle"
+            - name: SCAN_DURATION
+              value: "24"
+            - name: SCAN_DURATION_UNIT
+              value: "Hour"
+            - name: AUTH_CLIENT_ID
+              value: "hzp-attestation-svc"
+            - name: VAULT_CERTS_KV_MOUNT_POINT
+              value: "kv/m2m/hzp-attestation-svc"
+            - name: EXPECTED_SCAN_RESULT_BASE_PATH
+              value: "resources/expectedresults"
+            - name: EO_SCRIPTS_BASE_PATH
+              value: "resources/scripts"
+            - name: ENABLE_INSTRUMENTATION
+              value: {{ .Values.global.instrumentation.enabled | quote }}
+            {{- toYaml $svc.env | nindent 12 }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            runAsGroup: 1000
+            allowPrivilegeEscalation: false
+          readinessProbe:
+            httpGet:
+              path: /admin/health/dependency
+              port: 14000
+              scheme: HTTP
+          volumeMounts:
+            {{- include "logLevel.configMap.mount" $ | indent 12 }}
+      initContainers:
+        - name: dbchecker
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.dbchecker.image.pullPolicy }}
+          securityContext:
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+        {{- toYaml .Values.dbchecker.securityContext | nindent 12 }}
+          env:
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: create-postgres-host-configmap
+                  key: postgresHost
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: create-postgres-host-configmap
+                  key: postgresPort
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for PostgreSQL to become ready...'
+
+              until printf "." && nc -z -w 2 $DB_HOST $DB_PORT; do
+                  sleep 2;
+              done;
+
+              echo 'PostgreSQL OK ✓'
+      volumes:
+        {{- include "logLevel.configMap.volume" $ | indent 8 }}

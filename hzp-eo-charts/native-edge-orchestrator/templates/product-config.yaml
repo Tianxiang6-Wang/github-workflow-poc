@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: product-config
+  namespace: {{ .Release.Namespace }}
+data:
+  PRODUCT_KEY: "DSP"
+  PRODUCT_NAME: "Dell Automation Platform"

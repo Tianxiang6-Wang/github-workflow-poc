@@ -1,0 +1,39 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+# Global values (shared across all services/subcharts)
+global:
+  repository: isgedge.artifactory.cec.lab.emc.com/isgedge-docker-virtual/
+  project: hzp/
+  imagePullSecrets:
+    - docker-secret
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+    fsGroup: 1001
+  flagManager:
+    mode: "REMOTE"
+    baseUrl: "https://api.flagsmith.common-prod-drm.k8s.cec.delllabs.net/api/v1/"
+    defaultEnvKey: ""
+components:
+  flag-manager-svc:
+    image: flag-manager-svc
+    version: 3.2.0.0.922e3be
+    project: hzp/
+svc:
+  name: &serviceName hzp-flag-manager-svc
+  replicaCount: 1
+  port: 8080
+  image:
+    name: flag-manager-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: "true"
+  resources:
+    limits:
+      cpu: 1
+      memory: 2Gi
+    requests:
+      cpu: 5m
+      memory: 50Mi

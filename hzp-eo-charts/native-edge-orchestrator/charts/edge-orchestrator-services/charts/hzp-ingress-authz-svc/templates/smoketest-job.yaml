@@ -1,0 +1,59 @@
+{{- if or (.Values.global.regressionEnabled) (.Values.global.ingressAuthzSvc.smoketestEnabled) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: ingress-authz-smoke-test
+spec:
+  template:
+    metadata:
+      name: ingress-authz-smoke-test
+      labels:
+{{- tpl (toYaml .Values.test.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - name: ingress-authz-smoke-test-container
+          env:
+            - name: MESSAGING_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: BASE_URL
+              value: "http://{{ .Values.test.service.fullname }}.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: RP_ENDPOINT
+              value: "{{ .Values.test.reportportal.rpendpoint }}"
+            - name: RP_API_KEY
+              value: "{{ .Values.test.reportportal.rpuuid }}"
+            - name: RP_MODE
+              value: default
+            - name: RP_PROJECT
+              value: HZP_EO_SERVICES
+            - name: RP_LAUNCH
+              value: "{{ .Values.test.service.fullname }}"
+            - name: RP_ATTRIBUTES
+              value: "RELEASE_VERSION:{{ .Values.test.reportportal.release }};EO_IP:{{ .Values.test.reportportal.eourl }};EO_MANIFEST:{{ .Values.test.reportportal.manifest }};TEST_GROUP:{{ .Values.test.reportportal.suite }};RP_LAUNCH_KEY_ATTRIBUTE:{{ .Values.test.reportportal.runid }};;RELEASE_VERSION:{{ .Values.test.reportportal.release }};"
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.test.image.name ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          command: ['/bin/sh', '-c']
+          #sleep after the test is to enable pipeline to copy the test result when pod is running state
+          args:
+            - echo All dependent components are running. Start testing!;
+              java -jar tests.jar {{ .Values.test.testsuite }}; sleep 60;
+      initContainers:
+        - name: init-ingress-authz
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for hzp-ingress-authz-svc to become ready...'
+              
+              until printf "." && nc -z -w 2 {{ .Values.test.service.fullname }} {{ .Values.test.service.port }}; do
+                  sleep 2;
+              done;
+              
+              echo 'hzp-ingress-authz-svc OK ✓'
+      restartPolicy: Never
+  {{- end }}

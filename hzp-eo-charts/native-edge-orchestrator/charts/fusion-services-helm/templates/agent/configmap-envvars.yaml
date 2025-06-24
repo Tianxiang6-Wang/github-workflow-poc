@@ -1,0 +1,15 @@
+{{- if .Values.agent.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "fusion-services.name" . }}-agent-envvars
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+data:
+  REST_PROTOCOL: {{ .Values.entrypoint.protocol }}
+  REST_HOST: {{ .Values.entrypoint.name }}
+  REST_PORT: {{ .Values.entrypoint.port | quote }}
+  {{ range $key, $value := .Values.agent.env -}}
+  {{ $key }}: {{ tpl $value $ | quote }}
+  {{ end -}}
+{{- end }}

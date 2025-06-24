@@ -1,0 +1,4 @@
+global:
+  ingressAuthzSvc:
+    deploy: true
+    smoketestEnabled: true

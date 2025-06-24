@@ -1,0 +1,14 @@
+{{- $svc := .Values.svc -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svc.headlessService.name }}
+  labels:
+    app.kubernetes.io/app: {{ $svc.name }}
+spec:
+  clusterIP: None
+  selector:
+    app.kubernetes.io/app: {{ $svc.name }}
+  ports:
+  - name: websocket
+    port: 8088

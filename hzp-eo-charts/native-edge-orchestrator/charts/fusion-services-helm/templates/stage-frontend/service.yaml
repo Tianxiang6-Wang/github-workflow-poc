@@ -1,0 +1,14 @@
+{{- if .Values.stage_frontend.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "fusion-services.name" . }}-stage-frontend
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  ports:
+    - port: {{ .Values.stage_frontend.port }}
+  selector:
+    app: stage-frontend
+  type: ClusterIP
+{{- end -}}

@@ -1,0 +1,57 @@
+{{- $svc := .Values.svc -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.svc.name }}
+  labels:
+    hzp-app: {{ .Values.svc.name }}
+spec:
+  replicas: {{ .Values.svc.replicaCount }}
+  selector:
+    matchLabels:
+      hzp-app: {{ .Values.svc.name }}
+  template:
+    metadata:
+      name: {{ .Values.svc.name }}
+      annotations:
+        hzp.iam.webhook/authentication-enabled: "false"
+        hzp.iam.webhook/authorization-enabled: "false"
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      volumes:
+        {{- include "logLevel.configMap.volume" $ | indent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          name: {{ .Values.svc.name }}
+          imagePullPolicy: {{ .Values.svc.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+            fsGroup: {{ .Values.global.podSecurityContext.fsGroup }}
+          ports:
+            - containerPort: {{ .Values.svc.port }}
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          volumeMounts:
+            {{- include "logLevel.configMap.mount" $ | indent 12 }}
+          env:
+            - name: MODE
+              value: "{{ .Values.global.flagManager.mode }}"
+            - name: BASE_URL
+              value: "{{ .Values.global.flagManager.baseUrl }}"
+            - name: DEFAULT_ENV_KEY
+              value: "{{ .Values.global.flagManager.defaultEnvKey }}"
+            - name: DEFAULT_IDENTITY
+              value: "{{ .Values.global.flagManager.defaultIdentity }}"
+            - name: IS_PRODUCTION
+              value: "{{ .Values.global.flagManager.isProduction }}"

@@ -1,0 +1,20 @@
+{{- if .Values.blueprint.enabled -}}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "fusion-services.name" . }}-blueprint-envvars
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+data:
+  REST_PROTOCOL: {{ .Values.entrypoint.protocol }}
+  REST_HOST: {{ .Values.entrypoint.name }}
+  REST_PORT: {{ .Values.entrypoint.port | quote }}
+  FILE_SERVER_TYPE: {{ .Values.rest_service.config.manager.file_server_type }}
+  S3_SERVER_URL: {{ include "fusion-services.s3_server_url" . | quote }}
+  S3_RESOURCES_BUCKET: {{ .Values.rest_service.config.manager.s3_resources_bucket }}
+  UPLOAD_ROOT: "/tmp/uploads"
+  MARKETPLACE_API_URL: "https://marketplace.cloudify.co"
+  {{ range $key, $value := .Values.blueprint.env -}}
+  {{ $key }}: {{ tpl $value $ | quote }}
+  {{ end -}}
+{{- end }}

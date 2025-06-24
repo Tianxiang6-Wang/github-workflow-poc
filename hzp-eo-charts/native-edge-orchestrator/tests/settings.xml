@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--Copyright © 2022 Dell Inc. or its subsidiaries. All Rights Reserved.-->
+<settings xsi:schemaLocation="http://maven.apache.org/SETTINGS/1.2.0 http://maven.apache.org/xsd/settings-1.2.0.xsd" xmlns="http://maven.apache.org/SETTINGS/1.2.0"          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <servers>
+    <server>
+      <username>USER</username>
+      <password>PASSWORD</password>
+      <id>dell</id>
+    </server>
+  </servers>
+  <profiles>
+    <profile>
+      <repositories>
+        <repository>
+          <snapshots>
+            <enabled>false</enabled>
+          </snapshots>
+          <id>dell</id>
+          <name>isgedge-maven-virtual</name>
+          <url>https://isgedge.artifactory.cec.lab.emc.com/artifactory/isgedge-maven-virtual</url>
+        </repository>
+        <repository>
+          <snapshots />
+          <id>dell</id>
+          <name>isgedge-maven-virtual</name>
+          <url>https://isgedge.artifactory.cec.lab.emc.com/artifactory/isgedge-maven-virtual</url>
+        </repository>
+      </repositories>
+      <pluginRepositories>
+        <pluginRepository>
+          <snapshots>
+            <enabled>false</enabled>
+          </snapshots>
+          <id>dell</id>
+          <name>isgedge-maven-virtual</name>
+          <url>https://isgedge.artifactory.cec.lab.emc.com/artifactory/isgedge-maven-virtual</url>
+        </pluginRepository>
+        <pluginRepository>
+          <snapshots />
+          <id>dell</id>
+          <name>isgedge-maven-virtual</name>
+          <url>https://isgedge.artifactory.cec.lab.emc.com/artifactory/isgedge-maven-virtual</url>
+        </pluginRepository>
+      </pluginRepositories>
+      <id>artifactory</id>
+    </profile>
+  </profiles>
+  <activeProfiles>
+    <activeProfile>artifactory</activeProfile>
+  </activeProfiles>
+</settings>

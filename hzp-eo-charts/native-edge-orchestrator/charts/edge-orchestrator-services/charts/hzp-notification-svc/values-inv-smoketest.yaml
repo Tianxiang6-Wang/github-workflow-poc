@@ -1,0 +1,4 @@
+global:
+  notification:
+    deploy: true
+    smoketestEnabled: true

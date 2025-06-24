@@ -1,0 +1,11 @@
+annotations:
+  containerImages: |
+    - tags-svc
+    - busybox
+    - tags-smoke-test
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for hzp-tags-svc
+name: hzp-tags-svc
+type: application
+version: 0.1.0

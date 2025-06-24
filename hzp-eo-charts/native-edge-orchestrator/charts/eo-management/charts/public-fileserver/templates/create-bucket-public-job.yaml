@@ -1,0 +1,66 @@
+{{- $name := "create-bucket-public-job"}}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $name }}
+  labels:
+    {{- tpl (toYaml .Values.job.podLabels) . | replace "'" "" | nindent 8 }}
+{{- if .Values.job.annotations }}
+  annotations:
+{{ toYaml .Values.job.annotations | indent 4 }}
+{{- end }}
+spec:
+  template:
+    metadata:
+      labels:
+{{- tpl (toYaml .Values.job.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      # volumes:
+      #   - name: htpasswd-storage
+      #     emptyDir: {}
+      restartPolicy: Never
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      initContainers:
+      - name: init-seaweedfs-filer
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          allowPrivilegeEscalation: false
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for Seaweedfs Filer to become ready...'
+            until [ "$response" = "200" ]; do
+              response=$(wget -S -O /dev/null {{ tpl .Values.seaweedfs.filer.url . }}/healthz 2>&1 | awk '/HTTP\/1.1/ {print $2}')
+              printf "." && sleep 2
+            done
+            echo 'Seaweedfs Filer OK ✓'
+      containers:
+      - name: create-bucket-public-container
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "hzp-util" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: {{ .Values.job.image.pullPolicy }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          allowPrivilegeEscalation: false
+        command:
+          - sh
+          - -c
+          - |
+            set -e
+            echo 'Creating fileserver bucket public...'
+            http_status=$(curl -s -X PUT -o /dev/null -w "%{http_code}" \
+                            {{ tpl .Values.seaweedfs.filer.url . }}/buckets/public/)
+            if [ "$http_status" -eq 201 ]; then
+              echo 'Creating fileserver bucket public OK ✓'
+            elif [ "$http_status" -eq 409 ]; then
+              echo 'Finding fileserver bucket public already exists OK ✓'
+            else
+                echo "Status code not handled (HTTP status code: $http_status)"
+                exit 1
+            fi

@@ -1,0 +1,23 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "fileserver.name" . }}-envvars
+  annotations:
+    {{- include "common.annotations" ( list $ .Values.commonAnnotations ) | nindent 4 }}
+data:
+  WORKER_PROCESS: auto
+  WORKER_CONNECTIONS: "4096"
+  FILESERVER_SERVICE_HOST: eo-management-seaweedfs-filer.{{ .Release.Namespace }}.svc.cluster.local
+  FUSION_SECRETS_URL: {{ tpl .Values.fusion.secretsSvc.url . }}
+  FILESERVER_SERVICE_PORT: "8888"
+  PUBLIC_PATH: "/public"
+  CLIENT_MAX_BODY_SIZE: "{{ .Values.nginx.clientMaxBodySize }}"
+  PROXY_CONNECT_TIMEOUT: "{{ .Values.nginx.proxyConnectTimeout }}"
+  SEND_TIMEOUT: "{{ .Values.nginx.sendTimeout }}"
+  PROXY_SEND_TIMEOUT: "{{ .Values.nginx.proxySendTimeout }}"
+  PROXY_READ_TIMEOUT: "{{ .Values.nginx.proxyReadTimeout }}"
+  CLIENT_BODY_TIMEOUT: "{{ .Values.nginx.clientBodyTimeout }}"
+  CLIENT_HEADER_TIMEOUT: "{{ .Values.nginx.clientHeaderTimeout }}"
+  KEEPALIVE_TIMEOUT: "{{ .Values.nginx.keepaliveTimeout }}"
+  UWSGI_READ_TIMEOUT: "{{ .Values.nginx.uwsgiReadTimeout }}"
+  KEEPALIVE: "{{ .Values.nginx.keepalive }}"

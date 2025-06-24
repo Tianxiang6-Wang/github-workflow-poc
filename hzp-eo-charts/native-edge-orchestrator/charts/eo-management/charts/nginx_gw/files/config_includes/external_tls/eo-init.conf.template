@@ -1,0 +1,24 @@
+{{- range ( list
+  "/api/v2/license"
+  "/api/v2/access-tokens"
+  "/api/v2/access-tokens/batch-delete"
+  "/api/v2/eo-init/licenses"
+  "/api/v2/eo-init/eula"
+  "/api/v2/eo-init/eo-identifier"
+  "/api/v2/eo-init/license-identifier"
+  "/api/v2/eo-init/next-onboarding-step"
+  "/api/v3/eo-init/next-onboarding-step"
+  "/api/v2/eo-init/entitlements"
+) }}
+location {{ . }} {
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      set $upstream http://hzp-eo-initialization-svc.{{$.Release.Namespace}}.svc.cluster.local:80;
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+}
+{{- end }}

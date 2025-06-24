@@ -1,0 +1,4 @@
+global:
+  jobSvc:
+    deploy: true
+    smoketestEnabled: true

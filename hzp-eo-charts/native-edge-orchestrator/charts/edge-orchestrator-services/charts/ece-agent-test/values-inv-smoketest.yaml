@@ -1,0 +1,8 @@
+global:
+  eceAgentTest:
+    deploy: true
+    smoketestEnabled: true
+  inventorySvc:
+    deploy: true
+  eventSvc:
+    deploy: true

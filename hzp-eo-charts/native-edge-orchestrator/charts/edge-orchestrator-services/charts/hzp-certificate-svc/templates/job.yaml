@@ -1,0 +1,77 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ .Values.svc.name }}-job
+  annotations:
+{{- tpl (toYaml .Values.job.jobAnnotations) . | replace "'" "" | nindent 4 }}
+spec:
+  backoffLimit: 20
+  template:
+    metadata:
+      name: {{ .Values.svc.name }}-job
+      labels:
+{{- tpl (toYaml .Values.job.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.svc.rbac.namePrefix }}-sa
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components "hzp-util" ) "repo" .Values.global.repository) }}
+          name: {{ .Values.svc.name }}-job-container
+          resources:
+            {{- toYaml .Values.job.resources | nindent 12 }}
+          imagePullPolicy: {{ .Values.svc.image.pullPolicy }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          command:
+            - sh
+            - -c
+            - |
+              echo "Initializing"
+              sleep 10
+              {{- if $.Values.global.nginx_gw.enabled }}
+              SECRET_NAMESPACE="{{ .Release.Namespace }}"
+              {{- else }}
+              SECRET_NAMESPACE="istio-system"
+              {{- end }}
+              export cert1=$(kubectl get secret -n ${SECRET_NAMESPACE} mtls-credential -o jsonpath="{.data.cert}" | base64 -d)
+              echo 'Calling Certificate svc to trigger update of TLS certificate...'
+              for i in $(seq 1 10); do
+                curl -v http://hzp-certificate-svc.{{ .Release.Namespace }}.svc.cluster.local/api/v1/updatecertificate -H "Content-Type: application/json" -d '{"query":"query{updateIstio}"}'
+                sleep 10 && export cert2=$(kubectl get secret -n ${SECRET_NAMESPACE} mtls-credential -o jsonpath="{.data.cert}" | base64 -d)
+                if [ "$cert1" != "$cert2" ]
+                then break
+                fi
+                echo "Failed to update TLS cert, retrying..." && sleep 2
+              done
+              if [ "$cert1" = "$cert2" ]
+              then echo 'Failed to update TLS cert'; exit 1
+              fi
+              echo 'Done ✓'
+      initContainers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          name: init-certificate
+          imagePullPolicy: Always
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for Certificate Svc to become ready...'
+              until printf "." && nc -z -w 2 hzp-certificate-svc 80; do
+                  sleep 2;
+              done;
+              echo 'Certificate Svc OK ✓'
+      restartPolicy: OnFailure

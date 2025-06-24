@@ -1,0 +1,17 @@
+# Overcoming the renowned http://stackoverflow.com/questions/19238122/nginx-with-ubuntu-and-rails-on-digital-ocean
+types_hash_max_size 4096;
+
+upstream fileserver {
+  server ${FILESERVER_SERVICE_HOST}:${FILESERVER_SERVICE_PORT};
+  keepalive ${KEEPALIVE};
+}
+
+server {
+  listen                      80;
+  server_name                 _;
+  resolver                    kube-dns.kube-system.svc.cluster.local;
+  client_header_timeout       ${CLIENT_HEADER_TIMEOUT};
+
+  include "/etc/nginx/conf.d/fileserver";
+  include "/etc/nginx/conf.d/healthz";
+}

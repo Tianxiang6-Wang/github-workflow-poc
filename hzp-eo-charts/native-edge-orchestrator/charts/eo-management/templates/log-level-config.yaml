@@ -1,0 +1,13 @@
+{{- if .Values.global.logLevel}}
+{{- if .Values.global.logLevel.configMap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.global.logLevel.configMap.name }}
+  labels:
+    app: hzp
+data:
+  {{ .Values.global.logLevel.configMap.globalLogLevelKey }}: {{ .Values.global.logLevel.configMap.initialGlobalLogLevel }}
+
+{{- end -}}
+{{- end -}}

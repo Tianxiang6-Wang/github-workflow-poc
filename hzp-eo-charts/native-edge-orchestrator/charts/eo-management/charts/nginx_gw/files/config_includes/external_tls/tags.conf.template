@@ -1,0 +1,47 @@
+location /api/v2/resourcetags {
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      set $upstream http://hzp-tags-svc.{{$.Release.Namespace}}.svc.cluster.local:80/rest/v1/resourcetags?$args;
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+}
+
+location /api/v2/tags {
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      set $upstream http://hzp-tags-svc.{{$.Release.Namespace}}.svc.cluster.local:80/rest/v1/tags?$args;
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+}
+
+location /api/v2/tags/suggestion {
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      set $upstream http://hzp-tags-svc.{{$.Release.Namespace}}.svc.cluster.local:80/rest/v1/tags/suggestion?$args;
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+}
+
+location /api/v2/tagresources {
+      resolver kube-dns.kube-system.svc.cluster.local;
+      proxy_set_header Host $http_host;
+      proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+      set $upstream http://hzp-tags-svc.{{$.Release.Namespace}}.svc.cluster.local:80/rest/v1/resources;
+      proxy_pass $upstream;
+      proxy_http_version 1.1;
+      proxy_ssl_verify off;
+      proxy_set_header Upgrade $http_upgrade;
+      proxy_set_header Connection "upgrade";
+}

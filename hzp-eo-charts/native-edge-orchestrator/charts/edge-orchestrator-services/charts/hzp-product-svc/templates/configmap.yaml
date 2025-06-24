@@ -1,0 +1,28 @@
+{{- $x_dell_auth_key := printf "%s%s" (encryptAES uuidv4 "plaintext") (encryptAES uuidv4 "plaintext") }}
+{{- $lockboxPassphrase := printf "%s%s" (encryptAES uuidv4 "plaintext") (encryptAES uuidv4 "plaintext") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hzp-product-config
+data:
+  productfrontendprefix: "ese-to-product"
+  lookupIndex: "{{ .Values.svc.lockboxLookupIndex }}"
+  productidblock: {{ include "product.prouctIdBlock" . | quote }}
+  testconnectivity: {{ .Values.testconnectivity | toJson | quote }}
+  productfrontenduri: "{{ printf "http://hzp-product-svc.%s.svc.cluster.local" .Release.Namespace }}"
+  srstransfertype: {{ include "product.srstransfertype" . }}
+  backendconnectivityenvironment: "{{ .Values.global.product.backendconnectivityenvironment }}"
+  DefaultProperties.json: |
+    # ESE Static configuration. It is simple JSON, but
+    # may contain comments prefixed by '#'
+    {
+      "ipAddress": "0.0.0.0",
+      "port": "{{ .Values.ese.port }}",
+      "useSSL": false,
+      "productFrontendPrefix": "ese-to-product", 
+      "targetEnvironment": "{{ .Values.global.product.backendconnectivityenvironment }}",
+      "productFrontendUri": "{{ printf "http://hzp-product-svc.%s.svc.cluster.local" .Release.Namespace }}",
+      "srsTransferType": "{{ include "product.srstransfertype" . }}"
+    }
+  machine-id: {{ uuidv4 | quote }}
+

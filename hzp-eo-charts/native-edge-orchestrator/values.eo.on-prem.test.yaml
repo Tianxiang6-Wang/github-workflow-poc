@@ -1,0 +1,32 @@
+global:
+  storageClass: null
+  k8s:
+    distro: vcluster
+  archiva:
+    pvc:
+      resources:
+        storage: 50Gi
+  tags:
+    deploy: true
+  ingress:
+    exposeQAServices: true
+  catalog:
+    auth:
+      dellDigitalMode: DEV
+      dellDigitalURL: 6dd07edad64f5642a751f040f3b29076db630564e51d11ab9aef31dff2799b19712226cab765058e0c9cb03f316bf5adf399bf1f605fbd534b0092e201fbf2e2b89d80953169aa198ef031f8f74acc7d0d03b283d80aa5d45bfd66a8cb01957c865abfed7f4bd2e4dc818d2f501858bb288109f0fa7ec45184e4b5ef0c98c74012e539ed43b34d5561678599ea4ccb0fa0fd0b1abc290c2c9cbee40ee8126ea9
+    public:
+      enabled: true # indicates if public catalog is integrated.
+      portal:
+        baseURL: "https://dsp-portal.dev.automation.dell.com"
+  dl:
+    eseAuthPath: "/auth/oauth/v2/token"
+    entitlementListPath: "/ge2/DynamicLicensing/api/v1/clip/entitlement"
+    entitlementRegistrationPath: "/ge2/DynamicLicensing/api/v1/clip/product/registration"
+    entitlementReductionPath: "/ge2/DynamicLicensing/api/v1/clip/product/registration/reduction"
+    entitlementDeregistrationPath: "/ge2/DynamicLicensing/api/v1/clip/product/registration/deregister"
+    entitlementUpgradePath: "/ge2/DynamicLicensing/api/v1/clip/product/registration/upgrade"
+    entitlementConsumptionPath: "/ge2/DynamicLicensing/api/v1/clip/product/consumption"
+edge-orchestrator-services:
+  pgAdmin:
+    service:
+      type: ClusterIP

@@ -1,0 +1,306 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  message:
+    type: nats
+    url: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+  ingress:
+    fqdn: localhost
+  eoName: "NativeEdge Orchestrator"
+  iamProxy:
+    commandDecorator:
+      command:
+        - sh
+        - -c
+        - |
+          if [ "$SIDECAR_INJECTED" == "enabled" ]; then
+            echo 'Waiting for sidecar proxy to become ready...'
+            until printf "." && nc -z -w 2 127.0.0.1 15025; do
+                sleep 2;
+            done;
+            echo 'Sidecar proxy is ready ✓'
+            exec {{ .Values.iamProxyEntry }} &
+          else
+            echo 'No sidecar proxy detected ✓'
+            exec {{ .Values.iamProxyEntry }} &
+          fi
+          pid=$!
+          trap 'kill -SIGTERM $pid; wait $pid' SIGTERM
+          wait $pid
+  product:
+    backendconnectivityenvironment: "INTPROD"
+  s3:
+    url: http://eo-management-seaweedfs-s3.{{ .Release.Namespace }}.svc.cluster.local:8333
+    region: us-east-1
+    bucketPrefix: ""
+    serviceAccountAnnotations: {}  # Required to link service account to AWS role.
+    credentials:
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: eo-management-seaweedfs-s3-secret
+            key: AWS_ACCESS_KEY_ID
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: eo-management-seaweedfs-s3-secret
+            key: AWS_SECRET_ACCESS_KEY
+  productSvc:
+    smoketestEnabled: false
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  instrumentation:
+    enabled: false
+  ova:
+    enabled: false
+components:
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  dell-ese:
+    image: dell-ese
+    version: 4.12.4.7
+    project: hzp/
+  product-svc:
+    image: product-svc
+    version: latest
+    project: hzp/
+  product-smoke-test:
+    image: product-smoke-test
+    version: latest
+    project: hzp/
+# Subchart values
+svc:
+  name: &serviceName hzp-product-svc
+  replicaCount: 1
+  port: 8080
+# These can be passed by the installation script
+  lockboxLookupIndex: 3650
+  resources:
+    limits:
+      cpu: 100m
+      memory: 200Mi
+    requests:
+      cpu: 5m
+      memory: 25Mi
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: "true"
+  podAnnotations:
+    hzp.iam.webhook/exclude-outbound-ports: "443"
+  env:
+    - name: ENABLE_PLAYGROUND
+      value: "true"
+    - name: ESE_TYPE
+      value: "x-dell-auth-key"
+    - name: "PRODUCT_NAME"
+      value: "product"
+    # The url for VMS getAccessToken() request
+    - name: VMS_ACCESS_TOKEN_ENDPT
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: vms-access-token-endpt
+    # The authentication method for getAccessToken().  Can be 'basic' or 'oauth' or empty
+    - name: VMS_ACCESS_TOKEN_TYPE
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: vms-access-token-type
+    # The userid for basic authentication.  Required if _TYPE is 'basic'
+    - name: VMS_ACCESS_TOKEN_USER
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: vms-access-token-user
+    # The password for basic authentication. Required if _TYPE is 'basic'
+    - name: VMS_ACCESS_TOKEN_PASS
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: vms-access-token-pass
+    # The url for VMS transferVoucher() request
+    - name: VMS_XFER_VOUCHER_ENDPT
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: vms-xfer-voucher-endpt
+    # The url for VMS transferVoucher() request
+    - name: VMS_XFER_VOUCHER_TYPE
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: vms-xfer-voucher-type
+    # The token request url for transferVoucher() when _TYPE is 'oauth'
+    - name: VMS_XFER_VOUCHER_OAUTH
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: vms-xfer-voucher-oauth
+    # The oauth app_id for transferVoucher() when _TYPE is 'oauth'
+    - name: VMS_XFER_VOUCHER_APP_ID
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: vms-xfer-voucher-app-id
+    # The oauth secret for transferVoucher() when _TYPE is 'oauth'
+    - name: VMS_XFER_VOUCHER_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: vms-xfer-voucher-secret
+    - name: SRS_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: srs-client-id
+    - name: SRS_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: srs-client-secret
+    - name: ALLOWED_ESE_EVENT_IDS
+      value: "0x01B020203,0x01B020202,0x01B020201,0x01B010203,0x01B010202,0x01B010201,0x01B030203,0x01B030202,0x01B030201,0x011040002"
+  image:
+    name: product-svc
+    pullPolicy: Always
+    tag: latest
+  autoScaling:
+    enabled: false
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+  affinity:
+    podAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+        - weight: 100
+          podAffinityTerm:
+            labelSelector:
+              matchExpressions:
+                - key: hzp-app
+                  operator: In
+                  values:
+                    - hzp-datacollection-svc
+            topologyKey: "kubernetes.io/hostname"
+  dependency:
+    eoInitSvc:
+      service:
+        fullname: hzp-eo-initialization-svc
+        port: 80
+
+ese:
+  name: hzp-ese-svc
+  env:
+    - name: ESE_USER
+      value: "_ese_"
+  port: 8082
+  pvc:
+    enabled: true
+    name: hzp-ese-pvc
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      storage: 1Gi
+  image:
+    name: dell-ese
+    pullPolicy: Always
+    tag: 4.12.1.15
+  resources:
+    limits:
+      cpu: 100m
+      memory: 300Mi
+    requests:
+      cpu: 50m
+      memory: 25Mi
+shared:
+  pvc:
+    name: hzp-shared-pvc
+    accessModes:
+      - ReadWriteOnce
+    resources:
+      storage: 30Gi
+
+testconnectivity:
+  eventLastTime:    null
+  eventCount:       1
+  symptomCode:      "ESE001"
+  eventTrapID:      null
+  eventID:          null
+  eventDescription: "ConnectHome Test"
+  eventMessage:     "Testing ConnectHome via ESE"
+  eventCategory:    "Status"
+  eventStatus:      "Informational"
+  component:        "ESE"
+  componentID:      ""
+  subComponent:     null
+  subComponentID:   null
+
+productidblock:
+  productType: "com.dell.enterprise.hci.vxflex.manager"
+  productName: "DELLAUTOMATIONPLATFORM"
+  productModel: "DELLAUTOMATIONPLATFORM"
+  productVersion: ""
+
+dapproductidblock:
+  productType: "dell.enterprise.dap.orchestrator-onprem"
+  productName: "DELLAUTOMATIONPLATFORM"
+  productModel: "DELLAUTOMATIONPLATFORM-ON-PREM"
+  productVersion: "1.0.0.0"
+
+srstransfertype: "DELLAUTOMATIONPLATFORM"
+dapsrstransfertype: "DELLAUTOMATIONPLATFORM"
+
+test:
+  # Subchart values
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    hzp-app: hzp-product-svc-regression
+    hzp-role: smoke-test
+  eoEceRegression: false
+  testsuite: test-suites/smoke.xml
+  replicaCount: 1
+  image:
+    name: product-smoke-test
+    pullPolicy: Always
+    tag: latest
+  cpu: 0.25
+  memory: 512Mi
+  product:
+    service:
+      fullname: *serviceName
+      port: 80
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 740273
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    runid: 1
+    release: 1
+    suite: 1

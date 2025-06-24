@@ -1,0 +1,39 @@
+{{- $hook_annotations := dict "helm.sh/hook" "test" }}
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "fusion-services.fullname" . }}-test-connection"
+  labels:
+    {{- include "fusion-services.labels" . | nindent 4 }}
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations $hook_annotations ) | nindent 4 }}
+spec:
+  automountServiceAccountToken: false
+  securityContext:
+    runAsNonRoot: false # NOTE: necessary for busybox image
+    seccompProfile:
+      type: RuntimeDefault
+  nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.test $ )| trim | nindent 8 }}
+  tolerations: {{- include "fusion-services.tolerations" ( list .Values.test $ ) | trim | nindent 8 }}
+  affinity: {{- include "fusion-services.affinity" ( list .Values.test $ ) | trim | nindent 8 }}
+  containers:
+    - name: wget
+      image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+      command: ['wget']
+      args: ['{{ .Values.entrypoint.name }}:{{ .Values.service.port }}']
+      securityContext:
+        allowPrivilegeEscalation: false
+        runAsNonRoot: false # NOTE: necessary for busybox image
+        seccompProfile:
+          type: RuntimeDefault
+        capabilities:
+          drop:
+            - ALL
+      resources:
+        requests:
+          memory: 100Mi
+          cpu: 0.1
+        limits:
+          memory: 100Mi
+          cpu: 0.1
+  restartPolicy: Never

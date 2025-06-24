@@ -1,0 +1,10 @@
+annotations:
+  containerImages: |
+    - busybox
+    - hzp-util
+    - nginx-lua
+apiVersion: v1
+appVersion: 0.1.0
+description: Public Fileserver
+name: public-fileserver
+version: 0.1.0

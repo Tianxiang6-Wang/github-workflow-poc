@@ -1,0 +1,98 @@
+{{- if .Values.global.keycloak.export }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-export-hzp
+  annotations:
+    "helm.sh/hook": pre-upgrade
+    "helm.sh/hook-weight": "-5"
+spec:
+  template:
+    metadata:
+      labels:
+        hzp-app: keycloak-migration
+        hzp-role: eo-service
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      restartPolicy: Never
+      securityContext:
+        {{- toYaml .Values.securityContext | nindent 8 }}
+      initContainers:
+        - name: exporter
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.image.repository ) "repo" .Values.global.repository) }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: export-data
+              mountPath: /exports
+          env:
+            {{- if .Values.database.vendor }}
+            - name: KC_DB
+              value: {{ .Values.database.vendor }}
+            {{- end }}
+            - name: KC_DB_URL_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: create-postgres-host-configmap
+                  key: postgresHost
+            - name: KC_DB_URL_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: create-postgres-host-configmap
+                  key: postgresPort
+            {{- if .Values.database.database }}
+            - name: KC_DB_URL_DATABASE
+              value: {{ .Values.database.database }}
+            {{- end }}
+            {{- if .Values.database.username }}
+            - name: KC_DB_USERNAME
+              value: {{ .Values.database.username }}
+            {{- end }}
+            {{- if or .Values.database.password .Values.database.existingSecret -}}
+            {{- include "keycloak.databasePasswordEnv" . | nindent 12 }}
+            {{- end }}
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              set -e
+              echo "exporting realm hzp..."
+
+              # Remove all custom providers
+              rm -rf /opt/keycloak/providers/*
+              mkdir -p /opt/keycloak/providers
+
+              # Rebuild Keycloak without any custom providers
+              /opt/keycloak/bin/kc.sh build
+
+              # Export the 'hzp' realm to /exports directory
+              /opt/keycloak/bin/kc.sh export \
+                --realm hzp \
+                --dir /exports \
+                --users realm_file
+              ls -lh /exports
+      containers:
+        - name: uploader
+          image:  {{ include "manifest.image.name" (dict "data" (index .Values.components "hzp-util" ) "repo" .Values.global.repository) }}
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              set -e
+              FILE=/exports/hzp-realm.json
+              if [ ! -f "$FILE" ]; then
+                echo "export file missing"; exit 1
+              fi
+              echo "uploading $FILE to SeaweedFS..."
+              curl -s -v --data-binary @"$FILE" \
+                -X PUT \
+                "http://$SEAWEED_FILER/buckets/migration/hzp-realm.json" \
+                && echo "upload complete"
+          env:
+            - name: SEAWEED_FILER
+              value: "eo-management-seaweedfs-filer.{{ .Release.Namespace }}.svc.cluster.local:8888"
+          volumeMounts:
+            - name: export-data
+              mountPath: /exports
+      volumes:
+        - name: export-data
+          emptyDir: {}
+{{- end }}

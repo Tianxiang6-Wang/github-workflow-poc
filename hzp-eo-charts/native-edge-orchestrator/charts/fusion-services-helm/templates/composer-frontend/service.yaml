@@ -1,0 +1,14 @@
+{{- if (.Values.composer).enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "fusion-services.name" . }}-composer-frontend
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  ports:
+    - port: {{ .Values.composer_frontend.port }}
+  selector:
+    app: composer-frontend
+  type: ClusterIP
+{{- end }}

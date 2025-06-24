@@ -1,0 +1,93 @@
+{{- $job := .Values.pluginUpdateJob }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $job.name }}
+  annotations:
+{{- tpl (toYaml $job.jobAnnotations) . | replace "'" "" | nindent 4 }}
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+{{- tpl (toYaml $job.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      volumes:
+        {{- include "logLevel.configMap.volume" $ | indent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components $job.computeSvc.image.name ) "repo" .Values.global.repository) }}
+          name: {{ $job.name }}
+          imagePullPolicy: Always
+          ports:
+            - containerPort: {{ $job.computeSvc.port }}
+          resources:
+            {{- toYaml $job.computeSvc.resources | nindent 12 }}
+          env:
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            - name: DB_HOST
+              valueFrom:
+                configMapKeyRef:
+                  name: create-postgres-host-configmap
+                  key: postgresHost
+            - name: DB_PORT
+              valueFrom:
+                configMapKeyRef:
+                  name: create-postgres-host-configmap
+                  key: postgresPort
+            - name: DB_USER
+              value: "fusion_plugins"
+            - name: DB_PA
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: fusion_plugins-password
+            - name: BLUEPRINTS_USER
+              value: "blueprints"
+            - name: BLUEPRINTS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: blueprints-password
+            - name: FUSION_DB_USER
+              value: "fusion_db"
+            - name: FUSION_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: fusion_db-password
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 1000
+            allowPrivilegeEscalation: false
+          command:
+            - /bin/sh
+            - -c
+            - |
+              ./main -plugin;
+              if wget -q --post-data='' -S -O /dev/null http://127.0.0.1:15020/quitquitquit 2>/dev/null; then
+                echo "Terminated istio-proxy."
+              else
+                echo "Fail to terminate istio-proxy..."
+              fi
+          volumeMounts:
+            {{- include "logLevel.configMap.mount" $ | indent 12 }}
+      initContainers:
+      - name: init-postgres
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for PostgreSQL to become ready...'
+            until printf "." && nc -z -w 2 postgres 5432; do
+                sleep 2;
+            done;
+            echo 'PostgreSQL OK ✓'

@@ -1,0 +1,8 @@
+global:
+  eoInitializationSvc:
+    deploy: true
+    smoketestEnabled: true
+    dynamicLicensing:
+      directUrl: "https://apigtwb2cnp.us.dell.com/TEST/ge2/DynamicLicensing/"
+  fido:
+    deploy: true

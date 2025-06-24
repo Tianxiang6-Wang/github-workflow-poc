@@ -1,0 +1,11 @@
+annotations:
+  containerImages: |
+    - notification-svc
+    - busybox
+    - notification-smoke-test
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for hzp-notification-svc
+name: hzp-notification-svc
+type: application
+version: 0.1.0

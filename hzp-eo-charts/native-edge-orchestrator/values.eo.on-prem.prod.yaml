@@ -1,0 +1,49 @@
+eo-management:
+  nats:
+    nats:
+      jetStream:
+        pvc:
+          resources:
+            storage: 30Gi
+  postgresql:
+    primary:
+      persistence:
+        size: 50Gi
+global:
+  dockerSecret:
+    createSecret: false
+  fido:
+    global_rv_flag: enabled
+  flagManager:
+    mode: "LOCAL"
+    defaultEnvKey: "Production"
+    isProduction: true
+    baseURL: ""
+  ingress:
+    exposeEOServices: false
+    exposeQAServices: false
+    fqdn: ''
+  logLevel:
+    configMap:
+      initialGlobalLogLevel: error
+  opensearch:
+    resources:
+      requests:
+        cpu: 5m
+      storageSize: 45Gi
+  eoInitializationSvc:
+    dynamicLicensing:
+      directUrl: "https://apigtwb2c.us.dell.com/PROD/DynamicLicensing/"
+  catalog:
+    public:
+      enabled: true # indicates if public catalog is integrated.
+      portal:
+        baseURL: "https://dsp-portal.automation.dell.com"
+  dl:
+    eseAuthPath: "/auth/oauth/v2/token"
+    entitlementListPath: "/DynamicLicensing/api/v1/clip/entitlement"
+    entitlementRegistrationPath: "/DynamicLicensing/api/v1/clip/product/registration"
+    entitlementReductionPath: "/DynamicLicensing/api/v1/clip/product/registration/reduction"
+    entitlementDeregistrationPath: "/DynamicLicensing/api/v1/clip/product/registration/deregister"
+    entitlementUpgradePath: "/DynamicLicensing/api/v1/clip/product/registration/upgrade"
+    entitlementConsumptionPath: "/DynamicLicensing/api/v1/clip/product/consumption"

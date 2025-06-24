@@ -1,0 +1,221 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.svc.name }}
+  labels:
+    hzp-app: {{ .Values.svc.name }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: {{ .Values.fidoOwner.port }}
+      protocol: TCP
+      name: http
+  selector:
+    hzp-app: {{ .Values.svc.name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fido-owner
+spec:
+{{- if not .Values.fidoOwner.autoScaling.enabled }}
+  replicas: {{ .Values.fidoOwner.replicaCount }}
+{{- end }}
+  selector:
+    matchLabels:
+      hzp-app: {{ .Values.svc.name }}
+  template:
+    metadata:
+      annotations:
+        hzp.iam.webhook/authentication-enabled: "false"
+        hzp.iam.webhook/authorization-enabled: "false"
+      labels:
+{{- tpl (toYaml .Values.fidoOwner.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.fidoOwner.rbac.namePrefix }}-sa
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.fidoOwner.image.name ) "repo" .Values.global.repository) }}
+          name: {{ .Values.svc.name }}
+          imagePullPolicy: {{ .Values.fidoOwner.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.fidoOwner.port }}
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          volumeMounts:
+            - name: eo-fru-secret
+              mountPath: /etc/fru
+              readOnly: true
+            - name: ca-cert-portal
+              mountPath: /etc/ssl/certs/tlscacert-ca.pem
+              subPath: tlscacert-ca.pem
+              readOnly: true
+            {{- include "logLevel.configMap.mount" $ | indent 12 }}
+          env:
+            - name: NATS_URL
+              value: {{ tpl .Values.global.message.url . | quote }}
+            - name: VAULT_HOST
+              value: "{{ tpl .Values.global.vault.host . }}"
+            - name: VAULT_PORT
+              value: "{{ .Values.global.vault.port }}"
+            - name: VAULT_TOKEN_EXPIRY_OFFSET
+              value: "{{ .Values.global.vault.tokenExpiryOffset }}"
+            {{- toYaml .Values.fidoOwner.env | nindent 12 }}
+            - name: GLOBAL_RV_URL
+              value: "{{ .Values.global.fido.global_rv_url }}"
+            - name: GLOBAL_RV_TO0_ERROR_EVENT_COUNT
+              value: "30"
+            - name: STANDARD_RV_TO0_ERROR_EVENT_COUNT
+              value: "30"
+            - name: DELETE_VOUCHER_TO0_ERROR_EVENT_COUNT
+              value: "30"
+            - name: GLOBAL_RV_FLAG
+              value: "{{ .Values.global.fido.global_rv_flag }}"
+            - name: VERIFY_SSL
+              value: "{{ .Values.global.fido.verify_ssl }}"
+            - name: FACTORY_LOCAL_RV
+              value: "https://rv.internal.use.only:443"
+            - name: VALID_LOCAL_RV
+              value: "http://fido-rv.{{ .Release.Namespace }}:80"
+            - name: INVENTORY_SERVICE_URL
+              value: "http://hzp-inventory-svc.{{ .Release.Namespace }}.svc.cluster.local:80"
+            - name: EO_INIT_SERVICE_URL
+              value: "http://hzp-eo-initialization-svc.{{ .Release.Namespace }}.svc.cluster.local:80"
+            - name: FRU_CRU_SERVICE_URL
+              value: "http://hzp-fru-cru-svc.{{ .Release.Namespace }}.svc.cluster.local:80"
+            - name: EDGE_HZP_BROWNFIELD_LICENSE_REGEX
+              value: "^EDGE_HZP_DEVICE_CAT[1-9]_BF$"
+            - name: EDGE_HZP_THIRD_PARTY_LICENSE_REGEX
+              value: "^EDGE_HZP_DEVICE_CAT[1-9]_TP$"
+            - name: EDGE_HZP_NATIVE_EDGE_LICENSE_REGEX
+              value: "^EDGE_HZP_DEVICE_CAT[1-9]$"
+            - name: DAUTH_WAIT_SECONDS
+              value: "3"
+            - name: DAUTH_SERVER_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: iam-bootstrap-config
+                  key: PORTAL_URL
+                  optional: true
+            - name: DAUTH_HTTPS_CERTIFICATE
+              valueFrom:
+                secretKeyRef:
+                  name: dapp-root-ca
+                  key: tlscacert
+                  optional: true
+            - name: DAUTH_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: idrac-client-credentials
+                  key: CLIENT_ID
+                  optional: true
+            - name: DAUTH_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: idrac-client-credentials
+                  key: CLIENT_SECRET
+                  optional: true
+            - name: DAUTH_ORG_ID
+              valueFrom:
+                secretKeyRef:
+                  name: idrac-client-credentials
+                  key: CLIENT_ORG_ID
+                  optional: true
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          readinessProbe:
+            httpGet:
+              path: /admin/health/readiness
+              port: {{ .Values.fidoOwner.port }}
+            initialDelaySeconds: 15
+            periodSeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /admin/health/liveness
+              port: {{ .Values.fidoOwner.port }}
+            timeoutSeconds: 5
+            periodSeconds: 20
+          startupProbe:
+            httpGet:
+              path: /admin/health/readiness
+              port: {{ .Values.fidoOwner.port }}
+            failureThreshold: 60
+            periodSeconds: 6
+      initContainers:
+      - image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        name: init-postgres
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          allowPrivilegeEscalation: false
+        env:
+          - name: NATS_HOST
+            value: "jetstream.{{ .Release.Namespace }}.svc.cluster.local"
+          {{- toYaml .Values.fidoOwner.env | nindent 10 }}
+          - name: NATS_MONITORING_PORT
+            value: "8222"
+          - name: waiting_for_postgres_to_be_initialized
+            valueFrom:
+              configMapKeyRef:
+                key: waiting_for_postgres_to_be_initialized
+                name: infra-status-config
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for PostgreSQL to become ready...'
+            until printf "." && nc -z -w 2 $DB_HOST $DB_PORT; do
+                sleep 2;
+            done;
+            echo 'PostgreSQL OK ✓'
+            echo 'Waiting for Jetstream to become ready...'
+            command="wget -S ${NATS_HOST}:${NATS_MONITORING_PORT}/healthz  2>&1 | awk '/^  HTTP/{print $2}'"
+            status=$(eval "$command")
+            echo "status: $status"
+            while [[ "$status" != *"HTTP/1.1 200 OK"* ]]; do
+                sleep 2;
+                status=$(eval "$command")
+                echo "status: $status"
+            done;
+            echo 'Jetstream OK ✓'
+      - image: {{ include "manifest.image.name" (dict "data" (index .Values.components "kubectl" ) "repo" .Values.global.repository) }}
+        name: init-vault
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          allowPrivilegeEscalation: false
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for Vault bootstrap job to complete...'
+            until kubectl get jobs -n {{ .Release.Namespace }} vault-bootstrap -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' | grep True ; do sleep 5 ; done
+            echo 'Vault bootstrap OK ✓'
+      volumes:
+        - name: eo-fru-secret
+          secret:
+            secretName: eo-fru-secret
+        - name: ca-cert-portal
+          secret:
+            secretName: dapp-root-ca
+            optional: true
+            items:
+              - key: tlscacert
+                path: tlscacert-ca.pem
+        {{- include "logLevel.configMap.volume" $ | indent 8 }}

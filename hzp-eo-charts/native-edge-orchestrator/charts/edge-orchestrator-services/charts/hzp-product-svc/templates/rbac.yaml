@@ -1,0 +1,40 @@
+{{- $svc := .Values.svc -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hzp-product-service-account
+  annotations:
+    {{- if .Values.global.s3.serviceAccountAnnotations }}
+      {{- .Values.global.s3.serviceAccountAnnotations | toYaml | nindent 4 }}
+    {{- end }}
+{{- include "images.pullSecrets" . }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: hzp-product-cluster-role
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps", "namespaces"]
+    verbs: ["get", "list", "create", "update"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["product-secret"]
+    verbs: ["get", "list", "create", "update"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: hzp-product-cluster-role-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: hzp-product-cluster-role
+subjects:
+  - namespace: {{.Release.Namespace}}
+    kind: ServiceAccount
+    name: hzp-product-service-account

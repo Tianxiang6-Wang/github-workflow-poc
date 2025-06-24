@@ -1,0 +1,8 @@
+global:
+  productSvc:
+    deploy: true
+    smoketestEnabled: true
+  fido:
+    deploy: true
+  eoInitializationSvc:
+    deploy: true

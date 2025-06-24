@@ -1,0 +1,8 @@
+global:
+  fruCruSvc:
+    deploy: true
+    smoketestEnabled: true
+  fido:
+    deploy: true
+  fidoManufacturer:
+    deploy: true

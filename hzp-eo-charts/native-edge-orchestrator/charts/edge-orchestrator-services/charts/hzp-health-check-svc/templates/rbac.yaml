@@ -1,0 +1,40 @@
+{{- $svc := .Values.svc -}}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ $svc.rbac.name }}
+{{- include "images.pullSecrets" . }}
+
+---
+
+kind: ClusterRole
+apiVersion: rbac.authorization.k8s.io/v1
+metadata:
+  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ $svc.rbac.clusterRole }}"
+  labels:
+    env: "{{ .Release.Namespace }}"
+    name: "{{ $svc.rbac.clusterRole }}"
+    globalName: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ $svc.rbac.clusterRole }}"
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "services", "nodes"]
+    verbs: ["get", "list"]
+
+---
+
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ $svc.rbac.clusterRoleBinding }}"
+  labels:
+    env: "{{ .Release.Namespace }}"
+    name: "{{ $svc.rbac.clusterRoleBinding }}"
+    globalName: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ $svc.rbac.clusterRoleBinding }}"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ $svc.rbac.clusterRole }}"
+subjects:
+  - kind: ServiceAccount
+    name: {{ $svc.rbac.name }}
+    namespace: {{ .Release.Namespace }}

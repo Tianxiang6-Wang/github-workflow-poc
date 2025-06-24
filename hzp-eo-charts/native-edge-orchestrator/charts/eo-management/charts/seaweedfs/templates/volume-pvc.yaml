@@ -1,0 +1,71 @@
+{{- $replicas := include "ha.replicas" . | trim | int }}
+{{- range $i := (until $replicas) }}
+{{- with $ }}
+---
+{{- $seaweedPvc := lookup "v1" "PersistentVolumeClaim" .Release.Namespace "data-seaweedfs-volume-0" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-seaweedfs-volume-{{ $i }}
+  namespace: {{ .Release.Namespace }}
+  {{- with (index .Values.volume.dataDirs 0) }}
+  annotations:
+    {{- toYaml .annotations | nindent 10 }}
+  {{- end }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      {{- if $seaweedPvc }}
+      {{- $storageClass := $seaweedPvc.spec.storageClassName }}
+      {{- $currentPvcSize := $seaweedPvc.spec.resources.requests.storage }}
+      {{- if eq $storageClass "local-path" }}
+      storage: {{ $currentPvcSize }}
+      {{- else }}
+      storage: {{ .Values.volume.data.size }}
+      {{- end }}
+      {{- else }}
+      storage: {{ .Values.volume.data.size }}
+      {{- end }}
+  {{- if $seaweedPvc }}
+  storageClassName: {{ $seaweedPvc.spec.storageClassName }}
+  {{- else }}
+  storageClassName: {{ .Values.global.storageClass }}
+  {{- end }}
+  volumeMode: Filesystem
+---
+{{- $seaweedPvc := lookup "v1" "PersistentVolumeClaim" .Release.Namespace "idx-seaweedfs-volume-0" }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: idx-seaweedfs-volume-{{ $i }}
+  namespace: {{ .Release.Namespace }}
+  {{- with (index .Values.volume.dataDirs 0) }}
+  annotations:
+    {{- toYaml .annotations | nindent 10 }}
+  {{- end }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      {{- if $seaweedPvc }}
+      {{- $storageClass := $seaweedPvc.spec.storageClassName }}
+      {{- $currentPvcSize := $seaweedPvc.spec.resources.requests.storage }}
+      {{- if eq $storageClass "local-path" }}
+      storage: {{ $currentPvcSize }}
+      {{- else }}
+      storage: {{ .Values.volume.idx.size }}
+      {{- end }}
+      {{- else }}
+      storage: {{ .Values.volume.idx.size }}
+      {{- end }}
+  {{- if $seaweedPvc }}
+  storageClassName: {{ $seaweedPvc.spec.storageClassName }}
+  {{- else }}
+  storageClassName: {{ .Values.global.storageClass }}
+  {{- end }}
+  volumeMode: Filesystem
+{{- end }}
+{{- end }}

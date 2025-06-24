@@ -1,0 +1,185 @@
+{{- $namespace := .Release.Namespace -}}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.svc.name }}
+  labels:
+    app.kubernetes.io/app: {{ .Values.svc.name }}
+spec:
+  replicas: {{ .Values.svc.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/app: {{ .Values.svc.name }}
+  template:
+    metadata:
+      name: {{ .Values.svc.name }}
+      annotations:
+{{- tpl (toYaml .Values.svc.podAnnotations) . | replace "'" "" | nindent 8 }}
+{{- if .Values.global.instrumentation.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/path: "/metrics"
+        prometheus.io/port: "{{ .Values.svc.port }}"
+{{- end }}			
+      labels:
+        app.kubernetes.io/app: {{ .Values.svc.name }}
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.rbac.namePrefix }}-sa
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.svc.image.name ) "repo" .Values.global.repository) }}
+          name: {{ .Values.svc.name }}
+          {{ $_ := set .Values "iamProxyEntry" "./main" }}
+          {{ tpl (toYaml .Values.global.iamProxy.commandDecorator) . | nindent 10 }}
+          imagePullPolicy: {{ .Values.svc.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.svc.port }}
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          env:
+            {{- toYaml .Values.svc.env | nindent 12 }}
+            - name: CM_NAMESPACE
+              value: {{ $namespace }}
+            - name: CATALOG_SVC_URL
+              value: "http://hzp-catalog-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: INVENTORY_SVC_URL
+              value: "http://hzp-inventory-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: HEALTH_CHECK_SVC_URL
+              value: "http://hzp-health-check-svc.{{ .Release.Namespace }}.svc.cluster.local/api/v1/health-check"
+            - name: HEALTH_CHECK_SVC_INTERNAL_URL
+              value: "http://hzp-health-check-svc.{{ .Release.Namespace }}.svc.cluster.local/api/v1/internal/health-check"
+            - name: VAULT_HOST
+              value: "{{ tpl .Values.global.vault.host . }}"
+            - name: EVENTING_TYPE
+              value: {{ .Values.global.message.type | quote }}
+            - name: SINK_URL
+              value: {{ tpl .Values.global.message.url . | quote }}
+            - name: NATS_SERVER_MONITORING_URL
+              value: "http://jetstream.{{ .Release.Namespace }}.svc.cluster.local:8222/healthz"
+            - name: INGRESS_FQDN
+              value: {{ .Values.global.ingress.fqdn }}
+            - name: EO_NAME
+              value: {{ .Values.global.eoName }}
+            - name: BRAND_NAME
+              value: {{ .Values.global.brandName }}
+            - name: JOB_SVC_URL
+              value: "http://hzp-job-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: FIDO_ONBOARDING_SVC
+              value: "http://hzp-security-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: S3_DOWNLOAD_URL
+              value: {{ tpl .Values.global.s3.downloadUrl . | quote }}
+            - name: BRAND
+              value: {{ include "resolve.brand" (dict "dsp" .Values.global.dsp.enabled "brand" .Values.brand) }}
+            - name: SIDECAR_INJECTED
+              value: "{{ .Values.global.iamProxy.sidecarEnabled }}"
+            - name: ENABLE_INSTRUMENTATION
+              value: {{ .Values.global.instrumentation.enabled | quote }}
+            - name: NATS_TIMEOUT_SECONDS
+              value: "30"
+            - name: BROWNFIELD_HEALTH_CHECK
+              value: {{ .Values.svc.brownfieldHealthCheckEnabled | quote }}
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false
+          readinessProbe:
+            httpGet:
+              path: /admin/health/dependency
+              port: {{ .Values.svc.port }}
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 60
+            timeoutSeconds: 30
+            failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /admin/health/liveness
+              port: {{ .Values.svc.port }}
+              scheme: HTTP
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          startupProbe:
+            httpGet:
+              path: /admin/health/liveness
+              port: {{ .Values.svc.port }}
+              scheme: HTTP
+            initialDelaySeconds: 20
+            failureThreshold: 30
+            periodSeconds: 10
+          volumeMounts:
+            - mountPath: /app/config
+              name: init-config
+              readOnly: true
+            {{- include "logLevel.configMap.mount" $ | indent 12 }}
+      initContainers:
+      - name: init-postgres
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          allowPrivilegeEscalation: false
+        env:
+          - name: waiting_for_postgres_to_be_initialized
+            valueFrom:
+              configMapKeyRef:
+                key: waiting_for_postgres_to_be_initialized
+                name: infra-status-config
+          {{- toYaml .Values.svc.env | nindent 10 }}
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for PostgreSQL to become ready...'
+            until printf "." && nc -z -w 2 $DB_HOST $DB_PORT; do
+                sleep 2;
+            done;
+            echo 'PostgreSQL OK ✓'
+      - name: init-vault
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          allowPrivilegeEscalation: false
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for Vault to become ready...'
+            until printf "." && nc -z -w 2 edgevault 8200; do
+              sleep 2;
+            done;
+            echo 'Vault OK ✓'
+      - name: init-healthcheck
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: Always
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          allowPrivilegeEscalation: false
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for HealthCheck Service to become ready...'
+            until printf "." && nc -z -w 2 hzp-health-check-svc 80; do
+                sleep 2;
+            done;
+            echo 'HealthCheck Service OK ✓'
+      volumes:
+        - name: init-config
+          configMap:
+            name: {{ .Values.svc.initConfigName }}
+        {{- include "logLevel.configMap.volume" $ | indent 8 }}

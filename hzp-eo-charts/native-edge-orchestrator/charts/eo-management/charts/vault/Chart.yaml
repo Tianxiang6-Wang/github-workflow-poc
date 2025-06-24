@@ -1,0 +1,10 @@
+annotations:
+  containerImages: |
+    - vault
+    - vault-bootstrap-svc
+apiVersion: v2
+appVersion: 1.12.0
+description: Official HashiCorp Vault Chart
+kubeVersion: '>= 1.16.0-0'
+name: vault
+version: 0.22.1

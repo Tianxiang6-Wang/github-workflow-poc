@@ -1,0 +1,95 @@
+global:
+  is-saas-env: false
+  staticOnPremOrgId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+  cookie_domain: "edge.sgp.delllabs.net"
+  clusterResourcesPrefix: ""
+  istio:
+    deploy: false
+    ingressgateway:
+      internal: true
+  nginx_gw:
+    enabled: true
+  ova:
+    enabled: false
+  dsp:
+    portal:
+      namespace: dapp
+    enabled: false
+    di:
+      baseUrl: "https://www.dell.com"
+      clientId: "3433bcfa-421b-4fc5-a9c6-2c60081864e3"
+      authPath: "/di/v3/fp/oidc/authorize"
+    onPrem:
+      baseUrl: "/auth/realms/"
+      clientId: "auth-client"
+      authPath: "/protocol/openid-connect/auth"
+  instrumentation:
+    enabled: false
+  k8s:
+    distro: k3s
+  project: hzp/
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  message:
+    type: nats
+    url: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+  ingress:
+    fqdn: localhost
+  eoName: "NativeEdge Orchestrator"
+  # Credentials for Artifactory
+  dockerSecret:
+    name:  &dockerSecretName docker-secret # pragma: allowlist secret
+    dockerconfigjson:  # pragma: allowlist secret
+  imagePullSecrets:
+    - *dockerSecretName
+  storageClass: # if not provided, the default sc of the cluster will be used
+  iamProxy:
+    sidecarEnabled: true
+    commandDecorator:
+      command:
+        - sh
+        - -c
+        - |
+          if [ "$SIDECAR_INJECTED" == "true" ]; then
+            echo 'Waiting for sidecar proxy to become ready...'
+            until printf "." && nc -z -w 2 127.0.0.1 15006; do
+                sleep 2;
+            done;
+            echo 'Sidecar proxy is ready ✓'
+          else
+            echo 'No sidecar proxy detected ✓'
+          fi
+          echo 'sleeping for 10 seconds'
+          sleep 10
+          exec {{ .Values.iamProxyEntry }} &
+          pid=$!
+          trap 'kill -SIGTERM $pid; wait $pid' SIGTERM
+          wait $pid
+  archiva:
+    pvc:
+      resources:
+        storage: 200Gi
+  tags:
+    deploy: false
+  # -- Specify nodeSelector for pods (https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#nodeselector)
+  nodeSelector: {}
+  # -- Specify tolerations for pods (https://kubernetes.io/docs/concepts/scheduling-eviction/taint-and-toleration/)
+  tolerations: []
+  # -- Specify affinity for pods (https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/#affinity-and-anti-affinity)
+  affinity: {}
+  # by default smoke tests are disabled
+  smokeTest:
+    deploy: false
+fluent-bit:
+  config:
+    outputs: |
+      [OUTPUT]
+          Mkdir true
+          Name file
+          Format out_file
+          Match *
+          Path /var/log/fluent
+eoInitializationSvc:
+  dynamicLicensing:
+    directUrl: "https://apigtwb2cnp.us.dell.com/TEST/ge2/DynamicLicensing/"

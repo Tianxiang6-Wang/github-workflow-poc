@@ -1,0 +1,82 @@
+{{- if or (.Values.global.regressionEnabled) (.Values.global.catalogSvc.smoketestEnabled) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: catalog-smoke-test
+spec:
+  template:
+    metadata:
+      name: catalog-smoke-test
+      labels:
+{{- tpl (toYaml .Values.test.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.test.catalog $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.test.catalog $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.test.catalog $ ) | trim | nindent 8 }}
+      containers:
+        - name: catalog-smoke-test-container
+          env:
+            - name: BASE_URL
+              value: "http://{{ .Values.test.catalog.service.fullname }}.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: CATALOG_SUBSCRIPTION_URL
+              value: "ws://{{ .Values.test.catalog.service.fullname }}.{{ .Release.Namespace }}.svc.cluster.local/api/v1/catalog"
+            - name: RP_ENDPOINT
+              value: "{{ .Values.test.reportportal.rpendpoint }}"
+            - name: RP_API_KEY
+              value: "{{ .Values.test.reportportal.rpuuid }}"
+            - name: RP_MODE
+              value: default
+            - name: RP_PROJECT
+              value: HZP_EO_SERVICES
+            - name: OKHTTP_READ_TIMEOUT
+              value: "120000"
+            - name: RP_LAUNCH
+              value: "{{ .Values.test.catalog.service.fullname }}"
+            - name: FILE_STORAGE_BUFFER
+              value: "5G"
+            - name: RP_ATTRIBUTES
+              value: "RELEASE_VERSION:{{ .Values.test.reportportal.release }};EO_IP:{{ .Values.test.reportportal.eourl }};EO_MANIFEST:{{ .Values.test.reportportal.manifest }};TEST_GROUP:{{ .Values.test.reportportal.suite }};RP_LAUNCH_KEY_ATTRIBUTE:{{ .Values.test.reportportal.runid }};;RELEASE_VERSION:{{ .Values.test.reportportal.release }};"
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.test.image.name ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          command: ['/bin/sh', '-c']
+          # Sleep before test to allow netpol and istio-proxy to take effect
+          # Sleep after the test is to enable pipeline to copy the test result when pod is running state
+          args:
+            - |
+              sleep 60; echo All dependent components are running. Start testing!;
+              java -jar tests.jar {{ .Values.test.testsuite }}; sleep 60;
+              if wget -q --post-data='' -S -O /dev/null http://127.0.0.1:15020/quitquitquit 2>/dev/null; then
+                  echo "Terminated istio-proxy."
+              fi
+      initContainers:
+        - name: init-postgres
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for Hzp Catalog to become ready...'
+              
+              until printf "." && nc -z -w 2 {{ .Values.test.postgresql.service.fullname }} {{ .Values.test.postgresql.service.port }}; do
+                  sleep 2;
+              done;
+              
+              echo 'PostgreSQL OK ✓'
+        - name: init-catalog
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for hzp-catalog to become ready...'
+              
+              until printf "." && nc -z -w 2 {{ .Values.test.catalog.service.fullname }} {{ .Values.test.catalog.service.port }}; do
+                  sleep 2;
+              done;
+              
+              echo 'Hzp-catalog OK ✓'
+      restartPolicy: Never
+  {{- end }}

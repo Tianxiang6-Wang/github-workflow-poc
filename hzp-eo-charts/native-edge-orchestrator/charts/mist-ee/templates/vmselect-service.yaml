@@ -1,0 +1,17 @@
+{{ if .Values.victoriametrics.deploy }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "chart.fullname" . }}-vmselect
+  labels:
+    app: vmselect
+    chart: {{ include "chart.chart" . }}
+    release: {{ .Release.Name }}
+    heritage: {{ .Release.Service }}
+spec:
+  ports:
+  - port: 8481
+  selector:
+    app: vmselect
+    release: {{ include "selector.label.release.name" . }}
+{{- end }}

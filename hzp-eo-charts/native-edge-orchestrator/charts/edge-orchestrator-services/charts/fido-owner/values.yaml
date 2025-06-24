@@ -1,0 +1,295 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  ingress:
+    fqdn: localhost
+  eoName: "NativeEdge Orchestrator"
+  imagePullSecrets:
+  - docker-secret
+  vault:
+    host: "http://edgevault.{{ .Release.Namespace }}.svc.cluster.local"
+    port: "8200"
+    tokenExpiryOffset: "3600"
+  fido:
+    global_rv_url: "rv.dell.com"
+    global_rv_flag: "disabled"
+    verify_ssl: "true"
+    smoketestEnabled: false
+  istio:
+    mTLSHost: []
+    mTLSHostRecovery: []
+    defaultPrefix:
+      mTLSHost: ""
+      mTLSHostRecovery: ""
+  message:
+    type: nats
+    url: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  nginx_gw:
+    enabled: false
+  dsp:
+    portal:
+      namespace: "dapp"
+components:
+  hzp-fido-owner-reseller:
+    image: hzp-fido-owner-reseller
+    version: latest
+    project: hzp/
+  fido-onboarding-svc:
+    image: fido-onboarding-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  kubectl:
+    image: kubectl
+    version: 1.30.5
+    project: bitnami/
+  fido-onboarding-smoke-test:
+    image: fido-onboarding-smoke-test
+    version: latest
+    project: hzp/
+fidoOwner:
+  # Subchart values
+  replicaCount: 1
+  port: 8042
+  image:
+    name: hzp-fido-owner-reseller
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: &netPolApp fido-owner
+    hzp-role: &netPolRole eo-service
+    hzp.iam.webhook/active: "{{ .Values.global.nginx_gw.enabled | quote }}"
+  jobLabels:
+    hzp-app: *netPolApp
+    hzp-role: *netPolRole
+    hzp.iam.webhook/active: "false"
+    sidecar.istio.io/inject: "false"
+  rbac:
+    namePrefix: hzp-fido-owner-reseller
+  env:
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: create-postgres-host-configmap
+        key: postgresHost
+  - name: DB_PORT
+    valueFrom:
+      configMapKeyRef:
+        name: create-postgres-host-configmap
+        key: postgresPort
+  - name: DB_NAME
+    value: "est_owner_db"
+  - name: DB_USER
+    value: "est_owner_db"
+  - name: PRIORITIZED_RV_LIST
+    value: "https://rv.internal.use.only:443"
+  - name: DB_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: postgres-secret
+        key: est_owner_db-password
+  - name: encrypt_password
+    valueFrom:
+      secretKeyRef:
+        name: fido-secret
+        key: encrypt-password
+  - name: api_password
+    valueFrom:
+      secretKeyRef:
+        name: fido-secret
+        key: api-password
+  - name: ssl_password
+    valueFrom:
+      secretKeyRef:
+        name: fido-secret
+        key: ssl-password
+  - name: APPROLE_ID
+    valueFrom:
+      secretKeyRef:
+        name: fido-owner-vault-secret
+        key: role-id
+        optional: false
+  - name: APPROLE_SECRET_ID
+    valueFrom:
+      secretKeyRef:
+        name: fido-owner-vault-secret
+        key: secret-id
+        optional: false
+  - name: DB_CONNECTION_RETRIES
+    value: "3"
+  - name: DB_MAX_SIZE
+    value: "80"
+  - name: SRV_FRU_PUBLIC_KEY
+    value: "/etc/fru/fru-public.key"
+  - name: SRV_FRU_PRIVATE_KEY
+    value: "/etc/fru/fru-private.key"
+  autoScaling:
+    enabled: false
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+
+graphql_resources:
+  limits:
+    cpu: 100m
+    memory: 200Mi
+  requests:
+    cpu: 5m
+    memory: 25Mi
+
+svc:
+  # Subchart values
+  name: fido-owner
+  resources:
+    limits:
+      cpu: 2
+      memory: 2048Mi
+    requests:
+      cpu: 10m
+      memory: 256Mi
+  security:
+    name: hzp-security-svc
+    netpolName: &onboardNetpolApp fido-onboarding-svc
+    podLabels:
+      hzp-app: *onboardNetpolApp # hzp-security-svc
+      hzp-role: eo-service
+      hzp.iam.webhook/active: "true"
+  replicaCount: 1
+  port: 8080
+  image:
+    name: fido-onboarding-svc
+    pullPolicy: Always
+    tag: latest
+  env:
+  - name: ApiUser
+    value: "apiUser"
+  - name: ApiUserPassword
+    valueFrom:
+      secretKeyRef:
+        name: fido-secret
+        key: api-password
+  - name: DB_HOST
+    valueFrom:
+      configMapKeyRef:
+        name: create-postgres-host-configmap
+        key: postgresHost
+  - name: DB_PORT
+    valueFrom:
+      configMapKeyRef:
+        name: create-postgres-host-configmap
+        key: postgresPort
+  - name: DB_USER
+    value: "hzp_fido_onboarding_svc"
+  - name: DB_PA
+    valueFrom:
+      secretKeyRef:
+        name: postgres-secret
+        key: hzp_fido_onboarding_svc-password
+  autoScaling:
+    enabled: false
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+
+test:
+  # Subchart values
+  testsuite: test-suites/smoke.xml
+  replicaCount: 1
+  image:
+    name: fido-onboarding-smoke-test
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    hzp-app: fido-onboarding-svc-regression
+    hzp-role: smoke-test
+  env:
+  - name: DATABASE_URL
+    valueFrom:
+      configMapKeyRef:
+        name: create-postgres-host-configmap
+        key: postgresUrl
+  - name: DATABASE_USERNAME
+    value: "test"
+  - name: DATABASE_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: postgres-secret
+        key: test-password
+  - name: FIDO_USERNAME
+    value: "apiUser"
+  - name: FIDO_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: fido-secret
+        key: api-password
+  cpu: 0.25
+  memory: 512Mi
+  postgresql:
+    service:
+      fullname: postgres
+      port: 5432
+  fidoOnboarding:
+    service:
+      fullname: hzp-security-svc
+      port: 80
+  fidoOwner:
+    service:
+      fullname: fido-owner
+      port: 80
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 612586
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    runid: 1
+    release: 1
+    suite: 1

@@ -1,0 +1,78 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "chart.fullname" . }}-portal
+  labels: &labels
+    app: portal
+    chart: {{ include "chart.chart" . }}
+    release: {{ include "selector.label.release.name" . }}
+    heritage: {{ .Release.Service }}
+    hzp-app: portal
+    hzp-role: mist-service
+    hzp.iam.webhook/active: '{{ .Values.global.nginx_gw.enabled }}'
+spec:
+  replicas: {{ .Values.deployment.portal.replicas | default "1" }}
+  selector:
+    matchLabels:
+      app: portal
+      release: {{ include "selector.label.release.name" . }}
+  template:
+    metadata:
+      annotations:
+        hzp.iam.webhook/authentication-enabled: "false"
+        hzp.iam.webhook/authorization-enabled: "false"
+      labels: *labels
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.deployment.portal $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.deployment.portal $ ) | trim | nindent 8 }}
+      containers:
+      - name: portal
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "portal" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          runAsUser: 1000
+          runAsGroup: 1000
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+        resources:
+          requests:
+            memory: {{ .Values.deployment.portal.resources.requests.memory | default "30Mi" }}
+            cpu: {{ .Values.deployment.portal.resources.requests.cpu | default "10m" }}
+          limits:
+            memory: {{ .Values.deployment.portal.resources.limits.memory | default "150Mi" }}
+            cpu: {{ .Values.deployment.portal.resources.limits.cpu | default "500m" }}
+        env:
+        - name: PRODUCT_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: product-config
+              key: PRODUCT_KEY
+        - name: PENDO_ACCOUNT_ID
+          value: "{{ .Values.deployment.portal.pendo.accountId }}"
+        - name: PENDO_API_KEY
+          value: "{{ .Values.deployment.portal.pendo.apiKey }}"
+        - name: PENDO_ENABLED
+          value: "{{ .Values.deployment.portal.pendo.enabled }}"
+        - name: DAP_PORTAL_URL
+          value: "{{ .Values.global.dsp.portal.url }}"
+        lifecycle:
+          postStart:
+            exec:
+              command:
+                - "/bin/sh"
+                - "-c"
+                - |
+                  feature_flag_file="/usr/share/nginx/html/portal/assets/featureFlags.json"
+                  if grep -q "PRODUCT" $feature_flag_file; then
+                      sed -i "s/\"PRODUCT\": \"[^\"]*\"/\"PRODUCT\": \"$PRODUCT_KEY\"/" $feature_flag_file
+                  else
+                      sed -i "1s/{/{\n  \"PRODUCT\": \"$PRODUCT_KEY\",/" $feature_flag_file
+                  fi
+          preStop:
+            exec:
+              # SIGTERM triggers a quick exit; gracefully terminate instead
+              command: ["/usr/sbin/nginx","-s","quit"]

@@ -1,0 +1,8 @@
+global:
+  eceFirmwareUpdateSvc:
+    deploy: true
+    smoketestEnabled: true
+  upgradeSvc:
+    deploy: true
+  inventorySvc:
+    deploy: true

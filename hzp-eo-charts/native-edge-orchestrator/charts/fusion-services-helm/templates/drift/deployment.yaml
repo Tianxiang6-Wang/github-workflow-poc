@@ -1,0 +1,163 @@
+{{- if .Values.drift.enabled -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: drift
+  name: {{ template "fusion-services.name" . }}-drift
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  replicas: {{ .Values.drift.replicas }}
+  selector:
+    matchLabels:
+      app: drift
+  template:
+    metadata:
+      labels:
+        app: drift
+      {{ with .Values.drift.podLabels }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      annotations:
+        {{- include "fusion-services.merge" ( list .Values.commonAnnotations .Values.drift.podAnnotations ) | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      {{- if .Values.rest_service.irsa_service_account }}
+      serviceAccountName: {{ .Values.rest_service.irsa_service_account }}
+      {{- end }}
+      securityContext:
+        runAsUser: {{ .Values.drift.podSecurityContext.runAsUser }}
+        runAsGroup: {{ .Values.drift.podSecurityContext.runAsGroup }}
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.drift $ )| trim | nindent 8 }}
+      tolerations: {{- include "fusion-services.tolerations" ( list .Values.drift $ ) | trim | nindent 8 }}
+      affinity: {{- include "fusion-services.affinity" ( list .Values.drift $ ) | trim | nindent 8 }}
+      initContainers:
+        - name: db-wait
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-restservice" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-restservice" ).pullPolicy }}
+          env:
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.drift "root" $) | nindent 12 }}
+            {{- include "fusion-services.restservice_keys" . | nindent 12 }}
+          command:
+            - /usr/bin/env
+            - -S
+            - bash
+            - -exuc
+            - |
+              python -m manager_rest.configure_manager --db-wait {{ .Values.drift.db.host | default .Values.db.host }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: "0.1"
+            limits:
+              memory: 512Mi
+              cpu: "1"
+      containers:
+        - name: drift-svc
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "drift-svc" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "drift-svc" ).pullPolicy }}
+          {{ $_ := set .Values "iamProxyEntry" "./main" }}
+          {{ tpl (toYaml .Values.global.iamProxy.commandDecorator) . | nindent 10 }}
+          env:
+            {{- if (.Values.drift.eventing).stream_url }}
+            - name: NATS_URL
+              value: {{ tpl .Values.drift.eventing.stream_url $ | quote}}
+            {{- else if (.Values.nats).enabled }}
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            {{- end }}
+            - name: FUSION_AUTH_PSK
+              valueFrom:
+                secretKeyRef:
+                  name: {{ template "fusion-services.name" . }}-auth-signing
+                  key: psk
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.drift "root" $) | nindent 12 }}
+            {{- include "fusion-services.eo_env_vars" . | nindent 12 }}
+            - name: LOG_LEVEL_MOUNT_DIR
+              value: {{ tpl .Values.drift.logging.configMountPath $ }}
+            {{- if (.Values.drift.logging).audit_logs_subject }}
+            - name: AUDIT_LOGS_SUBJECT
+              value: {{ tpl .Values.drift.logging.audit_logs_subject $ | quote }}
+            {{- end }}
+            - name: RESTSERVICE_ADDRESS
+              value: {{ .Values.entrypoint.name }}
+            - name: RESTSERVICE_PROTOCOL
+              value: {{ .Values.entrypoint.protocol }}
+            - name: SIDECAR_INJECTED
+              value: "{{ .Values.global.iamProxy.sidecarEnabled }}"
+            - name: RESTSERVICE_PORT
+              value: {{ .Values.entrypoint.port | quote }}
+            {{- if .Values.blueprint.enabled }}
+            - name: BLUEPRINT_HOST
+              value: {{ .Values.entrypoint.name }}
+            - name: BLUEPRINT_PORT
+              value: {{ .Values.entrypoint.port | quote }}
+            - name: BLUEPRINT_PROTOCOL
+              value: {{ .Values.entrypoint.protocol }}
+            {{- end }}
+            {{- range $envVar, $val := .Values.drift.env }}
+            - name: {{ $envVar }}
+              value: {{ tpl $val $ | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: logging
+              mountPath: {{ tpl .Values.drift.logging.configMountPath $ }}
+              readOnly: true
+          ports:
+            - containerPort: {{ .Values.drift.port }}
+          envFrom:
+            - configMapRef:
+                name: {{ template "fusion-services.name" . }}-drift-envvars
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsUser: {{ .Values.drift.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.drift.podSecurityContext.runAsGroup }}
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources: {{- toYaml .Values.drift.resources | nindent 12 }}
+          {{- if .Values.drift.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              port: {{ .Values.drift.port}}
+              path: /health
+            initialDelaySeconds: {{ .Values.drift.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.drift.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.drift.probes.liveness.timeoutSeconds }}
+            successThreshold: {{ .Values.drift.probes.liveness.successThreshold }}
+            failureThreshold: {{ .Values.drift.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.drift.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              port: {{ .Values.drift.port}}
+              path: /health
+            initialDelaySeconds: {{ .Values.drift.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.drift.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.drift.probes.readiness.timeoutSeconds }}
+            successThreshold: {{ .Values.drift.probes.readiness.successThreshold }}
+            failureThreshold: {{ .Values.drift.probes.readiness.failureThreshold }}
+          {{- end }}
+      restartPolicy: Always
+      {{- include "fusion-services.images.pullSecrets" . | nindent 6 }}
+      volumes:
+        - name: logging
+          configMap:
+            name: {{ include "fusion-loglevel-configmap.name" $ }}
+
+{{- end }}

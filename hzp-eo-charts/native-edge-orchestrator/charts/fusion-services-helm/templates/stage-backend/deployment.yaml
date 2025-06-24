@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: stage-backend
+  name: {{ template "fusion-services.name" . }}-stage-backend
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  replicas: {{ .Values.stage_backend.replicas }}
+  selector:
+    matchLabels:
+      app: stage-backend
+  template:
+    metadata:
+      labels:
+        app: stage-backend
+        fusion-name: cloudify-stage
+      {{ with .Values.stage_backend.podLabels }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      annotations:
+        {{- include "fusion-services.merge" ( list .Values.commonAnnotations .Values.stage_backend.podAnnotations ) | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.stage_backend $ )| trim | nindent 8 }}
+      tolerations: {{- include "fusion-services.tolerations" ( list .Values.stage_backend $ ) | trim | nindent 8 }}
+      affinity: {{- include "fusion-services.affinity" ( list .Values.stage_backend $ ) | trim | nindent 8 }}
+      containers:
+        - env:
+            - name: RESTSERVICE_ADDRESS
+              value: {{ .Values.entrypoint.name }}
+            - name: RESTSERVICE_PROTOCOL
+              value: {{ .Values.entrypoint.protocol }}
+            - name: RESTSERVICE_PORT
+              value: {{ .Values.entrypoint.port | quote }}
+            {{- include "fusion-services.postgres_env_vars" (dict "root" $) | nindent 12 }}
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-stage-backend" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-stage-backend" ).pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          name: stage-backend
+          ports:
+            - containerPort: {{ .Values.stage_backend.port }}
+          resources: {{- toYaml .Values.stage_backend.resources | nindent 12 }}
+          volumeMounts:
+            - mountPath: /etc/cloudify/ssl
+              name: ssl
+              readOnly: true
+          {{- if .Values.stage_backend.probes.liveness.enabled }}
+          livenessProbe:
+            httpGet:
+              port: {{ .Values.stage_backend.port }}
+              path: "/console/config/"
+            initialDelaySeconds: {{ .Values.stage_backend.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.stage_backend.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.stage_backend.probes.liveness.timeoutSeconds }}
+            successThreshold: {{ .Values.stage_backend.probes.liveness.successThreshold }}
+            failureThreshold: {{ .Values.stage_backend.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.stage_backend.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              port: {{ .Values.stage_backend.port }}
+              path: "/console/config/"
+            initialDelaySeconds: {{ .Values.stage_backend.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.stage_backend.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.stage_backend.probes.readiness.timeoutSeconds }}
+            successThreshold: {{ .Values.stage_backend.probes.readiness.successThreshold }}
+            failureThreshold: {{ .Values.stage_backend.probes.readiness.failureThreshold }}
+          {{- end }}
+      restartPolicy: Always
+      volumes:
+        - name: ssl
+          secret:
+            secretName: {{ template "fusion-services.name" . }}-ssl-certs
+            optional: false
+      {{- include "fusion-services.images.pullSecrets" . | nindent 6 }}

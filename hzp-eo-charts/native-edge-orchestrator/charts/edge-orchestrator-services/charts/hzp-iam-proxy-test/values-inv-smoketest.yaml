@@ -1,0 +1,4 @@
+global:
+  iamProxyTest:
+    deploy: true
+    smoketestEnabled: true

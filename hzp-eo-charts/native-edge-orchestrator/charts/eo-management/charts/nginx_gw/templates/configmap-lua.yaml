@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nginx-gw-lua-scripts
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+data:
+  # NOTE: tpl .. .AsConfig have a bug when file contains helm functions so we can't use Files.Glob directly
+  ingress_filter.lua: |-
+{{ ( tpl (.Files.Get "files/lua/ingress_filter.lua") . ) | indent 4 }}
+  maintenance_mode.lua: |-
+{{ ( tpl (.Files.Get "files/lua/maintenance_mode.lua") . ) | indent 4 }}

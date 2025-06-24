@@ -1,0 +1,94 @@
+{{- if or (.Values.global.regressionEnabled) (.Values.global.iamPolicy.smoketestEnabled) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: iam-policy-smoke-test
+spec:
+  template:
+    metadata:
+      name: iam-policy-smoke-test
+      labels:
+{{- tpl (toYaml .Values.test.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      containers:
+        - name: iam-policy-smoke-test-container
+          env:
+            - name: BASE_URL
+              value: "http://{{ .Values.test.iamPolicy.service.fullname }}.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: IAM_SVC_BASE_URL
+              value: "http://hzp-iam-svc.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: AUTH_BASE_URL
+              value: "https://nginx-gw.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: AUTH_URL
+              value: "https://nginx-gw.{{ .Release.Namespace }}.svc.cluster.local"
+            - name: CLIENT_ID
+              value: "test_user"
+            - name: CLIENT_SECRET
+              value: "test_user_secret"
+            - name: GRANT_TYPE
+              value: "client_credentials"
+            - name: REALM
+              value: {{ .Values.test.keycloak.realm }}
+            - name: KEYCLOAK_URL
+              value: {{ .Values.test.keycloak.url }}
+            - name: CLIENT_ID_2
+              value: {{ .Values.test.keycloak.clientId }}
+            - name: CREDENTIAL_USERNAME
+              value: {{ .Values.test.keycloak.credentialsUsername }}
+            - name: CREDENTIAL_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: keycloak-password
+            - name: RP_ENDPOINT
+              value: "{{ .Values.test.reportportal.rpendpoint }}"
+            - name: RP_API_KEY
+              value: "{{ .Values.test.reportportal.rpuuid }}"
+            - name: RP_MODE
+              value: default
+            - name: RP_PROJECT
+              value: HZP_EO_SERVICES
+            - name: RP_LAUNCH
+              value: "{{ .Values.test.iamPolicy.service.fullname }}"
+            - name: RP_ATTRIBUTES
+              value: "RELEASE_VERSION:{{ .Values.test.reportportal.release }};EO_IP:{{ .Values.test.reportportal.eourl }};EO_MANIFEST:{{ .Values.test.reportportal.manifest }};TEST_GROUP:{{ .Values.test.reportportal.suite }};RP_LAUNCH_KEY_ATTRIBUTE:{{ .Values.test.reportportal.runid }};;RELEASE_VERSION:{{ .Values.test.reportportal.release }};"
+            - name: DATABASE_URL
+              valueFrom: 
+                configMapKeyRef:
+                  name: create-postgres-host-configmap
+                  key: postgresUrl
+            - name: DATABASE_USERNAME
+              value: "test"
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: test-password
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.test.image.name ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          command: ['/bin/sh', '-c']
+          # Sleep before test to allow netpol and istio-proxy to take effect
+          # Sleep after the test is to enable pipeline to copy the test result when pod is running state
+          args:
+            - |
+              sleep 60; echo All dependent components are running. Start testing!;
+              java -jar tests.jar {{ .Values.test.testsuite }}; sleep 60;
+              if wget -q --post-data='' -S -O /dev/null http://127.0.0.1:15020/quitquitquit 2>/dev/null; then
+                  echo "Terminated istio-proxy."
+              fi
+      initContainers:
+        - name: init-iam-policy
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for hzp-iam-policy to become ready...'
+              until printf "." && nc -z -w 2 {{ .Values.test.iamPolicy.service.fullname }} {{ .Values.test.iamPolicy.service.port }}; do
+                  sleep 2;
+              done;
+              echo 'Hzp-IAM POLICY OK ✓'
+      restartPolicy: Never
+  {{- end }}

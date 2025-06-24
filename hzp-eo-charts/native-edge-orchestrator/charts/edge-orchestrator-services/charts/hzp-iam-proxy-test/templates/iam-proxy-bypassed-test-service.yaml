@@ -1,0 +1,21 @@
+{{- if or (.Values.global.regressionEnabled) (.Values.global.iamProxyTest.smoketestEnabled) }}
+{{- $test := .Values.test -}}
+apiVersion: v1
+kind: Deployment
+metadata: 
+  name: {{ $test.svc.bypassedName }}
+spec:
+  template:
+    spec:    
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.test $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.test $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.test $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.test.svc.image.name ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ $test.svc.image.pullPolicy }}
+          ports:
+            - containerPort: {{ $test.svc.port }}
+          env:
+            {{- toYaml $test.svc.env | nindent 12 }}
+  {{- end }}

@@ -1,0 +1,26 @@
+{{ $specConfig := .Values.containerSpecConfig }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $specConfig.name }}
+data:
+  ENABLE_BOOTSTRAP_DEFAULT: "false"
+  SERVICE_BOOTSTRAP_ENABLED: "true"
+  INJECT_SIDECAR_DEFAULT: "false"
+  ENABLE_SPIRE: "{{ .Values.spire.enabled }}"
+  SPIRE_SOCKET_HOST_PATH: "/run/spire/agent-sockets"
+  EXCLUDE_INBOUND_PORTS_LIST: "15022"
+  BUNDLE_LOAD_STRATEGY: "{{ .Values.proxyConfig.bundleStrategy }}"
+  SIDECAR_INCLUDE_INBOUND_PORTS: "*"
+  SIDECAR_INCLUDE_OUTBOUND_CIDR: "*"
+  EXCLUDE_OUTBOUND_CIDR_LIST: "{{ .Values.webhookSvc.config.excludeOutboundCIDRList }}"
+  AUTHENTICATION_ENABLED: "true"
+  AUTHORIZATION_ENABLED: "true"
+  DEFAULT_KEYS_PROVIDER_URL: "{{ .Values.global.dsp.portal.url }}"
+  MTLS_ENABLED: "{{ .Values.global.nginx_gw.enabled }}"
+  SIDECAR_CONTAINER_CONFIG: |
+    {{ include "iam.proxy.sidecar.spec" . | fromYaml | toJson }}
+  INIT_CONTAINER_CONFIG: |
+    {{ include "iam.proxy.initContainer.spec" . | fromYaml | toJson }}
+  BUNDLE_INIT_CONTAINER_CONFIG: |
+    {{ include "iam.proxy.bundleInitContainer.spec" . | fromYaml | toJson }}

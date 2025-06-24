@@ -1,0 +1,115 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  repository: isgedge.artifactory.cec.lab.emc.com/isgedge-docker-virtual/
+  project: hzp/
+  dockerSecretQA:
+    name:  &dockerSecretName docker-secret-qa # pragma: allowlist secret
+    dockerconfigjson:  # pragma: allowlist secret
+  imagePullSecretsQA:
+    - name: *dockerSecretName
+    - name: docker-secret
+  nginx_gw:
+    enabled: true
+  components:
+    - image: busybox
+      name: busybox
+      version: 1.37.0
+      project: ''
+      gitrepo: null
+    - image: hzp-qa-svc
+      name: qa-svc
+      version: 0.1.0.f7b6d63
+      project: hzp/
+      gitrepo: hzp-qa-svc
+      commithash: f7b6d63009a76f5de32b44c3929603da456a1208
+networkPoliciesQaEnabled: true
+# Subchart values
+svc:
+  name: &serviceName hzp-qa-svc
+  replicaCount: 1
+  port: 8080
+  image:
+    name: hzp-qa-svc
+    pullPolicy: Always
+    tag: latest
+  networkPolicyLabel:
+    app: hzp-qa-svc
+    role: eo-service
+  resources:
+    limits:
+      cpu: 2
+      memory: 3Gi
+    requests:
+      cpu: 5m
+      memory: 25Mi
+  env:
+    - name: ENABLE_PLAYGROUND
+      value: "false"
+    - name: APP_PORT
+      value: "8080"
+    - name: DB_HOST
+      value: "postgres"
+    - name: DB_PORT
+      value: "5432"
+    - name: DB_USER
+      value: "postgres"
+    - name: DB_PA
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: hzpadmin-password
+    - name: IAM_CLIENT_NAME
+      valueFrom:
+        secretKeyRef:
+          name: keycloak-secret
+          key: iam-client-name
+    - name: IAM_CLIENT_PWD
+      valueFrom:
+        secretKeyRef:
+          name: keycloak-secret
+          key: iam-client-pwd
+    - name: BOOTSTRAP_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: bootstrap-client-secret
+          key: CLIENT_ID
+    - name: BOOTSTRAP_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: bootstrap-client-secret
+          key: CLIENT_SECRET
+    - name: BOOTSTRAP_ORG_ID
+      valueFrom:
+        secretKeyRef:
+          name: bootstrap-client-secret
+          key: CLIENT_ORG_ID
+    - name: KEYCLOAK_URL
+      value: "http://keycloak-http:80"
+    - name: MIST_EE_URL
+      value: "https://dsp-portal-nginx-tls.dapp.svc.cluster.local"
+    - name: MIST_API_URL
+      value: "https://nginx-gw"
+    - name: MANUFACTURING_SVC_USER
+      value: "apiUser"      
+    - name: MANUFACTURING_SVC_PWD
+      valueFrom:
+        secretKeyRef:
+          name: fido-secret
+          key: api-password
+  dependency:
+    eoinitialization:
+      service:
+        fullname: hzp-eo-initialization-svc
+        port: 80
+    keycloak:
+      service:
+        fullname: keycloak-http
+        port: 80
+    mist:
+      service:
+        fullname: "nginx-gw"
+        port: 443
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080

@@ -1,0 +1,97 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  # Credentials for Artifactory
+  eceAgentTest:
+    env:
+      sshRemoteHost:
+      serviceTag:
+    smoketestEnabled: false
+components:
+  ece-agent-smoke-test:
+    image: ece-agent-smoke-test
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+#ece-agent-tests subchart values
+test:
+  # Subchart values
+  testsuite: test-suites/smoke.xml
+  eoEceRegression: true
+  replicaCount: 1
+  image:
+    name: ece-agent-smoke-test
+    pullPolicy: Always
+    tag: latest
+  jobLabels:
+    hzp-app: smoke-test
+    hzp-role: smoke-test
+    hzp.iam.webhook/active: "false"
+  env:
+    - name: INVENTORY_URL
+      value: "http://hzp-inventory-svc.hzp.svc.cluster.local"
+    - name: MESSAGING_URL
+      value: "nats://jetstream.hzp.svc.cluster.local"
+    - name: MESSAGING_STREAM_NAME
+      value: "K-ORDERS"
+    - name: DATABASE_URL
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresUrl
+    - name: DATABASE_USERNAME
+      value: "test"
+    - name: DATABASE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: test-password
+    - name: SSH_USER_NAME
+      value: "eceuser"
+    - name: SSH_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: ssh-secret
+          key: ssh-password
+  cpu: 0.25
+  memory: 512Mi
+  postgresql:
+    service:
+      env: 
+      - name: DB_HOST
+        valueFrom:
+          configMapKeyRef:
+            name: create-postgres-host-configmap
+            key: postgresHost
+      - name: DB_PORT
+        valueFrom: 
+          configMapKeyRef:
+            name: create-postgres-host-configmap
+            key: postgresPort
+
+  jetstream:
+    service:
+      fullname: jetstream
+      port: 4222
+
+  inventory:
+    service:
+      fullname: hzp-inventory-svc
+      port: 80
+
+  eventsvc:
+    service:
+      fullname: hzp-events-svc
+      port: 80
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    runid: 1
+    release: 1
+    suite: 1

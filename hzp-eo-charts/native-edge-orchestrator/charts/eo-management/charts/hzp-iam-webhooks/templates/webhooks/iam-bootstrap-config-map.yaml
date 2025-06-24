@@ -1,0 +1,9 @@
+{{ $config := .Values.bootstrap.configmap }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ $config.name }}
+data:
+  ORG_ID: "{{ .Values.global.dsp.portal.orgId }}"
+  ORC_ID: "{{ .Values.global.dsp.portal.orchId }}"
+  PORTAL_URL: "{{ .Values.global.dsp.portal.url }}"

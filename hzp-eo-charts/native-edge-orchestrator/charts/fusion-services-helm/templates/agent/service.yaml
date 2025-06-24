@@ -1,0 +1,14 @@
+{{- if .Values.agent.enabled -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "fusion-services.name" . }}-agent
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  ports:
+    - port: {{ .Values.agent.port }}
+  selector:
+    app: agent
+  type: ClusterIP
+{{- end }}

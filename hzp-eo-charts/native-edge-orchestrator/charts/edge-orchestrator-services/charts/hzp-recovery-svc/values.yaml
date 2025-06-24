@@ -1,0 +1,91 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  vault:
+    host: "http://edgevault.{{ .Release.Namespace }}.svc.cluster.local"
+    port: "8200"
+  recoverySvc:
+    smoketestEnabled: false
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  instrumentation:
+    enabled: false
+components:
+  recovery-svc:
+    image: recovery-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  kubectl:
+    image: kubectl
+    version: 1.30.5
+    project: bitnami/
+# Subchart values
+svc:
+  name: &serviceName hzp-recovery-svc
+  replicaCount: 1
+  port: 8080
+  rbac:
+    namePrefix: recovery-svc
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: "{{ .Values.global.nginx_gw.enabled | quote }}"
+  image:
+    name: recovery-svc
+    pullPolicy: Always
+    tag: latest
+  resources:
+    limits:
+      cpu: 100m
+      memory: 200Mi
+    requests:
+      cpu: 5m
+      memory: 25Mi
+  env:
+    - name: ENABLE_PLAYGROUND
+      value: "false"
+    - name: APP_PORT
+      value: "8080"
+    - name: APPROLE_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-recovery-svc-vault-secret
+          key: role-id
+          optional: false
+    - name: APPROLE_SECRET_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-recovery-svc-vault-secret
+          key: secret-id
+          optional: false
+  autoScaling:
+    enabled: false
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60

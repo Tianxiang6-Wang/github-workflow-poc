@@ -1,0 +1,267 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  vault:
+    host: "http://edgevault.{{ .Release.Namespace }}.svc.cluster.local"
+    port: &vaultPort "8200"
+  eoInitializationSvc:
+    smoketestEnabled: false
+    dynamicLicensing:
+      directUrl: "https://apigtwb2cnp.us.dell.com/TEST/ge2/DynamicLicensing/"
+  ingress:
+    fqdn: localhost
+  eoName: "NativeEdge Orchestrator"
+  istio:
+    deploy: true
+  nginx_gw:
+    enabled: false
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  instrumentation:
+    enabled: false
+  dsp:
+    portal:
+      namespace: "dapp"
+      orgId: ""
+      orchId: ""
+  dl:
+    eseAuthPath: "/auth/oauth/v2/token"
+    entitlementListPath: "/ge2/DynamicLicensing/api/v1/clip/entitlement"
+    entitlementRegistrationPath: "/ge2/DynamicLicensing/api/v1/clip/product/registration"
+    entitlementReductionPath: "/ge2/DynamicLicensing/api/v1/clip/product/registration/reduction"
+    entitlementDeregistrationPath: "/ge2/DynamicLicensing/api/v1/clip/product/registration/deregister"
+    entitlementUpgradePath: "/ge2/DynamicLicensing/api/v1/clip/product/registration/upgrade"
+    entitlementConsumptionPath: "/ge2/DynamicLicensing/api/v1/clip/product/consumption"
+components:
+  eo-initialization-svc:
+    image: eo-initialization-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  eo-initialization-smoke-test:
+    image: eo-initialization-smoke-test
+    version: latest
+    project: hzp/
+# Subchart values
+svc:
+  replicaCount: 1
+  port: 8080
+  name: &serviceName hzp-eo-initialization-svc
+  image:
+    name: eo-initialization-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    app.kubernetes.io/app: *serviceName
+    hzp.iam.webhook/active: "true"
+  job:
+    podLabels:
+      hzp-app: *serviceName
+      hzp-role: eo-service
+  resources:
+    limits:
+      cpu: 50m
+      memory: 100Mi
+    requests:
+      cpu: 5m
+      memory: 25Mi
+  env:
+    - name: VAULT_PORT
+      value: *vaultPort
+    - name: KV_APPROLE_PATH
+      value: "eo-approle"
+    - name: KV_ENGINE_PATH
+      value: "kv/eo/hzp-eo-initialization-svc"
+    - name: KV_APPROLE_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-eo-initialization-svc-vault-secret
+          key: role-id
+          optional: false
+    - name: KV_APPROLE_SECRET_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-eo-initialization-svc-vault-secret
+          key: secret-id
+          optional: false
+    - name: APPROLE_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-eo-initialization-svc-vault-secret
+          key: role-id
+          optional: false
+    - name: APPROLE_SECRET_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-eo-initialization-svc-vault-secret
+          key: secret-id
+          optional: false
+    - name: DB_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresHost
+    - name: DB_PORT
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresPort
+    - name: DB_USER
+      value: "hzp_eo_initialization_svc"
+    - name: DB_PA
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: hzp_eo_initialization_svc-password
+    - name: PRODUCT_SERVER_ENDPOINT
+      value: /api/v1/product
+    - name: FIDO_ONBOARDING_SERVER_ENDPOINT
+      value: /api/v1/onboarding
+    - name: FRU_CRU_SERVER_ENDPOINT
+      value: /api/v1/frucru
+    - name: ACCESS_TOKEN_EXPIRY_THRESHOLD
+      value: "7"
+    - name: EO_LICENSE_EXPIRY_THRESHOLD
+      value: "90"
+    - name: FEATURE_CODE_EO_LICENSE
+      value: "EDGE_LOC_ORCH,DAP_LOC_ORCH,DAPO_LOC_ORCH"
+    - name: FEATURE_CODE_PLATFORM_ACCESS
+      value: "EDGE_HZP_PLTF_ACCESS,EDGE_HZP_PLTF_ACCESS_ADV"
+    - name: LICENSE_DATE_FORMAT
+      value: "02-Jan-2006"
+    - name: LICENSE_ACTIVATION_DATE_FORMAT
+      value: "Jan 02, 2006 03:04:05 PM"
+    - name: IS_SIGN_VERIFICATION_ENABLED
+      value: "true"
+# DAP Related Environment Variables
+    - name: SRS_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: srs-client-id
+    - name: SRS_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: srs-client-secret
+    - name: DL_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: dl-client-id
+    - name: DL_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: dl-client-secret
+    - name: DELL_DIGITAL_TOKEN_URL
+      valueFrom:
+        secretKeyRef:
+          name: product-secret
+          key: dd-token-url
+  autoScaling:
+    enabled: false
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+
+  dependency:
+    fidoOnboarding:
+      service:
+        fullname: hzp-security-svc
+        port: 80
+    fidoOwner:
+      service:
+        fullname: fido-owner
+        port: 80
+    vault:
+      service:
+        fullname: edgevault
+        port: 8200
+test:
+  # Subchart values
+  testsuite: test-suites/smoke.xml
+  replicaCount: 1
+  image:
+    name: eo-initialization-smoke-test
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    hzp-app: hzp-eo-initialization-svc-regression
+    hzp-role: smoke-test
+  env:
+    - name: DATABASE_URL
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresUrl
+    - name: DATABASE_USERNAME
+      value: "test"
+    - name: DATABASE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: test-password
+    - name: VAULT_ROOT_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: vault-secret
+          key: ROOT_TOKEN
+    - name: FIDO_USERNAME
+      value: "apiUser"
+    - name: FIDO_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: fido-secret
+          key: api-password
+  cpu: 0.25
+  memory: 512Mi
+  postgresql:
+    service:
+      fullname: postgres
+      port: 5432
+  initialization:
+    service:
+      fullname: *serviceName
+      port: 80
+  rbac:
+    namePrefix: eo-initialization-svc-smoke-test
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 622783
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    runid: 1
+    release: 1
+    suite: 1

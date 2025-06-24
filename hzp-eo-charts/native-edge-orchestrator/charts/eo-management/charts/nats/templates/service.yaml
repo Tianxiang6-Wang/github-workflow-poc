@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: jetstream
+  labels:
+    app: nats-jetstream
+    hzp-app: nats-jetstream
+    hzp-role: nats
+spec:
+  type: ClusterIP
+  ports:
+    - name: tcp-client
+      port: 4222
+      protocol: TCP
+      targetPort: tcp-client
+    - name: websocket
+      port: 8080
+    - name: monitoring
+      port: 8222
+  selector:
+    app: nats-jetstream
+  sessionAffinity: None

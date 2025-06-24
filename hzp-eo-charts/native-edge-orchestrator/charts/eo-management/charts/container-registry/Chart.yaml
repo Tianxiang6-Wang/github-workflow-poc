@@ -1,0 +1,9 @@
+annotations:
+  containerImages: |
+    - registry
+apiVersion: v1
+appVersion: 3.0.0-rc.3
+description: Distribution implementation for storing and distributing of container
+  images and artifacts
+name: container-registry
+version: 3.0.0-rc.3

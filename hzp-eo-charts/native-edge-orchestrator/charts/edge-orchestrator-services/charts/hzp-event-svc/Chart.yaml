@@ -1,0 +1,12 @@
+annotations:
+  containerImages: |
+    - event-svc
+    - busybox
+    - common-locales-bundle
+    - event-smoke-test
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for Events service
+name: hzp-event-svc
+type: application
+version: 0.1.0

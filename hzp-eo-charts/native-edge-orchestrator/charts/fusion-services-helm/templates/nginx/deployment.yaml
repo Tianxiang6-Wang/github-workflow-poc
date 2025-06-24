@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: nginx
+  name: {{ template "fusion-services.name" . }}-nginx
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  replicas: {{ .Values.nginx.replicas }}
+  selector:
+    matchLabels:
+      app: nginx
+  template:
+    metadata:
+      labels:
+        app: nginx
+        fusion-name: nginx
+      {{ with .Values.nginx.podLabels }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      annotations:
+        {{- include "fusion-services.merge" ( list .Values.commonAnnotations .Values.nginx.podAnnotations ) | nindent 8 }}
+    spec:
+      enableServiceLinks: false
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: false # NOTE: nginx image requires root
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.nginx $ )| trim | nindent 8 }}
+      tolerations: {{- include "fusion-services.tolerations" ( list .Values.nginx $ ) | trim | nindent 8 }}
+      affinity: {{- include "fusion-services.affinity" ( list .Values.nginx $ ) | trim | nindent 8 }}
+      containers:
+        - name: nginx
+          image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-nginx" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-nginx" ).pullPolicy }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+              add:
+                - CHOWN
+                - NET_BIND_SERVICE
+                - SETGID
+                - SETUID
+          
+          ports:
+            - containerPort: {{ .Values.nginx.http_port }}
+          resources: {{- toYaml .Values.nginx.resources | nindent 12 }}
+          volumeMounts:
+            - mountPath: /etc/nginx/nginx.conf
+              name: nginx-master-config
+              subPath: nginx.conf
+            - mountPath: /etc/nginx/templates
+              name: nginx-templates
+          envFrom:
+            - configMapRef:
+                name: {{ template "fusion-services.name" . }}-nginx-envvars
+          {{- if .Values.nginx.probes.liveness.enabled }}
+          livenessProbe:
+            tcpSocket:
+              port: {{ .Values.nginx.http_port}}
+            initialDelaySeconds: {{ .Values.nginx.probes.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.nginx.probes.liveness.periodSeconds }}
+            timeoutSeconds: {{ .Values.nginx.probes.liveness.timeoutSeconds }}
+            successThreshold: {{ .Values.nginx.probes.liveness.successThreshold }}
+            failureThreshold: {{ .Values.nginx.probes.liveness.failureThreshold }}
+          {{- end }}
+          {{- if .Values.nginx.probes.readiness.enabled }}
+          readinessProbe:
+            httpGet:
+              port: {{ .Values.nginx.http_port}}
+              path: "/.healthcheck"
+            initialDelaySeconds: {{ .Values.nginx.probes.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.nginx.probes.readiness.periodSeconds }}
+            timeoutSeconds: {{ .Values.nginx.probes.readiness.timeoutSeconds }}
+            successThreshold: {{ .Values.nginx.probes.readiness.successThreshold }}
+            failureThreshold: {{ .Values.nginx.probes.readiness.failureThreshold }}
+          {{- end }}
+      restartPolicy: Always
+      volumes:
+        - name: nginx-master-config
+          configMap:
+            name: {{ template "fusion-services.name" . }}-nginx-master-config
+        - name: nginx-templates
+          configMap:
+            name: {{ template "fusion-services.name" . }}-nginx-templates
+      {{- include "fusion-services.images.pullSecrets" . | nindent 6 }}

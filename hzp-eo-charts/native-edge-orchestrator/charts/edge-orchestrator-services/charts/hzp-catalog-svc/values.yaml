@@ -1,0 +1,290 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  archiva:
+    pvc:
+      resources:
+        storage: 200Gi
+  seaweedfs:
+    enabled: true
+  s3:
+    url: http://eo-management-seaweedfs-s3.{{ .Release.Namespace }}.svc.cluster.local:8333
+    region: us-east-1
+    bucketPrefix: ""
+    serviceAccountAnnotations: {}  # Required to link service account to AWS role.
+    credentials:
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: eo-management-seaweedfs-s3-secret
+            key: AWS_ACCESS_KEY_ID
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: eo-management-seaweedfs-s3-secret
+            key: AWS_SECRET_ACCESS_KEY
+  containerRegistry:
+    url: http://eo-management-container-registry.{{ .Release.Namespace }}.svc.cluster.local:5000
+  ingress:
+    fqdn: localhost
+  eoName: "NativeEdge Orchestrator"
+  catalogSvc:
+    smoketestEnabled: false
+  catalog:
+    auth:
+      dellDigitalURL: ""
+      dellDigitalAppID: ""
+      dellDigitalAppName: ""
+      dellDigitalTokenURL: ""
+      dellDigitalClientID: ""
+      dellDigitalClientSecret: ""
+      dellDigitalMode: "PROD"
+    public:
+      enabled: true # indicates if public catalog is integrated.
+      portal:
+        baseURL: ""
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  instrumentation:
+    enabled: false
+components:
+  catalog-svc:
+    image: catalog-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  hzp-host-configuration-exe:
+    image: hzp-host-configuration-exe
+    version: latest
+    project: hzp/
+  hzp-host-configuration-exe-staging:
+    image: hzp-host-configuration-exe-staging
+    version: latest
+    project: hzp/
+  hzp-ece-factory-os:
+    image: hzp-ece-factory-os
+    version: latest
+    project: hzp/
+  hzp-ece-factory-reset:
+    image: hzp-ece-factory-reset
+    version: latest
+    project: hzp/
+  catalog-smoke-test:
+    image: catalog-smoke-test
+    version: latest
+    project: hzp/
+# Subchart values
+svc:
+  replicaCount: 1
+  port: 8080
+  name: &serviceName hzp-catalog-svc
+  image:
+    name: catalog-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: &netPolRole eo-service
+    hzp.iam.webhook/active: "true"
+    hzp.iam.webhook/bootstrap: "true"
+  podAnnotations:
+    checksum/config: '{{ include (print $.Template.BasePath "/init.yaml") . | sha256sum }}'
+    hzp.iam.webhook/resources-limits-memory: "2500Mi"
+    hzp.iam.webhook/exclude-outbound-ports: "443"
+  resources:
+    limits:
+      cpu: 1500m
+      memory: 1000Mi
+    requests:
+      cpu: 5m
+      memory: 100Mi
+  env:
+    - name: ENABLE_PLAYGROUND
+      value: "false"
+    - name: APP_PORT
+      value: "8080"
+    - name: DB_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresHost
+    - name: DB_PORT
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresPort
+    - name: DB_USER
+      value: "hzp_catalog_svc"
+    - name: DB_PA
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: hzp_catalog_svc-password
+    - name: CIPHER_KEY
+      valueFrom:
+        secretKeyRef:
+          name: catalog-secret
+          key: cipher-key
+    - name: ENABLE_DEFAULT_ARTIFACT_AUTO_ASSOC
+      value: "false"
+    - name: UPLOAD_SIZE_LIMIT
+      value: "100Gi"
+    - name: FILE_STORAGE_BUFFER
+      value: "5G"
+    - name: WORKER_POOL_SIZE
+      value: "10"
+    - name: APPROLE_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-catalog-svc-vault-secret
+          key: role-id
+    - name: APPROLE_SECRET_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-catalog-svc-vault-secret
+          key: secret-id
+    - name: APPROLE_ID_PATH
+      value: eo-approle
+    - name: KV_ENGINE_PATH
+      value: kv/eo/hzp-catalog-svc
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  autoScaling:
+    enabled: true
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 4000 # (5mi from catalog + 10mi from istio-proxy) * 4000% = 600mi
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 15
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 15
+
+hostosUpgrade:
+  jobAnnotations:
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-weight": "11"
+    "helm.sh/hook-delete-policy": before-hook-creation
+
+hostosInit:
+  jobAnnotations:
+    "helm.sh/hook": post-install
+    "helm.sh/hook-weight": "11"
+    "helm.sh/hook-delete-policy": before-hook-creation
+  image:
+    name: hzp-host-configuration-exe
+    pullPolicy: Always
+    tag: latest
+
+bootosInit:
+  jobAnnotations:
+  image:
+    name: hzp-bootos-executable-exe-staging
+    pullPolicy: Always
+    tag: latest
+
+factoryosInit:
+  image:
+    name: hzp-ece-factory-os
+    pullPolicy: Always
+    tag: latest
+
+artifactCleanup:
+  image:
+    name: hzp-catalog-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: *netPolRole
+    hzp.iam.webhook/active: "false"
+    sidecar.istio.io/inject: "true"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 500Mi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+
+factoryresetInit:
+  image:
+    name: hzp-ece-factory-reset
+    pullPolicy: Always
+    tag: latest
+job:
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: *netPolRole
+    hzp.iam.webhook/active: "false"
+    sidecar.istio.io/inject: "false"
+  resources:
+    limits:
+      cpu: 1000m
+      memory: 500Mi
+    requests:
+      cpu: 100m
+      memory: 100Mi
+
+archiva:
+  pvc:
+    name: pvc-archiva
+
+public_catalog:
+  brand: ne
+
+test:
+  # Subchart values
+  podLabels:
+    hzp-app: hzp-catalog-svc-regression
+    hzp-role: smoke-test
+    hzp.iam.webhook/active: "false"
+  testsuite: test-suites/smoke.xml
+  replicaCount: 1
+  image:
+    name: catalog-smoke-test
+    pullPolicy: Always
+    tag: latest
+  cpu: 0.25
+  memory: 512Mi
+  postgresql:
+    service:
+      fullname: postgres
+      port: 5432
+  catalog:
+    service:
+      fullname: *serviceName
+      port: 80
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 578520
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    runid: 1
+    release: 1
+    suite: 1

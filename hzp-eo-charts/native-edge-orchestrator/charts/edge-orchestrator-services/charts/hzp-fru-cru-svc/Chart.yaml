@@ -1,0 +1,13 @@
+annotations:
+  containerImages: |
+    - fru-cru-svc
+    - busybox
+    - hzp-util
+    - fru-cru-smoke-test
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for hzp-fru-cru-svc, a proxy service to hzp-manufacturer-svc
+  API to initiate FRU DI and VMK Backup and restoration
+name: hzp-fru-cru-svc
+type: application
+version: 0.1.0

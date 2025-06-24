@@ -1,0 +1,51 @@
+global:
+  k8s:
+    distro: k3s
+  imagePullSecrets:
+    - &dockerSecretName docker-secret
+  storageClass:
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+components:
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  hzp-util:
+    image: hzp-util
+    version: 0.1.3
+    project: hzp/
+  nats:
+    image: nats
+    version: 2.10.25
+    project: ''
+nats:
+  jetStream:
+    domain: "eo_hub"
+    pvc:
+      resources:
+        # Should be larger than the nats.jetStream.maxStorage.
+        storage: "12Gi"
+    service:
+      fullname: jetstream
+      port: 4222
+    maxMemory: "8589934592"
+    maxStorage: "12884901888"
+  job:
+    createStream:
+      enabled: true
+      kOrderEnabled: true
+      podAnnotations:
+      podLabels:
+        hzp-app: "nats-create-stream-job"
+        hzp-role: "eo-service"
+      pullPolicy: IfNotPresent
+      # max memory for each stream. Total memory should be less than nats.jetStream.maxMemory 
+      maxMemory:
+        kOrders: "1GiB"
+        hzp: "5GiB"
+        oxy: "2GiB"
+        metrics: "2GiB"
+      # retention for all streams
+      retention: "3d"

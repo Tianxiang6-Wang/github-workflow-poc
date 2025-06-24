@@ -1,0 +1,24 @@
+{{- $oldPvc := lookup "v1" "PersistentVolumeClaim" .Release.Namespace "data-hzp-seaweedfs-master-0" }}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data-hzp-seaweedfs-master-0
+  namespace: {{ .Release.Namespace }}
+  {{- with .Values.master.data.annotations }}
+  annotations:
+    {{- toYaml . | nindent 10 }}
+  {{- end }}
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+{{- if $oldPvc }}
+      storage: {{ $oldPvc.spec.resources.requests.storage }}
+  storageClassName: {{ $oldPvc.spec.storageClassName }}
+{{- else }}
+      storage: {{ .Values.master.data.size }}
+  storageClassName: {{ .Values.global.storageClass }}
+{{- end }}
+  volumeMode: Filesystem

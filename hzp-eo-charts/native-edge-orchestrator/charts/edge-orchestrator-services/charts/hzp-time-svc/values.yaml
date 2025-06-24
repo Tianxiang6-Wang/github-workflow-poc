@@ -1,0 +1,100 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  timeSvc:
+    smoketestEnabled: false
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  instrumentation:
+    enabled: false
+components:
+  time-svc:
+    image: time-svc
+    version: latest
+    project: hzp/
+  time-smoke-test:
+    image: time-smoke-test
+    version: latest
+    project: hzp/
+# Subchart values
+svc:
+  name: &serviceName hzp-time-svc
+  replicaCount: 1
+  port: 8080
+  image:
+    name: time-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: "{{ .Values.global.nginx_gw.enabled | quote }}"
+  resources:
+    limits:
+      cpu: 100m
+      memory: 200Mi
+    requests:
+      cpu: 5m
+      memory: 25Mi
+  env:
+    - name: ENABLE_TIME_SERVER
+      value: "true"
+    - name: APP_PORT
+      value: "8080"
+  autoScaling:
+    enabled: false
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+
+test:
+  # Subchart values
+  podLabels:
+    hzp-app: hzp-time-svc-regression
+    hzp-role: smoke-test
+    hzp.iam.webhook/active: "false"
+  testsuite: test-suites/smoke.xml 
+  replicaCount: 1
+  image:
+    name: time-smoke-test
+    pullPolicy: Always
+    tag: latest
+  cpu: 0.25
+  memory: 512Mi
+  service:
+    fullname: *serviceName
+    port: 80
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 614523
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    runid: 1
+    release: 1
+    suite: 1
+

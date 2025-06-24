@@ -1,0 +1,93 @@
+{{- if or (.Values.global.regressionEnabled) (.Values.global.oeTemplateMgr.smoketestEnabled) }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: oe-template-mgr-smoke-test
+spec:
+  template:
+    metadata:
+      name: oe-template-mgr-smoke-test
+      labels:
+{{- tpl (toYaml .Values.test.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+      - name: oe-template-mgr-smoke-test-container
+        env:
+          - name: BASE_URL
+            value: "http://{{ .Values.test.oetemplate.service.fullname }}.{{ .Release.Namespace }}.svc.cluster.local"
+          - name: INVENTORY_SVC_BASE_URL
+            value: "http://hzp-inventory-svc.{{ .Release.Namespace }}.svc.cluster.local"
+          - name: RP_ENDPOINT
+            value: "{{ .Values.test.reportportal.rpendpoint }}"
+          - name: RP_API_KEY
+            value: "{{ .Values.test.reportportal.rpuuid }}"
+          - name: RP_MODE
+            value: default
+          - name: RP_PROJECT
+            value: HZP_EO_SERVICES
+          - name: RP_LAUNCH
+            value: "{{ .Values.test.oetemplate.service.fullname }}"
+          - name: RP_ATTRIBUTES
+            value: "RELEASE_VERSION:{{ .Values.test.reportportal.release }};EO_IP:{{ .Values.test.reportportal.eourl }};EO_MANIFEST:{{ .Values.test.reportportal.manifest }};TEST_GROUP:{{ .Values.test.reportportal.suite }};RP_LAUNCH_KEY_ATTRIBUTE:{{ .Values.test.reportportal.runid }};;RELEASE_VERSION:{{ .Values.test.reportportal.release }};"
+          {{- toYaml .Values.test.env | nindent 10 }}
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.test.image.name ) "repo" .Values.global.repository) }}
+        imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+        command: ['/bin/sh', '-c']
+        # Sleep before test to allow netpol and istio-proxy to take effect
+        # Sleep after the test is to enable pipeline to copy the test result when pod is running state
+        args:
+          - |
+            sleep 60; echo All dependent components are running. Start testing!;
+            java -jar tests.jar {{ .Values.test.testsuite }}; sleep 60;
+            if wget -q --post-data='' -S -O /dev/null http://127.0.0.1:15020/quitquitquit 2>/dev/null; then
+                echo "Terminated istio-proxy."
+            fi
+      initContainers:
+      - name: init-postgres
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for postgres to become ready...'
+
+            until printf "." && nc -z -w 2 {{ .Values.test.postgresql.service.fullname }} {{ .Values.test.postgresql.service.port }}; do
+                sleep 2;
+            done;
+
+            echo 'PostgreSQL OK ✓'
+      - name: init-inventory
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for hzp-inventory to become ready...'
+
+            until printf "." && nc -z -w 2 {{ .Values.test.inventory.service.fullname }} {{ .Values.test.inventory.service.port }}; do
+                sleep 2;
+            done;
+
+            echo 'Hzp-inventory OK ✓'
+      - name: init-oe-template-mgr
+        image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
+        imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+        command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for hzp-oe-template-mgr service to become ready...'
+
+            until printf "." && nc -z -w 2 {{ .Values.test.oetemplate.service.fullname }} {{ .Values.test.oetemplate.service.port }}; do
+                sleep 2;
+            done;
+
+            echo 'Hzp-oe-template-mgr OK ✓'
+      restartPolicy: Never
+{{- end }}    

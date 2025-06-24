@@ -1,0 +1,79 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ template "fileserver.name" . }}
+  labels:
+    app.kubernetes.io/app: {{ template "fileserver.name" . }}
+    app.kubernetes.io/instance: {{ template "fileserver.name" . }}-instance
+    helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+    app.kubernetes.io/managed-by: helm
+{{- if .Values.deployment.annotations }}
+  annotations:
+{{ toYaml .Values.deployment.annotations | indent 4 }}
+{{- end }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/app: {{ template "fileserver.name" . }}
+      helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+      app.kubernetes.io/instance: {{ template "fileserver.name" . }}-instance
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/app:  {{ template "fileserver.name" . }}
+        helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}
+        app.kubernetes.io/instance: {{ template "fileserver.name" . }}-instance
+        hzp.iam.webhook/active: {{ .Values.global.nginx_gw.enabled | quote }}
+        {{- with .Values.podLabels }}
+        {{ toYaml . | nindent 8 }}
+        {{- end }}
+      annotations:
+        {{- with .Values.podAnnotations }}
+        {{ toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext: {}
+      {{- with .Values.initContainers }}
+      initContainers:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      restartPolicy: {{ default .Values.global.restartPolicy .Values.front.restartPolicy }}
+      containers:
+        - name: nginx
+          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "nginx-lua" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.containerPort }}
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.containerPort }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: {{ .Values.containerPort }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          envFrom:
+            - configMapRef:
+                name: {{ template "fileserver.name" . }}-envvars
+          env:
+            - name: FUSION_AUTH
+              valueFrom:
+                secretKeyRef:
+                  name:  '{{ template "fileserver.name" . }}-secret'
+                  key: FUSION_AUTH
+          volumeMounts: {{ include "controller.volumeMounts" . | nindent 12 }}
+      {{- if .Values.front.nodeSelector }}
+      nodeSelector:
+        {{ tpl .Values.front.nodeSelector . | indent 8 | trim }}
+      {{- end }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      {{- if .Values.front.tolerations }}
+      tolerations:
+        {{ tpl .Values.front.tolerations . | nindent 8 | trim }}
+      {{- end }}
+      volumes: {{ include "controller.volumes" . | nindent 8 }}

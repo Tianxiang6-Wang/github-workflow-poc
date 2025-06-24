@@ -1,0 +1,22 @@
+{{- if .Values.rest_service.enableNetworkPolicy -}}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ template "fusion-services.name" . }}-restservice-ingress-policy
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app: rest-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: nginx
+      ports:
+        - protocol: TCP
+          port: {{ .Values.rest_service.port }}
+{{- end }}

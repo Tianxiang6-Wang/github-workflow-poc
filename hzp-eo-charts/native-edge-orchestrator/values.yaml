@@ -1,0 +1,813 @@
+global:
+  is-saas-env: false
+  staticOnPremOrgId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+  k8s:
+    distro: k3s
+  imagePullSecrets:
+    - docker-secret
+  repository: isgedge.artifactory.cec.lab.emc.com/isgedge-docker-virtual/
+  image:
+    registry: isgedge.artifactory.cec.lab.emc.com/isgedge-docker-virtual
+  imageRegistry: isgedge.artifactory.cec.lab.emc.com/isgedge-docker-virtual
+  enablePrestoToStellaMigrations: true
+  clusterResourcesPrefix: ""
+  pgAdmin:
+    deploy: true
+  eceSimulator:
+    deploy: true
+  natsBox:
+    deploy: true
+  iamProxyTest:
+    deploy: true
+  smokeTest:
+    deploy: true
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  flagManager:
+    mode: "REMOTE"
+    baseUrl: "https://api.flagsmith.common-prod-drm.k8s.cec.delllabs.net/api/v1/"
+    defaultEnvKey: "Development"
+  iamProxy:
+    sidecarEnabled: true
+  eoName: "NativeEdge Orchestrator"
+  eoNS: hzp
+  storageClass: &storageClassName null
+  ingress:
+    fqdn: localhost
+    exposeQAServices: true
+    ingressClassName: "haproxy"
+  edge-orchestrator-services:
+    istio:
+      ingressgateway:
+        internal: true
+  istio:
+    deploy: false
+    ingressgateway:
+      internal: true
+    mTLSHost:
+      - "mtls.edge.internal.use.only"
+    mTLSHostRecovery:
+      - "mtls.recovery.edge.internal.use.only"
+    defaultPrefix:
+      mTLSHost: "mtls-"
+      mTLSHostRecovery: "mtls-recovery-"
+  nginx_gw:
+    enabled: true
+  ip_mode: false
+  istio-crd:
+    deploy: false
+  fido:
+    global_rv_flag: "disabled"
+  isPipelineDeploy: false
+  postgresql:
+    fusionDbCreateJob:
+      enabled: true
+    primary:
+      containerSecurityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+    metrics:
+      containerSecurityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+    readReplicas:
+      containerSecurityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+  seaweedfs:
+    enabled: true
+    containerSecurityContext:
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+  containerRegistry:
+    enabled: false
+  eoManagement:
+    deploy: true
+  mist:
+    deploy: true
+  fusionServices:
+    deploy: true
+  edgeOrchestrator:
+    deploy: true
+  vault:
+    deploy: true
+    host: "http://edgevault"
+    port: "8200"
+  keycloak:
+    dsp:
+      enabled: false
+    deploy: true
+    export: true
+    scheme: http
+    host: keycloak-http.{{ .Release.Namespace }}.svc.cluster.local
+    port: "80"
+    bootstrapCredentials:
+      extUsername:
+      extPassword:
+    securityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+    dbchecker:
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+  knative:
+    enabled: false
+  hzp-broker:
+    deploy: false
+  message:
+    type: nats
+    url: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+  createClusterRole: false # Disable seaweedfs cluster role
+  tags:
+    deploy: false
+  logLevel:
+    enabled: true
+    configMap:
+      name: "log-level-config"
+      mountDir: /home/log-level
+      globalLogLevelKey: global-log-level
+      initialGlobalLogLevel: info
+  s3:
+    url: http://eo-management-seaweedfs-s3.{{ .Release.Namespace }}.svc.cluster.local:8333
+    region: us-east-1
+    bucketPrefix: ""
+    serviceAccountAnnotations: {} # Required to link service account to AWS role.
+    credentials:
+      - name: AWS_ACCESS_KEY_ID
+        valueFrom:
+          secretKeyRef:
+            name: eo-management-seaweedfs-s3-secret
+            key: AWS_ACCESS_KEY_ID
+      - name: AWS_SECRET_ACCESS_KEY
+        valueFrom:
+          secretKeyRef:
+            name: eo-management-seaweedfs-s3-secret
+            key: AWS_SECRET_ACCESS_KEY
+    enableHA: false
+  microsegmentation:
+    deploy: true
+  ova:
+    enabled: false
+  dsp:
+    enabled: false
+    di:
+      baseUrl: "https://www.dell.com"
+      clientId: "3433bcfa-421b-4fc5-a9c6-2c60081864e3"
+      authPath: "/di/v3/fp/oidc/authorize"
+    onPrem:
+      baseUrl: "/auth/realms/"
+      clientId: "auth-client"
+      authPath: "/protocol/openid-connect/auth"
+    portal:
+      namespace: ""
+      url: ""
+      orgId: "testOrgId"
+      orchId: "af9eae0b-8530-4e2b-a6a2-ea4934c515d6"
+      nats:
+        url: "nats.{{ .Values.global.dsp.portal.namespace }}.svc.cluster.local"
+        sub-prefix:
+          portal: "portal.{{ .Values.global.dsp.portal.orgId }}.{{ .Values.global.dsp.portal.orchId }}."
+          orch: "orch.{{ .Values.global.dsp.portal.orgId }}.{{ .Values.global.dsp.portal.orchId }}."
+  dcm:
+    di:
+      clientID: ""
+      clientSecret: ""
+  temp:
+    portalTransition:
+      enableLoadBalancer: true
+  catalog:
+    public:
+      enabled: true # indicates if public catalog is integrated.
+      portal:
+        baseURL: "https://dsp-portal.dev.automation.dell.com"
+  dl:
+    eseAuthPath: "/auth/oauth/v2/token"
+    entitlementListPath: "/ge2/DynamicLicensing/api/v1/clip/entitlement"
+    entitlementRegistrationPath: "/ge2/DynamicLicensing/api/v1/clip/product/registration"
+    entitlementReductionPath: "/ge2/DynamicLicensing/api/v1/clip/product/registration/reduction"
+    entitlementDeregistrationPath: "/ge2/DynamicLicensing/api/v1/clip/product/registration/deregister"
+    entitlementUpgradePath: "/ge2/DynamicLicensing/api/v1/clip/product/registration/upgrade"
+    entitlementConsumptionPath: "/ge2/DynamicLicensing/api/v1/clip/product/consumption"
+components:
+  kubectl:
+    image: kubectl
+    version: 1.30.5
+    project: bitnami/
+  hzp-util:
+    image: hzp-util
+    version: 0.1.3
+    project: hzp/
+hook:
+  deleteJobs:
+    enabled: true
+    name: delete-jobs
+    jobAnnotations:
+      "helm.sh/hook": pre-install,pre-upgrade,pre-delete
+      "helm.sh/hook-delete-policy": before-hook-creation
+      "helm.sh/hook-weight": "-4"
+    podLabels:
+      hzp-app: delete-jobs
+      hzp-role: eo-service
+      hzp.iam.webhook/active: "false"
+      sidecar.istio.io/inject: "false"
+# subchart: EO Management
+eo-management:
+  delco-svc:
+    svc:
+      manifest_eo_version: main-3.0.0.1094
+  seaweedfs:
+    enabled: true
+    podLabels:
+      hzp-app: seaweed
+      hzp-role: eo-service
+    master:
+      resources: |
+        requests:
+          memory: 128Mi
+          cpu: 0.1
+        limits:
+          memory: 512Mi
+          cpu: 0.5
+      data:
+        type: "persistentVolumeClaim"
+        size: "1Gi"
+        storageClass: *storageClassName
+      logs:
+        type: "existingClaim"
+        claimName: "data-hzp-seaweedfs-master-0"
+      affinity: ""
+      volumeSizeLimitMB: 10000
+      config: |-
+        [master.maintenance]
+        # periodically run these scripts are the same as running them from 'weed shell'
+        scripts = """
+          lock
+          volume.fix.replication
+          s3.bucket.quota -name eo-logs -sizeMB 500
+          s3.bucket.quota.enforce -apply
+          s3.clean.uploads -timeAgo=24h
+          unlock
+        """
+        sleep_minutes = 15          # sleep minutes between each script execution
+    filer:
+      downloadMaxMBps: 20
+      resources: |
+        requests:
+          memory: 128Mi
+          cpu: 0.1
+        limits:
+          memory: 6Gi
+          cpu: 4
+      data:
+        type: "persistentVolumeClaim"
+        size: "1Gi"
+        storageClass: *storageClassName
+      logs:
+        type: ""
+      podAnnotations:
+        sidecar.istio.io/proxyCPU: '0.1'
+        sidecar.istio.io/proxyCPULimit: '3'
+        sidecar.istio.io/proxyMemory: 100Mi
+        sidecar.istio.io/proxyMemoryLimit: 4Gi
+    s3:
+      enabled: true
+      enableAuth: true
+      port: 8333
+      replicas: 2
+      resources: |
+        requests:
+          memory: 128Mi
+          cpu: 0.1
+        limits:
+          memory: 2Gi
+          cpu: 2
+      affinity: ""
+      logs:
+        type: ""
+      podAnnotations:
+        sidecar.istio.io/proxyCPU: '0.1'
+        sidecar.istio.io/proxyCPULimit: '2'
+        sidecar.istio.io/proxyMemory: 100Mi
+        sidecar.istio.io/proxyMemoryLimit: 2Gi
+    volume:
+      resources: |
+        requests:
+          memory: 256Mi
+          cpu: 0.1
+        limits:
+          memory: 4Gi
+          cpu: 2
+      index: leveldb
+      dataDirs:
+        - name: data
+          type: "existingClaim"
+          claimName: "data-seaweedfs-volume"
+          storageClass: *storageClassName
+          maxVolumes: "100"
+      # Keep this when upgrading seaweedfs in future
+      # Volume pvc will use this value to allow for patching
+      data:
+        size: "100Gi"
+      idx:
+        type: "existingClaim"
+        claimName: "idx-seaweedfs-volume"
+        size: "1Gi"
+        storageClass: *storageClassName
+      podAnnotations:
+        sidecar.istio.io/proxyCPU: '0.1'
+        sidecar.istio.io/proxyCPULimit: '2'
+        sidecar.istio.io/proxyMemory: 100Mi
+        sidecar.istio.io/proxyMemoryLimit: 2Gi
+  hzp-iam-policy-svc:
+    dbchecker:
+      securityContext:
+        runAsUser: 1001
+        runAsGroup: 1001
+  container-registry:
+    podLabels:
+      hzp-app: container-registry
+      hzp-role: eo-service
+    persistence:
+      accessMode: 'ReadWriteOnce'
+      enabled: true
+      size: 100Gi
+      storageClass: *storageClassName
+  nginx_gw:
+    ingress:
+      enabled: true
+    mtlsService:
+      type: LoadBalancer
+      annotations:
+  keycloak:
+    ingress:
+      enabled: false
+  vault:
+    server:
+      ingress:
+        enabled: false
+# subchart: EO Services
+edge-orchestrator-services:
+  networkPoliciesEnabled: false # mockserver
+# subchart: MIST
+mist-ee:
+  spire:
+    enabled: false
+  image:
+    createSecret:
+      enabled: false
+    secrets:
+      - name: docker-secret
+    registry:
+  fullnameOverride: mist-ee
+  selectorNameOverride: mist-ee
+  enableAPIv2CloudProvidersFiltering: true
+  enableExternalSecret: true
+  http:
+    externalTls: true
+    host: localhost
+  opensearch:
+    deploy: false
+    host: eo-management-opensearch
+    logstash:
+      username: logstash
+    mode: aoss
+    newchart: eo-management
+    region: region
+    serviceAccountName: ''
+    username: readOnly
+  prometheus:
+    enabled: false
+  victoriametrics:
+    vminsert:
+      fullnameOverride: mist-ee-vminsert
+    vmselect:
+      fullnameOverride: mist-ee-vmselect
+    vmstorage:
+      fullnameOverride: mist-ee-vmstorage
+# subchart: FUSION
+fusion-services-helm:
+  components:
+    drift-svc:
+      repository: ""
+    hzp-util:
+      repository: ""
+    fusion-plugin-loader-svc:
+      repository: ""
+  ingress:
+    enabled: false
+  agent:
+    podSecurityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+  execution_scheduler:
+    enableNetworkPolicy: false
+    podLabels:
+      hzp-app: execution-scheduler
+      hzp-role: fusion-service
+      hzp.iam.webhook/active: "true"
+    podAnnotations:
+      hzp.iam.webhook/authentication-enabled: "false"
+      hzp.iam.webhook/authorization-enabled: "false"
+      hzp.iam.webhook/exclude-outbound-ports: "5672,5671,4369,25672,15672,15692,15671"
+    podSecurityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+  mgmtworker:
+    env:
+      EO_URL: "nginx-gw"
+      EO_FQDN: "{{ .Values.global.ingress.fqdn }}"
+    extraEnv:
+      - name: DAP_ORCHESTRATOR_URL
+        value: "https://{{ .Values.global.ingress.fqdn }}"
+      - name: PORTAL_ORG_ID
+        value: "{{ .Values.global.dsp.portal.orgId }}"
+      - name: DAP_PORTAL_URL
+        value: "{{ .Values.global.dsp.portal.url }}"
+    extraEnvFromSecrets:
+      - bootstrap-client-secret
+    enableNetworkPolicy: false
+    podLabels:
+      hzp-app: mgmt-worker
+      hzp-role: fusion-service
+      hzp.iam.webhook/active: "true"
+    podAnnotations:
+      hzp.iam.webhook/authentication-enabled: "false"
+      hzp.iam.webhook/authorization-enabled: "false"
+      hzp.iam.webhook/exclude-outbound-ports: "5672,5671,4369,25672,15672,15692,15671"
+    eventing:
+      stream_url: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+    certVolumes:
+      - name: ca-cert-portal
+        secret:
+          secretName: dapp-root-ca
+          optional: true
+      - name: ca-cert-orchestrator
+        secret:
+          secretName: tls-credential
+          optional: true
+    certVolumeMounts:
+      - name: ca-cert-portal
+        mountPath: /tmp/certs/dapp
+        readOnly: true
+      - name: ca-cert-orchestrator
+        mountPath: /tmp/certs/dapo
+        readOnly: true
+  rest_service:
+    enableNetworkPolicy: false
+    resources:
+      requests:
+        memory: 512Mi
+        cpu: 0.1
+      limits:
+        memory: 4Gi
+        cpu: 4
+    s3_access:
+      k8s_secret_name: eo-management-seaweedfs-s3-secret
+    podLabels:
+      hzp-app: fusion-restservice
+      hzp-role: fusion-service
+      hzp.iam.webhook/active: "true"
+    podAnnotations:
+      hzp.iam.webhook/exclude-outbound-ports: "5672,5671,4369,25672,15672,15692,15671"
+    config:
+      manager:
+        s3_server_url: http://eo-management-seaweedfs-s3.{{ .Release.Namespace }}.svc.cluster.local:8333
+        vault_url: "{{ .Values.global.vault.host }}:{{ .Values.global.vault.port }}"
+        default_secrets_backend: "vault"
+    eventing:
+      stream_url: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+    logging:
+      http_logs_sender_endpoint: "http://fluentbit.{{ .Release.Namespace }}.svc.cluster.local/deployment.log"
+      audit_logs_subject: "hzp.audit.events"
+    inventory_url: "http://hzp-inventory-svc.{{ .Release.Namespace }}.svc.cluster.local"
+    env:
+      EO_FQDN: "{{ .Values.global.ingress.fqdn }}"
+      EO_NAME: "{{ .Values.global.eoName }}"
+  api_service:
+    enableNetworkPolicy: false
+    podLabels:
+      hzp-app: fusion-api-service
+      hzp-role: fusion-service
+      hzp.iam.webhook/active: "true"
+  stage_backend:
+    enableNetworkPolicy: false
+    podLabels:
+      hzp-app: stage-backend
+      hzp-role: fusion-service
+      hzp.iam.webhook/active: "true"
+    podAnnotations:
+      hzp.iam.webhook/authentication-enabled: "false"
+      hzp.iam.webhook/authorization-enabled: "false"
+      hzp.iam.webhook/exclude-outbound-ports: "443"
+  stage_frontend:
+    enabled: false
+    enableNetworkPolicy: false
+    podLabels:
+      hzp-app: stage-frontend
+      hzp-role: fusion-service
+    podSecurityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+  rabbitmq:
+    image:
+      registry: isgedge.artifactory.cec.lab.emc.com/isgedge-docker-virtual
+      repository: mist/ee/rabbitmq
+      tag: 9053e933f83a7d28fa33a64c436b53afe21bc6c9
+    podLabels:
+      hzp-app: rabbitmq
+      hzp-role: fusion-service
+    advancedConfiguration: |-
+      [
+        {rabbit, [
+          {consumer_timeout, undefined}
+        ]}
+      ].
+    extraVolumeMounts:
+      - name: configuration
+        mountPath: /etc/rabbitmq/advanced.config
+        subPath: advanced.config
+      - name: configuration
+        mountPath: /etc/rabbitmq/rabbitmq.conf
+        subPath: rabbitmq.conf
+      - name: rabbitmq-plugins-config-volume
+        mountPath: /etc/rabbitmq/enabled_plugins
+        subPath: enabled_plugins
+    extraVolumes:
+      - name: rabbitmq-plugins-config-volume
+        configMap:
+          name: rabbitmq-plugins-config
+          defaultMode: 420
+    persistence:
+      mountPath: /var/lib/rabbitmq/mnesia
+    extraEnvVars:
+      - name: RABBITMQ_MNESIA_DIR
+        value: "/var/lib/rabbitmq/mnesia"
+      - name: RABBITMQ_ERLANG_COOKIE
+        valueFrom:
+          secretKeyRef:
+            name: rabbitmq
+            key: rabbitmq-erlang-cookie
+      - name: RABBITMQ_DEFAULT_USER
+        value: "cloudify"
+      - name: RABBITMQ_DEFAULT_PASS
+        valueFrom:
+          secretKeyRef:
+            name: rabbitmq
+            key: rabbitmq-password
+    podSecurityContext:
+      runAsNonRoot: true
+      allowPrivilegeEscalation: false
+      seccompProfile:
+        type: RuntimeDefault
+    containerSecurityContext:
+      runAsUser: 100
+      runAsGroup: 101
+      fsGroup: 101
+    commonAnnotations: {}
+    fullnameOverride: rabbitmq
+    readinessProbe:
+      timeoutSeconds: 120
+  nginx:
+    enableNetworkPolicy: false
+    image:
+      repository: ""
+    podLabels:
+      hzp-app: nginx-fusion
+      hzp-role: fusion-service
+      hzp.iam.webhook/active: "true"
+    podAnnotations:
+      hzp.iam.webhook/authentication-enabled: "false"
+      hzp.iam.webhook/authorization-enabled: "false"
+    rateLimit:
+      enabled: false
+  pluginLoaderJob:
+    enabled: true
+    enableNetworkPolicy: false
+    image:
+      repository: ""
+      project: ""
+    podLabels:
+      hzp-app: plugin-loader
+      hzp-role: fusion-service
+      hzp.iam.webhook/active: "false"
+      sidecar.istio.io/inject: "false"
+    env:
+      - name: TENANT_NAME
+        value: "default_tenant"
+      - name: IGNORE_UPLOAD_FAILURES
+        value: "true"
+    podSecurityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+  resources:
+    upload: true
+    podLabels:
+      hzp-app: resource-uploader
+      hzp-role: fusion-service
+      hzp.iam.webhook/active: "false"
+      sidecar.istio.io/inject: "false"
+    initContainerSecurityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+  secrets:
+    enabled: true
+    resources:
+      requests:
+        memory: 1Gi
+        cpu: 0.1
+      limits:
+        memory: 2Gi
+        cpu: 1
+    enableNetworkPolicy: false
+    podLabels:
+      hzp-app: fusion-secrets-service
+      hzp-role: fusion-service
+      hzp.iam.webhook/active: "true"
+    db:
+      dbName: fusion_secrets
+      host: postgres
+      user: fusion_secrets
+      k8sSecret:
+        name: postgres-secret
+        key: fusion_secrets-password
+    eventing:
+      stream_url: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+    logging:
+      audit_logs_subject: "hzp.audit.events"
+    dbMigrator:
+      podLabels:
+        hzp-app: fusion-secrets-service
+        hzp-role: fusion-service
+        hzp.iam.webhook/active: "false"
+        sidecar.istio.io/inject: "false"
+    env:
+      EO_FQDN: "{{ .Values.global.ingress.fqdn }}"
+      EO_NAME: "{{ .Values.global.eoName }}"
+    initContainerSecurityContex:
+      runAsUser: 1001
+      runAsGroup: 1001
+    migrateDbJobSecurityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+  blueprint:
+    enabled: true
+    resources:
+      requests:
+        memory: 1Gi
+        cpu: 0.1
+      limits:
+        memory: 2Gi
+        cpu: 1
+    enableNetworkPolicy: false
+    podLabels:
+      hzp-app: fusion-blueprint-service
+      hzp-role: fusion-service
+      hzp.iam.webhook/active: "true"
+    db:
+      host: postgres
+      user: blueprints
+      k8sSecret:
+        name: postgres-secret
+        key: blueprints-password
+    eventing:
+      stream_url: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+    logging:
+      audit_logs_subject: "hzp.audit.events"
+    dbMigrator:
+      podLabels:
+        hzp-app: fusion-blueprint-service
+        hzp-role: fusion-service
+        hzp.iam.webhook/active: "false"
+        sidecar.istio.io/inject: "false"
+    env:
+      EO_FQDN: "{{ .Values.global.ingress.fqdn }}"
+      EO_NAME: "{{ .Values.global.eoName }}"
+  deployments:
+    enabled: true
+    resources:
+      requests:
+        memory: 1Gi
+        cpu: 0.1
+      limits:
+        memory: 2Gi
+        cpu: 1
+    enableNetworkPolicy: false
+    podLabels:
+      hzp-app: fusion-deployments-service
+      hzp-role: fusion-service
+      hzp.iam.webhook/active: "true"
+    db:
+      host: postgres
+      user: deployments
+      k8sSecret:
+        name: postgres-secret
+        key: deployments-password
+    eventing:
+      stream_url: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+    logging:
+      audit_logs_subject: "hzp.audit.events"
+    dbMigrator:
+      podLabels:
+        hzp-app: fusion-deployments-service
+        hzp-role: fusion-service
+        hzp.iam.webhook/active: "false"
+        sidecar.istio.io/inject: "false"
+    env:
+      EO_FQDN: "{{ .Values.global.ingress.fqdn }}"
+      EO_NAME: "{{ .Values.global.eoName }}"
+  plugins:
+    enabled: true
+    resources:
+      requests:
+        memory: 1Gi
+        cpu: 0.1
+      limits:
+        memory: 2Gi
+        cpu: 1
+    enableNetworkPolicy: false
+    podLabels:
+      hzp-app: fusion-plugins-service
+      hzp-role: fusion-service
+      hzp.iam.webhook/active: "true"
+    podAnnotations:
+      hzp.iam.webhook/exclude-outbound-ports: "5672,5671,4369,25672,15672,15692,15671"
+    db:
+      dbName: fusion_plugins
+      host: postgres
+      user: fusion_plugins
+      k8sSecret:
+        name: postgres-secret
+        key: fusion_plugins-password
+    eventing:
+      stream_url: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+    logging:
+      audit_logs_subject: "hzp.audit.events"
+    dbMigrator:
+      podLabels:
+        hzp-app: fusion-plugins-service
+        hzp-role: fusion-service
+        hzp.iam.webhook/active: "false"
+        sidecar.istio.io/inject: "false"
+    env:
+      EO_FQDN: "{{ .Values.global.ingress.fqdn }}"
+      EO_NAME: "{{ .Values.global.eoName }}"
+    initContainerSecurityContex:
+      runAsUser: 1001
+      runAsGroup: 1001
+    migrateDbJobSecurityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+  db:
+    host: postgres
+    user: fusion_db
+    k8sSecret:
+      create: false
+      name: postgres-secret
+      key: fusion_db-password
+  composer:
+    enabled: false
+  vault:
+    # disable fusion's vault, because we're using EO's vault deployment
+    enabled: false
+    bootstrap:
+      kvMountPath: "kv/eo/fusion-svc"
+    appRolePath: "eo-approle"
+    podSecurityContext:
+      runAsUser: 1001
+      runAsGroup: 1001
+  seaweedfs:
+    enabled: false
+  kubeStateMetrics:
+    enabled: false
+  prometheus:
+    enabled: false
+  postgresql:
+    enabled: false
+  commonAnnotations: {}
+  helper_images:
+    busyboxImage:
+      repository: ""
+  nats:
+    enabled: false
+  drift:
+    image:
+      repository: ""
+      project: ""
+    podLabels:
+      hzp-app: fusion-drift-service
+      hzp-role: fusion-service
+      hzp.iam.webhook/active: "true"
+    db:
+      host: postgres
+      user: fusion_drift_svc
+      k8sSecret:
+        name: postgres-secret
+        key: fusion_drift_svc-password
+    eventing:
+      stream_url: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+    env:
+      FQDN: "{{ .Values.global.ingress.fqdn }}"
+      EO_NAME: "{{ .Values.global.eoName }}"

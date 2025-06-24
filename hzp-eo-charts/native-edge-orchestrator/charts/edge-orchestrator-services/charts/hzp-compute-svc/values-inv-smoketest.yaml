@@ -1,0 +1,4 @@
+global:
+  computeSvc:
+    deploy: true
+    smoketestEnabled: true

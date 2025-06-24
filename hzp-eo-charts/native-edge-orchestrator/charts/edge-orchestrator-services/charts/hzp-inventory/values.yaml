@@ -1,0 +1,277 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  dsp:
+    portal:
+      orgId: ""
+      orchId: ""
+      nats:
+        url: ""
+  imagePullSecrets:
+    - docker-secret
+  message:
+    type: nats
+    url: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+  inventorySvc:
+    smoketestEnabled: false
+    initJobEnabled: true
+  ingress:
+    fqdn: localhost
+  eoName: "NativeEdge Orchestrator"
+  istio:
+    deploy: true
+  nginx_gw:
+    enabled: false
+  clusterResourcesPrefix: ""
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  instrumentation:
+    enabled: false
+components:
+  inventory-svc:
+    image: inventory-svc
+    version: latest
+    project: hzp/
+  busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
+  common-locales-bundle:
+    image: common-locales-bundle
+    version: latest
+    project: hzp/
+  hzp-device-models:
+    image: hzp-device-models
+    version: latest
+    project: hzp/
+  inventory-smoke-test:
+    image: inventory-smoke-test
+    version: latest
+    project: hzp/
+# Subchart values
+svc:
+  name: &serviceName hzp-inventory-svc
+  replicaCount: 1
+  port: 8080
+  image:
+    name: inventory-svc
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    app.kubernetes.io/app: *serviceName
+    hzp.iam.webhook/active: "true"
+    hzp.iam.webhook/bootstrap: "true"
+  job:
+    podLabels:
+      hzp-app: *serviceName
+      hzp-role: eo-service
+      hzp.iam.webhook/active: "true"
+      hzp.iam.webhook/bootstrap: "true"
+  resources:
+    limits:
+      cpu: 200m
+      memory: 500Mi
+    requests:
+      cpu: 25m
+      memory: 25Mi
+  env:
+    - name: ENABLE_PLAYGROUND
+      value: "false"
+    - name: APP_PORT
+      value: "8080"
+    - name: DB_HOST
+      valueFrom:
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresHost
+    - name: DB_PORT
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresPort
+    - name: DB_USER
+      value: "hzp_inventory"
+    - name: DB_PA
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: hzp_inventory-password
+    - name: DISABLE_CHECK_UPDATE_RECOVERY_STATUS
+      value: "false"
+    - name: VAULT_URL
+      value: "http://edgevault:8200"
+    - name: KV_ENGINE_PATH
+      value: "kv/eo/hzp-inventory-svc"
+    - name: APPROLE_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-inventory-svc-vault-secret
+          key: role-id
+          optional: false
+    - name: APPROLE_SECRET_ID
+      valueFrom:
+        secretKeyRef:
+          name: hzp-inventory-svc-vault-secret
+          key: secret-id
+          optional: false
+    - name: APPROLE_ID_PATH
+      value: "eo-approle"
+    - name: AUTH_CLIENT_ID
+      value: "hzp-inventory-svc"
+    - name: VAULT_CERTS_KV_MOUNT_POINT
+      value: "kv/m2m/hzp-inventory-svc"
+    - name: EO_KEY_1
+      valueFrom:
+        secretKeyRef:
+          name: eo-keys-secret
+          key: eo-key-1
+    - name: EO_KEY_2
+      valueFrom:
+        secretKeyRef:
+          name: eo-keys-secret
+          key: eo-key-2
+    - name: OWNER_SERVICE_API_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: fido-secret
+          key: api-password
+    - name: ACK_WAIT_SECONDS
+      value: "25"
+    - name: QUEUE_GROUP
+      value: "hzp-inventory-svc-queue"
+    - name: EVENTS_SUBJECT
+      value: "hzp.inventory.events"
+    - name: ECE_INVENTORY_SUBJECT
+      value: "hzp.ece.inventory"
+    - name: FIDO_OWNER_SUBJECT
+      value: "hzp.fido.owner.inventory.events"
+    - name: ECE_FW_UPDATE_SUBJECT
+      value: "hzp.ece.update.complete"
+    - name: FW_UPDATE_SUBJECT
+      value: "hzp.update.complete"
+    - name: FW_HOSTOS_UPDATE_SUBJECT
+      value: "hzp.fw_hostos.update"
+    - name: NOTIFY_UPGRADE_EVENT
+      value: "hzp.eo.notify.upgrade.state"
+    - name: SCHEDULER_SUBJECT
+      value: "hzp.scheduler-svc.inventory.triggered"
+    - name: AUDIT_EVENTS_SUBJECT
+      value: "hzp.ece.audit.events"
+    - name: TAGS_UPDATE_SUBJECT
+      value: "hzp.tags.resource-updated"
+    - name: COMPUTE_VM_SUBJECT
+      value: "hzp.compute.vm.instance"
+    - name: COMPUTE_CONTAINER_SUBJECT
+      value: "hzp.compute.container.instance"
+    - name: ENDPOINT_DELETE_SUBJECT
+      value: "hzp.scheduler-svc.endpointdelete.triggered"
+    - name: ENDPOINT_DELETE_FREQUENCY
+      value: "1hour"
+    - name: FUSION_DEPLOYMENT_SUBJECT
+      value: "hzp.fusion.deployment"
+    - name: NATIVE_EDGE_TYPES
+      value: "MANUFACTURED_DELL,MANUFACTURED_FIELD,MANUFACTURED_THIRD_PARTY_DELL,MANUFACTURED_FRU,MANUFACTURED_DEV"
+    - name: THIRD_PARTY_TYPES
+      value: "MANUFACTURED_THIRD_PARTY"
+    - name: BROWNFIELD_TYPES
+      value: "MANUFACTURED_BROWN_FIELD"
+    - name: MIN_CLUSTER_NODE_VERSION_FOR_UPGRADE
+      value: "3.1.0.0"
+    - name: FRU_CRU_SUBJECT
+      value: "hzp.frucru.events"
+  localization:
+    image:
+      name: common-locales-bundle
+      tag: magicp1-2.0.0
+      pullPolicy: Always
+  autoScaling:
+    enabled: false
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+
+deviceModelsInit:
+  image:
+    name: hzp-device-models
+    pullPolicy: Always
+    tag: latest
+
+test:
+  # Subchart values
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    hzp-app: hzp-inventory-svc-regression
+    hzp-role: smoke-test
+  eoEceRegression: true
+  testsuite: test-suites/smoke.xml  
+  replicaCount: 1
+  image:
+    name: inventory-smoke-test
+    pullPolicy: Always
+    tag: latest
+  env:
+    - name: MESSAGING_STREAM_NAME
+      value: "K-ORDERS"
+    - name: DATABASE_URL
+      valueFrom: 
+        configMapKeyRef:
+          name: create-postgres-host-configmap
+          key: postgresUrl
+    - name: DATABASE_USERNAME
+      value: "test"
+    - name: DATABASE_PASSWORD
+      valueFrom:
+        secretKeyRef:
+          name: postgres-secret
+          key: test-password
+    - name: VAULT_ROOT_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: vault-secret
+          key: ROOT_TOKEN
+  cpu: 0.25
+  memory: 512Mi
+  postgresql:
+    service:
+      fullname: postgres
+      port: 5432
+  inventory:
+    service:
+      fullname: *serviceName
+      port: 80
+  rbac:
+    namePrefix: inventory-svc-smoke-test
+  qtest:
+    regressionProjectId: 181
+    regressionContainerId: 468961
+  reportportal:
+    rpendpoint: 100
+    rpuuid: 9bgc
+    eourl: 100
+    manifest: 1
+    ecemanifest: 1
+    runid: 1
+    release: 1
+    suite: 1

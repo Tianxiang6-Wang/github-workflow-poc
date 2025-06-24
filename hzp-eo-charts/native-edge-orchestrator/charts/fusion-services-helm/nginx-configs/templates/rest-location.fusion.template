@@ -1,0 +1,80 @@
+location ~ ^/(blueprints|executions|deployments|nodes|events|status|provider|node-instances|version|evaluate|deployment-modifications|tokens) {
+    rewrite ^/(.*)$ /api/v1/$1;
+}
+
+location /api/ {
+    location ~* .help.json {
+       root /opt/manager/resources/fusion/openapi/;
+    }
+    proxy_pass         http://fusion-rest;
+    include "/etc/nginx/conf.d/service-proxy-settings.fusion";
+}
+
+location ~ ^/api/v3.1/snapshots/.+/archive {
+    client_max_body_size 0m;
+    proxy_pass         http://fusion-rest;
+    include "/etc/nginx/conf.d/service-proxy-settings.fusion";
+}
+
+location /api/v3.1/audit {
+    proxy_pass http://fusion-api;
+    auth_request /resources-auth;
+    auth_request_set $user_info $upstream_http_x_user_info;
+    proxy_set_header X-User-Info $user_info;
+
+    include "/etc/nginx/conf.d/service-proxy-settings.fusion";
+}
+
+location /api/v3.1/file-server-auth {
+    proxy_pass http://fusion-api;
+    include "/etc/nginx/conf.d/service-proxy-settings.fusion";
+}
+
+location /api/v3.1/auth {
+    proxy_pass http://fusion-api;
+    include "/etc/nginx/conf.d/service-proxy-settings.fusion";
+}
+
+location ~ ^/api/v3.1/(searches/|labels/|filters/)?blueprints {
+    proxy_pass         http://fusion-blueprints;
+    include "/etc/nginx/conf.d/service-proxy-settings.fusion";
+}
+
+location /api/v3.1/agents {
+    proxy_pass         http://fusion-agents;
+    include "/etc/nginx/conf.d/service-proxy-settings.fusion";
+}
+
+location ~ ^/api/v3.1/(searches/|labels/|export/|/import/)?secrets {
+    proxy_pass         http://fusion-secrets;
+    include "/etc/nginx/conf.d/service-proxy-settings.fusion";
+}
+
+location ~ ^/api/v3.1/plugins(/|$) {
+    proxy_pass         http://fusion-plugins;
+    include "/etc/nginx/conf.d/service-proxy-settings.fusion";
+}
+
+location /api/v3.1/plugins-updates {
+    proxy_pass         http://fusion-rest;
+    include "/etc/nginx/conf.d/service-proxy-settings.fusion";
+}
+
+location ~ ^/api/v3.1/(searches/|labels/|filters/)?deployments {
+    proxy_pass         http://fusion-deployments;
+    include "/etc/nginx/conf.d/service-proxy-settings.fusion";
+}
+
+location ~ ^/api/v3.1/deployment-(groups|modifications) {
+    proxy_pass         http://fusion-deployments;
+    include "/etc/nginx/conf.d/service-proxy-settings.fusion";
+}
+
+location /api/v3.1/drift {
+    proxy_pass         http://fusion-drift;
+    include "/etc/nginx/conf.d/service-proxy-settings.fusion";
+}
+
+location /api {
+    return 404;
+}

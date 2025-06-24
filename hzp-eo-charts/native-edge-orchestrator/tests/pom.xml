@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!--
+ Copyright © 2022 Dell Inc. or its subsidiaries. All Rights Reserved.
+-->
+
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>com.dell.isgedge</groupId>
+    <artifactId>test</artifactId>
+    <version>1.0-SNAPSHOT</version>
+    <parent>
+        <groupId>com.dell.isgedge.hzp</groupId>
+        <artifactId>qa-framework-parent</artifactId>
+        <version>2.2.0.424-9225eed</version>
+    </parent>
+
+    <properties>
+        <maven.compiler.source>1.9</maven.compiler.source>
+        <maven.compiler.target>1.9</maven.compiler.target>
+        <hzp-qa-framework.version>2.2.0.424-9225eed</hzp-qa-framework.version>
+        <qa-serviceclient.version>2.2.0.14-6225544</qa-serviceclient.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.dell.isgedge.hzp</groupId>
+            <artifactId>qa-framework</artifactId>
+            <version>${hzp-qa-framework.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.dell.isgedge.hzp</groupId>
+            <artifactId>qa-serviceclient</artifactId>
+            <version>${qa-serviceclient.version}</version>
+        </dependency>
+    </dependencies>
+</project>

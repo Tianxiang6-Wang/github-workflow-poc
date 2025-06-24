@@ -1,0 +1,13 @@
+annotations:
+  containerImages: |
+    - inventory-svc
+    - busybox
+    - common-locales-bundle
+    - hzp-device-models
+    - inventory-smoke-test
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for the Inventory service
+name: hzp-inventory
+type: application
+version: 0.1.0

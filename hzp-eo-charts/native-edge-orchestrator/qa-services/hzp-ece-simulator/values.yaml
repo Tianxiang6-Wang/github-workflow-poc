@@ -1,0 +1,53 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  components:
+    - image: hzp-ece-simulator
+      name: sigsaly-messaging-playground
+      version: 0.1.0-cc42c2a-20
+      project: hzp/
+      gitrepo: hzp-messaging-playground
+      commithash: cc42c2a5ba204a1519c86d3d2bf9b5711a457d1c
+    - image: busybox
+      name: busybox
+      version: 1.37.0
+      project: ''
+      gitrepo: null
+      commithash: null
+
+# Subchart values
+svc:
+  name: &serviceName hzp-ece-simulator
+  trigger: hzp-ece-simulator-trigger
+  project: hzp/
+  port: 8080
+  image:
+    dir: messaging-playground/
+    name: hzp-ece-simulator
+    pullPolicy: Always
+    tag: latest
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+  resources:
+    limits:
+      cpu: 100m
+      memory: 200Mi
+    requests:
+      cpu: 50m
+      memory: 25Mi
+  env:
+    - name: TEST
+      value: "false" # set to "true" to print the body of the event
+  service:
+    type: ClusterIP
+    port: 80
+    targetPort: 8080
+  eventsvc:
+    service:
+      fullname: hzp-events-svc
+      port: 80

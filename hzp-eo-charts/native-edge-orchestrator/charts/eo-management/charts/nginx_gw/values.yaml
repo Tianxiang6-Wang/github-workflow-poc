@@ -1,0 +1,224 @@
+global:
+  dsp:
+    enabled: false
+    portal:
+      enabled: false
+      namespace: dsp-portal
+      url: ''
+      orgId: ''
+  istio:
+    ingress:
+      fqdn:
+      ingressClassName:
+      annotations:
+        nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+    mTLSHost:
+      - "mtls.edge.internal.use.only"
+    mTLSHostRecovery:
+      - "mtls.recovery.edge.internal.use.only"
+    defaultPrefix:
+      mTLSHost: "mtls-"
+      mTLSHostRecovery: "mtls-recovery-"
+  iamV2AuthZEnabled: true
+  ingress:
+    fqdn: localhost
+    exposeEOServices: true
+    exposeQAServices: false
+  s3:
+    region: us-east-1
+    url: http://eo-management-seaweedfs-s3.{{ .Release.Namespace }}.svc.cluster.local:8333
+  temp:
+    portalTransition:
+      enableLoadBalancer: false
+  ip_mode: false
+components:
+  nginx-lua:
+    image: nginx-lua
+    version: 1.25-ubuntu22.04
+    project: fusion/
+
+image:
+  imagePullPolicy: IfNotPresent
+
+replicas: 1
+
+autoScaling:
+  enabled: true
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 300
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+
+pdb:
+  minAvailable: 1
+
+ingress:
+  enabled: true
+
+tlsService:
+  type: ClusterIP
+  annotations:
+mtlsService:
+  type:
+  annotations:
+  allocateLoadBalancerNodePorts: false
+
+tlsHost:
+  - "*"
+
+tlsHostFidoRV:
+  - "rv.local.edge"
+  - "rv.dell.fdo"
+  - "rv.internal.use.only"
+  - "rv1.local.edge"
+  - "rv1.dell.fdo"
+  - "rv2.local.edge"
+  - "rv2.dell.fdo"
+  - "rv3.local.edge"
+  - "rv3.dell.fdo"
+  - "rv4.local.edge"
+  - "rv4.dell.fdo"
+  - "rv5.local.edge"
+  - "rv5.dell.fdo"
+  - "rv6.local.edge"
+  - "rv6.dell.fdo"
+  - "rv7.local.edge"
+  - "rv7.dell.fdo"
+  - "rv8.local.edge"
+  - "rv8.dell.fdo"
+  - "rv9.local.edge"
+  - "rv9.dell.fdo"
+  - "rv10.local.edge"
+  - "rv10.dell.fdo"
+  - "rv11.local.edge"
+  - "rv11.dell.fdo"
+  - "rv12.local.edge"
+  - "rv12.dell.fdo"
+  - "rv13.local.edge"
+  - "rv13.dell.fdo"
+  - "rv14.local.edge"
+  - "rv14.dell.fdo"
+  - "rv15.local.edge"
+  - "rv15.dell.fdo"
+  - "rv16.local.edge"
+  - "rv16.dell.fdo"
+  - "rv17.local.edge"
+  - "rv17.dell.fdo"
+  - "rv18.local.edge"
+  - "rv18.dell.fdo"
+  - "rv19.local.edge"
+  - "rv19.dell.fdo"
+  - "rv20.local.edge"
+  - "rv20.dell.fdo"
+
+iam:
+  skippedFidoUrl:
+    - /api/v1/rv
+    - /api/v1/owner
+    - /fdo/101/msg/30
+    - /fdo/101/msg/31
+    - /fdo/101/msg/32
+    - /fdo/101/msg/60
+    - /fdo/101/msg/61
+    - /fdo/101/msg/62
+    - /fdo/101/msg/63
+    - /fdo/101/msg/64
+    - /fdo/101/msg/65
+    - /fdo/101/msg/66
+    - /fdo/101/msg/67
+    - /fdo/101/msg/68
+    - /fdo/101/msg/69
+    - /fdo/101/msg/70
+  skippedInternalUrl:
+    - /security
+    - /oe-template-mgr
+    - /inventory
+    - /repository
+    - /nats
+    - /metrics
+    - /ece-firmwareupdate
+    - /catalog
+    - /datacollection
+    - /upgrade
+    - /eo-initialization
+    - /job
+    - /product
+    - /fru-cru
+    - /ingress-authz
+    - /compute
+  skippedQAUrl:
+    - /qa
+  skippedContainerRegistryUrl:
+    - /v2
+  skippedFileserverUrl:
+    - /public
+
+eoServices:
+  - serviceName: security
+  - serviceName: oe-template-mgr
+  - serviceName: inventory
+  - serviceName: events
+  - serviceName: health-check
+  - serviceName: iam-configuration
+  - serviceName: iam
+  - serviceName: datacollection
+  - serviceName: eo-initialization
+  - serviceName: job
+  - serviceName: compute
+  - serviceName: product
+  - serviceName: ece-firmwareupdate
+  - serviceName: ingress-authz
+  - serviceName: certificate
+  - serviceName: upgrade
+  - serviceName: fru-cru
+  - serviceName: catalog
+
+eoServicesMTLS:
+  - serviceName: time
+  - serviceName: oe-template-mgr
+  - serviceName: datacollection
+  - serviceName: certificate
+eoServicesMTLSRecovery:
+  - serviceName: recovery
+
+defaultRouteService: mist-ee-portal
+
+nginx:
+  clientMaxBodySize: 20480M
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 0.5
+    limits:
+      memory: 2Gi
+      cpu: 2
+  sslProtocols: "TLSv1.2 TLSv1.3"
+rateLimits:
+  metrics:
+    rate: 60r/s
+    burst: 1000
+  repository:
+    rate: 20r/m
+    burst: 430
+  apiGateway:
+    rate: 30r/s
+    burst: 60
+maintenanceMode: false

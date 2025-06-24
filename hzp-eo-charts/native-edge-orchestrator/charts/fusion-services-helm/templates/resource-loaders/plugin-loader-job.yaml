@@ -1,0 +1,85 @@
+{{- if .Values.pluginLoaderJob.enabled -}}
+{{- $hook_annotations := dict "helm.sh/hook" "post-install,post-upgrade" "helm.sh/hook-weight" "2" "helm.sh/hook-delete-policy" "before-hook-creation" }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ template "fusion-services.name" . }}-plugin-loader-job
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations $hook_annotations ) | nindent 4 }}
+spec:
+  template:
+    metadata:
+      labels:
+      {{ with .Values.pluginLoaderJob.podLabels }}
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      annotations:
+        {{- include "fusion-services.merge" ( list .Values.commonAnnotations .Values.pluginLoaderJob.podAnnotations ) | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: {{ .Values.pluginLoaderJob.podSecurityContext.runAsUser }}
+        runAsGroup: {{ .Values.pluginLoaderJob.podSecurityContext.runAsGroup }}
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.pluginLoaderJob $ )| trim | nindent 8 }}
+      tolerations: {{- include "fusion-services.tolerations" ( list .Values.pluginLoaderJob $ ) | trim | nindent 8 }}
+      affinity: {{- include "fusion-services.affinity" ( list .Values.pluginLoaderJob $ ) | trim | nindent 8 }}
+      {{- include "fusion-services.images.pullSecrets" . | nindent 6 }}
+      initContainers:
+        - image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-plugin-loader-svc" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-plugin-loader-svc" ).pullPolicy }}
+          name: plugin-loader-init
+          command:
+          - sh
+          - -c
+          - |
+            echo 'Waiting for rest service to become ready...'
+            url="http://{{ .Values.entrypoint.name }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.entrypoint.port }}/api/v3.1/license" 
+            retry_delay=2
+            while true; do 
+              response_code=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+              if [ "$response_code" -eq 502 ]; then 
+                echo "HTTP Response Code: $response_code - Service Unavailable. Retrying in $retry_delay seconds..." 
+              elif [ "$response_code" -eq 000 ]; then
+                  echo "Code: $response_code - Failed to connect to server. Retrying in $retry_delay seconds..."
+              else 
+                echo "HTTP Response Code: $response_code - Service is available." 
+                break; 
+              fi;
+              sleep "$retry_delay" 
+            done;
+            echo 'rest service OK ✓'
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+      containers:
+        - image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-plugin-loader-svc" ) "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-plugin-loader-svc" ).pullPolicy }}
+          name: plugin-loader
+          command: ["bash","-c","/app/uploader.sh"]
+          env:
+            - name: FUSION_URL
+              value: {{ .Values.entrypoint.protocol }}://{{ .Values.entrypoint.name }}.{{ .Release.Namespace }}.svc.cluster.local:{{ .Values.entrypoint.port }}/api/v3.1
+            - name: PLUGINS_BP_PUBLIC_CATALOG_BRAND
+              value: {{ include "plugins.bp.brand" (dict "dsp" .Values.global.dsp.enabled "brand" .Values.pluginLoaderJob.public_catalog.brand) }}
+            {{- toYaml .Values.pluginLoaderJob.env | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+      restartPolicy: Never
+  backoffLimit: 5
+{{- end -}}

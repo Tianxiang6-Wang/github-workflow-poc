@@ -1,0 +1,70 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  imagePullSecrets:
+    - docker-secret
+  keycloakUrl: &keycloakUrl "http://keycloak-http.hzp"
+  iamProxyTest:
+    smoketestEnabled: false
+  components:
+    - image: iam-proxy-test-service
+      name: iam-proxy
+      version: 3.2.0.0-ba382c3-bfb17fa4
+      project: hzp/
+      gitrepo: hzp-iam-proxy
+      commithash: ba382c3dacd411d5742dc4b9c4233c3bd403b7ae
+    - image: iam-proxy-smoke-test
+      name: iam-proxy
+      version: 3.2.0.0-ba382c3-016de62e
+      project: hzp/
+      gitrepo: hzp-iam-proxy
+      commithash: ba382c3dacd411d5742dc4b9c4233c3bd403b7ae
+    - image: busybox
+      name: busybox
+      version: 1.37.0
+      project: ''
+      gitrepo: null
+      commithash: null
+test:
+  # Subchart values
+  podLabels:
+    hzp-app: hzp-iam-proxy-regression
+    hzp-role: smoke-test
+    hzp.iam.webhook/active: "false"
+  testsuite: test-suites/smoke.xml
+  replicaCount: 1
+  image:
+    name: iam-proxy-smoke-test
+    pullPolicy: Always
+    repository:
+    tag: latest
+  cpu: 0.25
+  memory: 512Mi
+  ingress:
+    namespace: istio-system
+    gatewayName: istio-ingressgateway
+  svc:
+    name: iam-proxy-test-svc
+    bypassedName: iam-proxy-bypassed-test-svc
+    image:
+      name: iam-proxy-test-service
+      pullPolicy: Always
+      repository:
+      tag: latest
+    external_uri: iam-proxy-test/api
+    external_uri_bypassed: iam-proxy-bypassed-test/api
+    virtual_service_name: iam-proxy-test
+    virtual_service_name_bypassed: iam-proxy-bypassed-test
+    port: 8080
+    service:
+      port: 80
+    env:
+      - name: APP_PORT
+        value: "8080"
+      - name: KEYCLOAK_URL
+        value: *keycloakUrl
+  keycloak:
+    url: *keycloakUrl
+    masterRealm: master
+    userRealm: hzp
+    clientId: admin-cli
+    credentialsUsername: keycloak

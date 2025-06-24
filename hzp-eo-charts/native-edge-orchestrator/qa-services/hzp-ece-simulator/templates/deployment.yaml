@@ -1,0 +1,53 @@
+{{- $svc := .Values.svc -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+  labels:
+    hzp-app: {{ .Values.svc.name }}
+spec:
+  selector:
+    matchLabels:
+      hzp-app: {{ .Values.svc.name }}
+  template:
+    metadata:
+      name: {{ $svc.name }}
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      {{- include "images.pullSecrets" . | nindent 6 }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - image: {{ include "manifest.image.name" (dict "name" .Values.svc.image.name "globals" .Values.global.components "repo" .Values.global.repository) }}
+          name: hzp-ece-simulator
+          imagePullPolicy: {{ $svc.image.pullPolicy }}
+          securityContext:
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          ports:
+            - containerPort: {{ $svc.port }}
+          env:
+            - name: NATS_URL
+              value: "nats://jetstream.{{ .Release.Namespace }}.svc.cluster.local:4222"
+            {{- toYaml $svc.env | nindent 12 }}
+      initContainers:
+        - name: init-event-svc
+          image: {{ include "manifest.image.name" (dict "name" "busybox" "globals" .Values.global.components "repo" .Values.global.repository) }}
+          imagePullPolicy: {{ .Values.svc.image.pullPolicy }}
+          securityContext:
+            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for event service to become ready...'
+
+              until printf "." && nc -z -w 2 {{ .Values.svc.eventsvc.service.fullname }} {{ .Values.svc.eventsvc.service.port }}; do
+                  sleep 2;
+              done;
+              echo 'sleeping for 5 sec...'
+              sleep 5;
+              echo 'Hzp-event-svc OK ✓'

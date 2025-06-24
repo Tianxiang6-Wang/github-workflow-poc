@@ -1,0 +1,50 @@
+{{- if $.Values.global.test.enabled }}
+{{- if $.Values.global.ingress.enableNetworkPoliciesForSmokeTest }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: smoke-test-network-policy
+  namespace: {{ .Release.Namespace }}
+spec:
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          hzp-role: smoke-test
+    - podSelector:
+        matchLabels:
+          hzp-role: eo-service
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: istio-system
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+    - podSelector:
+        matchLabels:
+          hzp-role: nats
+    - ipBlock:
+        cidr: 0.0.0.0/0
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: istio-system
+    - podSelector:
+        matchLabels:
+          hzp-role: nats
+    - podSelector:
+        matchLabels:
+          hzp-role: smoke-test
+    - podSelector:
+        matchLabels:
+          hzp-role: eo-service
+  podSelector:
+    matchLabels:
+      hzp-app: smoke-test
+  policyTypes:
+  - Egress
+  - Ingress
+{{- end }}
+{{- end }}

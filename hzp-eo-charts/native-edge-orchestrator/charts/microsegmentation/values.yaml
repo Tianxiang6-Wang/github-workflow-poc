@@ -1,0 +1,1834 @@
+global:
+  postgresql:
+    deploy: true
+  vault:
+    deploy: true
+  keycloak:
+    deploy: true
+  fusionChartName: &fusionChartName fusion-services-helm
+  ingress:
+    enableNetworkPolicies: true
+    enableNetworkPoliciesControlAtPorts: false
+    
+networkPolicies:
+  kubeEndpointsCidrs: []  # List of IP addresses for kubernetes.default.svc.cluster.local. If empty will be resolved automatically
+  infra:
+    - service: istio-system
+      namespace: istio-system
+      permissions:
+        - istio-system
+        - kube-system
+    - service: nats
+      podSelector:
+        matchLabels:
+          app: nats-jetstream
+      namespace: release-namespace
+      permissions:
+        - istio-system
+        - kube-system
+    - service: nats-metrics
+      podSelector:
+        matchLabels:
+          app: nats-jetstream-metrics
+      namespace: release-namespace
+      permissions:
+        - istio-system
+        - kube-system
+    - service: init-check
+      namespace: release-namespace
+      permissions:
+        - istio-system
+        - kube-system
+  iam:
+    - service: eo-service
+      outboundRequests:
+        - hzp-app: hzp-iam-policy-svc
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: eo-vault
+    - service: fusion-service
+      outboundRequests:
+        - hzp-app: hzp-iam-policy-svc
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: eo-vault
+    - service: mist-service
+      outboundRequests:
+        - hzp-app: hzp-iam-policy-svc
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: eo-vault
+  apps:
+    - service: keycloak-migration
+      outboundRequests:
+        - hzp-app: postgresql
+        - hzp-app: seaweed
+    - service: keycloak-mngmnt
+      k8sEndpoint: bidirectional
+      inboundRequests:
+        - hzp-app: keycloak
+      outboundRequests:
+        - hzp-app: keycloak
+    - service: postgresql-upgrade
+      k8sEndpoint: bidirectional
+      inboundRequests:
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-app: postgresql
+    - service: hzp-delco-svc
+      k8sEndpoint: bidirectional
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: delco-job
+        - hzp-app: hzp-delco-svc
+      outboundRequests:
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: istiod
+        - hzp-app: hzp-delco-svc
+    - service: nginx-gw
+      podSelector:
+        matchLabels:
+          app: nginx-gw
+      k8sEndpoint: bidirectional
+      externalInternetTraffic: bidirectional
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-role: eo-service
+        - hzp-role: eo-gateway
+        - hzp-role: mist-service
+        - hzp-role: fusion-service
+        - hzp-role: nats
+      outboundRequests:
+        - hzp-role: eo-service
+        - hzp-role: eo-gateway
+        - hzp-role: mist-service
+        - hzp-role: fusion-service
+        - hzp-role: nats
+    - service: hzp-upgrade-svc
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/app: hzp-upgrade-svc
+      nats: bidirectional
+      k8sEndpoint: bidirectional
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-app: hzp-delco-svc
+        - hzp-app: hzp-health-check-svc
+        - hzp-app: hzp-upgrade-svc
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: eo-vault
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-api-gateway-svc
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: hzp-oe-template-mgr-svc
+      outboundRequests:
+        - hzp-app: hzp-delco-svc
+        - hzp-app: hzp-health-check-svc
+        - hzp-app: hzp-upgrade-svc
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: istiod
+        - hzp-app: eo-vault
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: hzp-job-svc
+        - hzp-app: fido-onboarding-svc
+        - hzp-app: seaweed
+        - hzp-app: hzp-flag-manager-svc
+    - service: postgresql
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/component: primary
+          app.kubernetes.io/instance: eo-management
+          app.kubernetes.io/name: postgresql
+      ports:
+        - 5432
+      inboundRequests:
+        - hzp-role: eo-service
+        - hzp-role: fusion-service
+      outboundRequests:
+        - hzp-role: eo-service
+        - hzp-app: istiod
+        - hzp-role: fusion-service
+        - hzp-app: hzp-flag-manager-svc
+    - service: fusion-db-create-job
+      inboundRequests:
+        - hzp-app: fusion-db-create-job
+      outboundRequests:
+        - hzp-app: postgresql
+    - service: hzp-catalog-svc
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/app: hzp-catalog-svc
+      nats: bidirectional
+      externalInternetTraffic: outbound
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-oe-template-mgr-svc
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: hzp-ece-factory-os
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+        - hzp-role: eo-service
+        - hzp-app: hzp-compute-svc
+        - hzp-app: hzp-health-check-svc
+        - hzp-app: eo-vault
+        - hzp-app: mgmt-worker
+        - hzp-app: fusion-plugins-service
+      outboundRequests:
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-oe-template-mgr-svc
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: hzp-ece-factory-os
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+        - hzp-role: eo-service
+        - hzp-app: istiod
+        - hzp-app: seaweed
+        - hzp-app: hzp-job-svc
+        - hzp-app: eo-vault
+        - hzp-app: hzp-scheduler-svc
+        - hzp-app: hzp-compute-svc
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: container-registry
+    - service: factoryos-jobs
+      podSelector:
+        matchLabels:
+          hzp-app: hzp-catalog-svc
+      outboundRequests:
+        - app.kubernetes.io/app: hzp-catalog-svc
+    - service: container-registry
+      ports:
+        - 5000
+      inboundRequests:
+        - hzp-app: container-registry
+        - hzp-app: hzp-catalog-svc
+      outboundRequests:
+        - hzp-app: container-registry
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-compute-svc
+      nats: bidirectional
+      externalInternetTraffic: outbound
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-catalog-svc
+      outboundRequests:
+        - hzp-app: postgresql
+        - hzp-role: eo-service
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-job-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-metrics-svc
+      ports:
+        - 8080
+      inboundRequests:
+        - hzp-app: hzp-metrics-svc
+      outboundRequests:
+        - hzp-app: hzp-metrics-svc
+        - hzp-app: vmselect
+        - hzp-role: eo-service
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-health-check-svc
+      nats: bidirectional
+      k8sEndpoint: bidirectional
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: hzp-health-check-svc
+        - hzp-app: postgresql
+        - hzp-app: hzp-api-gateway-svc
+      outboundRequests:
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: hzp-health-check-svc
+        - hzp-app: postgresql
+        - hzp-app: istiod
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-events-svc
+      nats: bidirectional
+      ports:
+        - 8080
+        - 15090
+        - 15006
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-rules-svc
+        - hzp-app: hzp-product-svc
+        - hzp-app: hzp-ece-simulator
+        - hzp-app: hzp-api-gateway-svc
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-role: mist-service
+        - app: opensearch
+        - hzp-app: hzp-product-svc
+        - hzp-app: hzp-ece-simulator
+        - hzp-app: istiod
+        - hzp-app: postgresql
+        - hzp-app: hzp-tags-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-flag-manager-svc
+    - service: pgadmin
+      inboundRequests:
+        - hzp-role: eo-service
+        - hzp-app: istiod
+      outboundRequests:
+        - hzp-role: eo-service
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-recovery-svc
+      k8sEndpoint: outbound
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: eo-vault
+      outboundRequests:
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: eo-vault
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-certificate-svc
+      nats: bidirectional
+      k8sEndpoint: outbound
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-app: eo-vault
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-certificate-svc
+        - hzp-app: postgresql
+        - hzp-app: hzp-api-gateway-svc
+        - hzp-app: hzp-rules-svc
+        - hzp-app: keycloak
+      outboundRequests:
+        - hzp-app: eo-vault
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-certificate-svc
+        - hzp-app: istiod
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-ece-simulator
+      nats: bidirectional
+      inboundRequests:
+        - hzp-app: hzp-events-svc
+      outboundRequests:
+        - hzp-app: hzp-events-svc
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-eoproxy-svc
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/app: hzp-eoproxy-svc
+      nats: outbound
+      k8sEndpoint: outbound
+      externalInternetTraffic: outbound
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-eoproxy-svc
+        - hzp-app: postgresql
+        - hzp-role: fusion-service
+      outboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-eoproxy-svc
+        - hzp-app: postgresql
+        - hzp-app: istiod
+        - hzp-role: fusion-service
+        - hzp-app: hzp-iam-policy-svc
+        - hzp-app: hzp-flag-manager-svc
+    - service: eo-vault
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: eo-management
+          app.kubernetes.io/name: vault
+          component: server
+      k8sEndpoint: bidirectional
+      ports:
+        - 15090
+        - 8200
+        - 8201
+        - 8202
+      inboundRequests:
+        - hzp-app: hzp-recovery-svc
+        - hzp-app: hzp-certificate-svc
+        - hzp-app: eo-vault
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: fido-owner
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-role: init-check
+        - hzp-role: mist-service
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-upgrade-svc
+        - hzp-role: fusion-service
+        - hzp-role: eo-service
+        - hzp-app: keycloak
+        - hzp-app: hzp-catalog-svc
+      outboundRequests:
+        - hzp-app: hzp-recovery-svc
+        - hzp-app: hzp-certificate-svc
+        - hzp-app: eo-vault
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: fido-owner
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-role: init-check
+        - hzp-role: mist-service
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: istiod
+        - hzp-app: hzp-upgrade-svc
+        - hzp-role: fusion-service
+        - hzp-app: keycloak
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-flag-manager-svc
+    - service: vault-bootstrap
+      podSelector:
+        matchLabels:
+          job-name: vault-bootstrap
+      k8sEndpoint: bidirectional
+      ports:
+        - 8200
+      inboundRequests:
+        - hzp-app: eo-vault
+      outboundRequests:
+        - hzp-app: eo-vault
+    - service: hzp-ingress-authz-svc
+      k8sEndpoint: bidirectional
+      nats: bidirectional
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-api-gateway-svc
+      outboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: keycloak
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: eo-management
+          app.kubernetes.io/name: keycloak
+      nats: bidirectional
+      k8sEndpoint: bidirectional
+      externalInternetTraffic: outbound
+      ports:
+        - 8080
+        - 15090
+        - 8443
+      inboundRequests:
+        - hzp-role: eo-service
+        - hzp-app: postgresql
+        - hzp-role: mist-service
+      outboundRequests:
+        - hzp-role: eo-service
+        - hzp-app: postgresql
+        - hzp-role: mist-service
+        - hzp-app: istiod
+        - hzp-app: hzp-certificate-svc
+        - hzp-app: hzp-notification-svc
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-oe-template-mgr-svc
+      nats: bidirectional
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-api-gateway-svc
+        - hzp-app: hzp-ece-factory-os
+        - hzp-app: hzp-oe-template-mgr-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-ece-factory-os
+        - hzp-app: hzp-oe-template-mgr-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: postgresql
+        - hzp-app: istiod
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-datacollection-svc
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/app: hzp-datacollection-svc
+      nats: bidirectional
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-product-svc
+        - hzp-app: postgresql
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-api-gateway-svc
+        - hzp-app: hzp-datacollection-svc
+      outboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-product-svc
+        - hzp-app: postgresql
+        - hzp-app: seaweed
+        - hzp-app: istiod
+        - hzp-app: hzp-job-svc
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: hzp-datacollection-svc
+    - service: hzp-rules-svc
+      externalInternetTraffic: outbound
+      nats: bidirectional
+      ports:
+        - 8080
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-api-gateway-svc
+      outboundRequests:
+        - hzp-app: postgresql
+        - hzp-app: rabbitmq
+        - hzp-app: hzp-notification-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-tags-svc
+        - hzp-app: hzp-events-svc
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-scheduler-svc
+      nats: bidirectional
+      inboundRequests:
+        - hzp-app: hzp-rules-svc
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-app: hzp-job-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: fido-onboarding-svc
+      outboundRequests:
+        - hzp-app: postgresql
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-job-svc
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/app: hzp-job-svc
+          hzp-app: hzp-job-svc
+      nats: bidirectional
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-app: postgresql
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: hzp-job-svc
+        - hzp-app: hzp-datacollection-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-compute-svc
+        - hzp-app: hzp-api-gateway-svc
+        - hzp-app: hzp-upgrade-svc
+      outboundRequests:
+        - hzp-app: postgresql
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-scheduler-svc
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: hzp-job-svc
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-inventory-svc
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/app: hzp-inventory-svc
+          hzp-app: hzp-inventory-svc
+      externalInternetTraffic: outbound
+      nats: bidirectional
+      k8sEndpoint: outbound
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: hzp-rules-svc
+        - hzp-app: hzp-eoproxy-svc
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-health-check-svc
+        - hzp-app: hzp-job-svc
+        - hzp-app: hzp-oe-template-mgr-svc
+        - hzp-app: hzp-recovery-svc
+        - hzp-app: hzp-compute-svc
+        - hzp-app: hzp-api-gateway-svc
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: hzp-attestation-svc
+        - hzp-app: fido-owner
+        - hzp-role: fusion-service
+        - hzp-app: hzp-metrics-svc
+        - hzp-app: hzp-events-svc
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: fido-onboarding-svc
+      outboundRequests:
+        - hzp-app: postgresql
+        - hzp-app: eo-vault
+        - hzp-app: hzp-product-svc
+        - hzp-app: hzp-certificate-svc
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-role: mist-service
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: hzp-eoproxy-svc
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-job-svc
+        - hzp-app: hzp-oe-template-mgr-svc
+        - hzp-app: hzp-recovery-svc
+        - hzp-app: istiod
+        - hzp-app: fido-owner
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: hzp-compute-svc
+        - hzp-app: hzp-api-gateway-svc
+        - hzp-app: hzp-datacollection-svc
+        - hzp-app: hzp-scheduler-svc
+        - hzp-role: fusion-service
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: hzp-iam-svc
+        - hzp-app: fido-onboarding-svc
+    - service: device-models-init-job
+      podSelector:
+        matchLabels:
+          job-name: device-models-init-job
+      k8sEndpoint: outbound
+      outboundRequests:
+        - hzp-app: hzp-inventory-svc
+    - service: hzp-eo-initialization-svc
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/app: hzp-eo-initialization-svc
+          hzp-app: hzp-eo-initialization-svc
+      nats: bidirectional
+      externalInternetTraffic: outbound
+      k8sEndpoint: outbound
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-app: hzp-api-gateway-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: postgresql
+        - hzp-app: eo-vault
+        - hzp-app: fido-onboarding-svc
+        - hzp-app: fido-owner
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-app: hzp-product-svc
+        - hzp-app: hzp-oe-template-mgr-svc
+        - hzp-app: hzp-eo-initialization-svc
+      outboundRequests:
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-scheduler-svc
+        - hzp-app: postgresql
+        - hzp-app: eo-vault
+        - hzp-app: fido-onboarding-svc
+        - hzp-app: fido-owner
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-app: hzp-product-svc
+        - hzp-app: hzp-oe-template-mgr-svc
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: fido-owner
+      nats: bidirectional
+      k8sEndpoint: bidirectional
+      externalInternetTraffic: outbound
+      ports:
+        - 8042
+        - 15090
+      inboundRequests:
+        - hzp-app: fido-onboarding-svc
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-app: fido-owner
+        - hzp-app: fido-rv
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: postgresql
+        - hzp-app: eo-vault
+        - hzp-app: hzp-inventory-svc
+      outboundRequests:
+        - hzp-app: fido-onboarding-svc
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-app: fido-owner
+        - hzp-app: fido-rv
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: postgresql
+        - hzp-app: eo-vault
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: fido-manufacturer
+      nats: bidirectional
+      ports:
+        - 8039
+        - 15090
+      inboundRequests:
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-app: postgresql
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: fido-rv
+      nats: bidirectional
+      ports:
+        - 8040
+        - 15090
+      inboundRequests:
+        - hzp-app: fido-rv
+        - hzp-app: fido-owner
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-app: fido-rv
+        - hzp-app: fido-owner
+        - hzp-app: postgresql
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: fido-onboarding-svc
+      nats: bidirectional
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: fido-owner
+        - hzp-app: postgresql
+        - hzp-app: hzp-api-gateway-svc
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: hzp-inventory-svc
+      outboundRequests:
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: fido-owner
+        - hzp-app: hzp-scheduler-svc
+        - hzp-app: postgresql
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: hzp-inventory-svc
+    - service: hzp-fru-cru-svc
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/app: hzp-fru-cru-svc
+          hzp-app: hzp-fru-cru-svc
+      nats: bidirectional
+      k8sEndpoint: outbound
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: eo-vault
+        - hzp-app: fido-owner
+        - hzp-app: fido-manufacturer
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-app: postgresql
+        - hzp-app: hzp-api-gateway-svc
+      outboundRequests:
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: hzp-scheduler-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: eo-vault
+        - hzp-app: fido-owner
+        - hzp-app: fido-manufacturer
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-app: postgresql
+        - hzp-app: istiod
+        - hzp-app: seaweed
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-ece-firmwareupdate-svc
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/app: hzp-ece-firmwareupdate-svc
+      nats: bidirectional
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-job-svc
+        - hzp-app: hzp-health-check-svc
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: seaweed
+      outboundRequests:
+        - hzp-app: postgresql
+        - hzp-role: mist-service
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-job-svc
+        - hzp-app: hzp-health-check-svc
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: seaweed
+    - service: hzp-iam-configuration-svc
+      k8sEndpoint: outbound
+      nats: outbound
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: keycloak
+        - hzp-app: hzp-iam-configuration-svc
+        - hzp-app: hzp-iam-svc
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-api-gateway-svc
+      outboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: keycloak
+        - hzp-app: hzp-iam-configuration-svc
+        - hzp-app: hzp-iam-svc
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: eo-images-loader-wrapper-job
+      externalInternetTraffic: outbound
+      k8sEndpoint: outbound
+      inboundRequests:
+        - hzp-app: eo-images-loader-wrapper-job
+        - hzp-app: archiva
+      outboundRequests:
+        - hzp-app: eo-images-loader-wrapper-job
+        - hzp-app: archiva
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: delco-job
+      k8sEndpoint: bidirectional
+      inboundRequests:
+        - hzp-app: delco-job
+      outboundRequests:
+        - hzp-app: delco-job
+        - hzp-app: istiod
+        - hzp-app: keycloak
+        - hzp-app: seaweed
+        - hzp-app: postgresql
+        - hzp-app: hzp-delco-svc
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-iam-webhook
+      externalInternetTraffic: inbound
+      k8sEndpoint: bidirectional
+      ports:
+        - 8443
+      inboundRequests:
+        - hzp-app: hzp-iam-webhook
+      outboundRequests:
+        - hzp-app: hzp-iam-webhook
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-iam-svc
+      k8sEndpoint: outbound
+      nats: outbound
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-iam-configuration-svc
+        - hzp-app: hzp-iam-svc
+        - hzp-app: hzp-iam-policy-svc
+        - hzp-app: keycloak
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-api-gateway-svc
+        - hzp-app: hzp-inventory-svc
+      outboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-iam-configuration-svc
+        - hzp-app: hzp-iam-svc
+        - hzp-app: keycloak
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: keycloak-upgrade-job
+      k8sEndpoint: bidirectional
+      inboundRequests:
+        - hzp-app: keycloak-upgrade-job
+      outboundRequests:
+        - hzp-app: keycloak-upgrade-job
+        - hzp-app: istiod
+        - hzp-app: keycloak
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-product-svc
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/app: hzp-product-svc
+      externalInternetTraffic: bidirectional
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-api-gateway-svc
+        - hzp-app: hzp-product-svc
+        - hzp-app: hzp-events-svc
+        - hzp-app: hzp-datacollection-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-eo-initialization-svc
+      outboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-product-svc
+        - hzp-app: hzp-events-svc
+        - hzp-app: hzp-datacollection-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: istiod
+        - hzp-app: seaweed
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-iam-policy-svc
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-role: eo-service
+        - hzp-app: postgresql
+        - hzp-role: mist-service
+        - hzp-role: fusion-service
+      outboundRequests:
+        - hzp-role: eo-service
+        - hzp-app: postgresql
+        - hzp-role: mist-service
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-flag-manager-svc
+      nats: bidirectional
+      externalInternetTraffic: bidirectional
+      ports:
+        - 8080
+        - 15090
+      inboundRequests:
+        - hzp-role: eo-service
+        - hzp-role: mist-service
+        - hzp-role: fusion-service
+        - hzp-app: hzp-flag-manager-svc
+      outboundRequests:
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-iam-session-svc
+      nats: outbound
+      externalInternetTraffic: bidirectional
+      ports:
+        - 15090
+        - 8080
+      inboundRequests:
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-iam-svc
+        - hzp-role: mist-service
+        - hzp-app: hzp-iam-configuration-svc
+        - hzp-app: keycloak
+        - hzp-app: postgresql
+        - hzp-app: eo-vault
+        - hzp-role: fusion-service
+        - hzp-role: eo-service
+      outboundRequests:
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-iam-svc
+        - hzp-role: mist-service
+        - hzp-app: hzp-iam-configuration-svc
+        - hzp-app: keycloak
+        - hzp-app: postgresql
+        - hzp-app: eo-vault
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-attestation-svc
+      k8sEndpoint: bidirectional
+      externalInternetTraffic: outbound
+      nats: bidirectional
+      ports:
+        - 15090
+        - 8080
+      inboundRequests:
+        - hzp-app: hzp-attestation-svc
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-app: hzp-attestation-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: postgresql
+        - hzp-app: eo-vault
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-time-svc
+      ports:
+        - 15090
+        - 8080
+      inboundRequests:
+        - hzp-app: hzp-time-svc
+      outboundRequests:
+        - hzp-app: hzp-time-svc
+        - hzp-app: istiod
+    - service: hzp-tags-svc
+      nats: bidirectional
+      inboundRequests:
+        - hzp-app: hzp-tags-svc
+        - hzp-app: postgresql
+        - hzp-app: hzp-api-gateway-svc
+        - hzp-app: hzp-rules-svc
+        - hzp-app: hzp-events-svc
+      outboundRequests:
+        - hzp-app: postgresql
+        - hzp-app: hzp-flag-manager-svc
+    - service: hzp-notification-svc
+      nats: bidirectional
+      externalInternetTraffic: outbound
+      inboundRequests:
+        - hzp-app: hzp-notification-svc
+        - hzp-app: postgresql
+        - hzp-app: keycloak
+        - hzp-app: hzp-rules-svc
+        - hzp-app: hzp-api-gateway-svc
+      outboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-certificate-svc
+        - hzp-app: hzp-flag-manager-svc
+    - service: composer-backend
+      podSelector:
+        matchLabels:
+          app: composer-backend
+      inboundRequests:
+        - hzp-app: nginx-fusion
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-role: fusion-service
+        - app.kubernetes.io/instance: *fusionChartName
+        - hzp-app: postgresql
+        - hzp-app: hzp-flag-manager-svc
+    - service: composer-frontend
+      podSelector:
+        matchLabels:
+          app: composer-frontend
+      inboundRequests:
+        - hzp-app: nginx-fusion
+      outboundRequests:
+        - hzp-role: fusion-service
+        - app.kubernetes.io/instance: *fusionChartName
+        - hzp-app: hzp-flag-manager-svc
+    - service: stage-backend
+      podSelector:
+        matchLabels:
+          app: stage-backend
+      externalInternetTraffic: outbound
+      ports:
+        - 15090
+        - 8088
+      inboundRequests:
+        - hzp-app: nginx-fusion
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-flag-manager-svc
+        - app.kubernetes.io/instance: *fusionChartName
+    - service: fusion-api-service
+      podSelector:
+        matchLabels:
+          app: api-service
+      nats: outbound
+      ports:
+        - 8101
+        - 15090
+        - 15006
+      inboundRequests:
+        - hzp-app: nginx-fusion
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-iam-policy-svc
+        - hzp-app: seaweed
+        - hzp-app: hzp-flag-manager-svc
+        - app.kubernetes.io/instance: *fusionChartName
+    - service: fusion-restservice
+      podSelector:
+        matchLabels:
+          app: rest-service
+      ports:
+        - 8100
+        - 15090
+        - 15006
+      nats: bidirectional
+      inboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+        - hzp-app: eo-vault
+      outboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-iam-policy-svc
+        - hzp-app: eo-vault
+        - hzp-app: fluentbit
+        - hzp-app: seaweed
+        - hzp-app: hzp-inventory-svc
+        - app.kubernetes.io/instance: *fusionChartName
+        - hzp-app: hzp-flag-manager-svc
+    - service: fusion-drift-service
+      podSelector:
+        matchLabels:
+          app: drift
+      ports:
+        - 8100
+        - 15090
+        - 15006
+      nats: bidirectional
+      inboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-api-gateway-svc
+      outboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-iam-policy-svc
+        - hzp-app: hzp-flag-manager-svc
+        - app.kubernetes.io/instance: *fusionChartName
+    - service: fusion-blueprint-service
+      podSelector:
+        matchLabels:
+          app: blueprint
+      ports:
+        - 8100
+        - 15090
+        - 15006
+      nats: bidirectional
+      inboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-iam-policy-svc
+        - hzp-app: seaweed
+        - app.kubernetes.io/instance: *fusionChartName
+        - hzp-app: hzp-flag-manager-svc
+    - service: fusion-deployments-service
+      podSelector:
+        matchLabels:
+          app: deployments
+      ports:
+        - 8100
+        - 15090
+        - 15006
+      nats: bidirectional
+      inboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-iam-policy-svc
+        - hzp-app: seaweed
+        - app.kubernetes.io/instance: *fusionChartName
+        - hzp-app: hzp-flag-manager-svc
+    - service: fusion-secrets-service
+      podSelector:
+        matchLabels:
+          app: secrets
+      ports:
+        - 8100
+        - 15090
+        - 15006
+      nats: bidirectional
+      inboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+        - hzp-app: public-fileserver-job
+        - hzp-app: public-fileserver
+        - hzp-app: hzp-flag-manager-svc
+      outboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-iam-policy-svc
+        - hzp-app: eo-vault
+        - hzp-app: hzp-flag-manager-svc
+        - app.kubernetes.io/instance: *fusionChartName
+    - service: mgmt-worker
+      externalInternetTraffic: outbound
+      ports:
+        - 15090
+      nats: bidirectional
+      inboundRequests:
+        - hzp-app: nginx-fusion
+        - hzp-app: postgresql
+        - hzp-app: hzp-eoproxy-svc
+      outboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-eoproxy-svc
+        - hzp-app: seaweed
+        - hzp-app: hzp-flag-manager-svc
+        - app.kubernetes.io/instance: *fusionChartName
+    - service: fusion-plugins-service
+      podSelector:
+        matchLabels:
+          app: plugins
+      externalInternetTraffic: outbound
+      ports:
+        - 8100
+        - 15090
+        - 15006
+      nats: bidirectional
+      inboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-iam-policy-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: seaweed
+        - hzp-app: hzp-flag-manager-svc
+        - app.kubernetes.io/instance: *fusionChartName
+    - service: plugin-loader
+      inboundRequests:
+        - hzp-app: nginx-fusion
+      outboundRequests:
+        - hzp-role: fusion-service
+        - app.kubernetes.io/instance: *fusionChartName
+        - hzp-app: hzp-flag-manager-svc
+    - service: resource-uploader
+      inboundRequests:
+        - hzp-app: nginx-fusion
+      outboundRequests:
+        - hzp-role: fusion-service
+        - app.kubernetes.io/instance: *fusionChartName
+        - hzp-app: seaweed
+        - hzp-app: hzp-flag-manager-svc
+    - service: nginx-fusion
+      podSelector:
+        matchLabels:
+          fusion-name: nginx
+      externalInternetTraffic: inbound
+      ports:
+        - 15090
+        - 80
+        - 443
+        - 53333
+      inboundRequests:
+        - hzp-role: fusion-service
+      outboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: seaweed
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-iam-policy-svc
+        - hzp-app: hzp-flag-manager-svc
+        - app.kubernetes.io/instance: *fusionChartName
+    - service: execution-scheduler
+      ports:
+        - 15090
+      inboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-flag-manager-svc
+        - app.kubernetes.io/instance: *fusionChartName
+    - service: rabbitmq
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/instance: '{{ .Release.Name }}'
+          app.kubernetes.io/name: rabbitmq
+      ports:
+        - 15090
+        - 5672
+        - 25672
+        - 15672
+        - 4369
+        - 9419
+        - 5671
+      inboundRequests:
+        - hzp-role: fusion-service
+      outboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+        - app.kubernetes.io/instance: *fusionChartName
+    - service: seaweed-s3
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/component: s3
+          app.kubernetes.io/name: eo-management-seaweedfs
+      externalInternetTraffic: outbound
+      ports:
+        - 8333
+        - 9327
+      inboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: seaweed
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-datacollection-svc
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-app: delco-job
+        - hzp-app: fluentbit
+        - hzp-app: hzp-product-svc
+        - hzp-app: delete-jobs
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: dc-logs-migration-job
+        - hzp-app: public-fileserver
+        - hzp-app: public-fileserver-job
+        - hzp-app: keycloak-migration
+      outboundRequests:
+        - hzp-app: seaweed
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+        - app.kubernetes.io/instance: *fusionChartName
+    - service: seaweed-master
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/component: master
+          app.kubernetes.io/name: eo-management-seaweedfs
+      externalInternetTraffic: outbound
+      ports:
+        - 9333
+        - 19333
+        - 9327
+      inboundRequests:
+        - hzp-app: seaweed
+      outboundRequests:
+        - hzp-app: seaweed
+    - service: seaweed-filer
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/component: filer
+          app.kubernetes.io/name: eo-management-seaweedfs
+      externalInternetTraffic: outbound
+      ports:
+        - 8888
+        - 18888
+        - 9327
+      inboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: seaweed
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-datacollection-svc
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-app: delco-job
+        - hzp-app: fluentbit
+        - hzp-app: hzp-product-svc
+        - hzp-app: delete-jobs
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: dc-logs-migration-job
+        - hzp-app: public-fileserver
+        - hzp-app: public-fileserver-job
+        - hzp-app: keycloak-migration
+      outboundRequests:
+        - hzp-app: seaweed
+    - service: seaweed-volume
+      podSelector:
+        matchLabels:
+          app.kubernetes.io/component: volume
+          app.kubernetes.io/name: eo-management-seaweedfs
+      externalInternetTraffic: outbound
+      ports:
+        - 8080
+        - 18080
+        - 9327
+      inboundRequests:
+        - hzp-app: seaweed
+      outboundRequests:
+        - hzp-app: seaweed
+    - service: opensearch
+      podSelector:
+        matchLabels:
+          app: opensearch
+          release: eo-management
+      ports:
+        - 15090
+        - 9200
+      inboundRequests:
+        - hzp-app: hzp-events-svc
+        - hzp-app: opensearch
+      outboundRequests:
+        - hzp-app: istiod
+        - hzp-app: opensearch
+        - hzp-app: hzp-flag-manager-svc
+    - service: opensearch-manage
+      podSelector:
+        matchLabels:
+          app: opensearch-manage
+      outboundRequests:
+        - hzp-app: opensearch
+    - service: hzp-api-gateway-svc
+      ports:
+        - 15090
+        - 8080
+      inboundRequests:
+        - hzp-role: eo-service
+        - app: nginx
+        - hzp-role: fusion-service
+      outboundRequests:
+        - hzp-role: eo-service
+        - app: nginx
+        - hzp-role: fusion-service
+        - hzp-app: hzp-flag-manager-svc
+    - service: fluentbit
+      inboundRequests:
+        - hzp-app: fusion-restservice
+        - hzp-app: hzp-dc-regression
+      outboundRequests:
+        - hzp-app: seaweed
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+    - service: nats-create-stream-job
+      nats: bidirectional
+      k8sEndpoint: bidirectional
+      inboundRequests:
+        - hzp-app: nats-create-stream-job
+      outboundRequests:
+        - hzp-app: nats-create-stream-job
+        - hzp-app: hzp-flag-manager-svc
+    - service: nats-create-stream-metricsnode-job
+      nats: bidirectional
+      k8sEndpoint: bidirectional
+      inboundRequests:
+        - hzp-app: nats-create-stream-metricsnode-job
+      outboundRequests:
+        - hzp-app: nats-create-stream-metricsnode-job
+        - hzp-app: hzp-flag-manager-svc
+    - service: delete-jobs
+      k8sEndpoint: outbound
+      outboundRequests:
+        - hzp-app: seaweed
+        - hzp-app: hzp-flag-manager-svc
+    - service: public-fileserver
+      externalInternetTraffic: outbound
+      ports:
+        - 80
+      inboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: public-fileserver
+      outboundRequests:
+        - hzp-role: fusion-service
+        - hzp-app: seaweed
+        - hzp-app: public-fileserver
+        - hzp-app: istiod
+        - hzp-app: fusion-secrets-service
+        - hzp-app: hzp-flag-manager-svc
+        - app.kubernetes.io/instance: *fusionChartName
+    - service: public-fileserver-job
+      outboundRequests:
+        - hzp-app: seaweed
+        - hzp-app: fusion-secrets-service
+        - hzp-app: istiod
+        - hzp-app: hzp-flag-manager-svc
+        - app.kubernetes.io/instance: *fusionChartName
+  testApps:
+    - service: hzp-dc-regression
+      nats: bidirectional
+      k8sEndpoint: outbound
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-datacollection-svc
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: hzp-product-svc
+        - hzp-app: hzp-datacollection-svc
+        - hzp-app: postgresql
+        - hzp-app: fluentbit
+    - service: hzp-scheduler-regression
+      nats: bidirectional
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: hzp-scheduler-svc
+        - hzp-app: postgresql
+    - service: hzp-job-svc-regression
+      nats: bidirectional
+      k8sEndpoint: outbound
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-job-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-oe-template-mgr-svc
+    - service: hzp-inventory-svc-regression
+      nats: bidirectional
+      k8sEndpoint: outbound
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-job-svc
+        - hzp-app: fido-onboarding-svc
+        - hzp-app: hzp-oe-template-mgr-svc
+    - service: hzp-eo-initialization-svc-regression
+      nats: bidirectional
+      k8sEndpoint: outbound
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: fido-onboarding-svc
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-app: fido-manufacturer
+        - hzp-app: eo-vault
+        - hzp-app: hzp-ece-simulator
+    - service: fido-onboarding-svc-regression
+      nats: bidirectional
+      k8sEndpoint: outbound
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+        - hzp-app: fido-onboarding-svc
+        - hzp-app: fido-owner
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: fido-manufacturer
+    - service: hzp-fru-cru-svc-regression
+      nats: bidirectional
+      k8sEndpoint: outbound
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: fido-onboarding-svc
+        - hzp-app: fido-owner
+        - hzp-app: fido-manufacturer
+        - hzp-app: eo-vault
+    - service: hzp-event-display
+      nats: bidirectional
+      k8sEndpoint: outbound
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+    - service: hzp-ingress-authz-svc-regression
+      nats: bidirectional
+      k8sEndpoint: outbound
+      inboundRequests:
+        - hzp-app: istiod
+        - hzp-app: hzp-ingress-authz-svc
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: hzp-ingress-authz-svc
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+    - service: hzp-product-svc-regression
+      nats: bidirectional
+      k8sEndpoint: outbound
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-role: mist-service
+        - hzp-app: hzp-product-svc
+    - service: hzp-catalog-svc-regression
+      nats: bidirectional
+      externalInternetTraffic: outbound
+      inboundRequests:
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-oe-template-mgr-svc
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: hzp-ece-factory-os
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+        - hzp-role: eo-service
+        - hzp-app: hzp-compute-svc
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-oe-template-mgr-svc
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: hzp-ece-factory-os
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+        - hzp-role: eo-service
+        - hzp-app: istiod
+    - service: hzp-certificate-svc-regression
+      nats: bidirectional
+      k8sEndpoint: outbound
+      inboundRequests:
+        - hzp-app: eo-vault
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-certificate-svc
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: eo-vault
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-certificate-svc
+        - hzp-app: istiod
+    - service: hzp-compute-svc-regression
+      nats: bidirectional
+      externalInternetTraffic: outbound
+      inboundRequests:
+        - hzp-app: hzp-upgrade-svc
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: postgresql
+        - hzp-role: eo-service
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-catalog-svc
+    - service: hzp-eoproxy-svc-regression
+      nats: outbound
+      k8sEndpoint: outbound
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-eoproxy-svc
+        - hzp-app: postgresql
+        - hzp-role: fusion-service
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-role: mist-service
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-eoproxy-svc
+        - hzp-app: postgresql
+        - hzp-app: istiod
+        - hzp-role: fusion-service
+    - service: hzp-events-svc-regression
+      nats: bidirectional
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-product-svc
+        - hzp-app: hzp-ece-simulator
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-role: mist-service
+        - app: opensearch
+        - hzp-app: hzp-product-svc
+        - hzp-app: hzp-ece-simulator
+        - hzp-app: istiod
+    - service: hzp-health-check-svc-regression
+      nats: bidirectional
+      k8sEndpoint: bidirectional
+      inboundRequests:
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: hzp-health-check-svc
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: hzp-upgrade-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-ece-firmwareupdate-svc
+        - hzp-app: hzp-health-check-svc
+        - hzp-app: postgresql
+        - hzp-app: istiod
+    - service: hzp-iam-configuration-svc-regression
+      k8sEndpoint: outbound
+      nats: outbound
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: keycloak
+        - hzp-app: hzp-iam-configuration-svc
+        - hzp-app: hzp-iam-svc
+        - hzp-app: hzp-iam-session-svc
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-role: mist-service
+        - hzp-app: keycloak
+        - hzp-app: hzp-iam-configuration-svc
+        - hzp-app: hzp-iam-svc
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: istiod
+    - service: hzp-iam-policy-svc-regression
+      k8sEndpoint: outbound
+      nats: outbound
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: keycloak
+        - hzp-app: hzp-iam-configuration-svc
+        - hzp-app: hzp-iam-svc
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-iam-policy-svc
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-role: mist-service
+        - hzp-app: keycloak
+        - hzp-app: hzp-iam-configuration-svc
+        - hzp-app: hzp-iam-svc
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-iam-policy-svc
+        - hzp-app: istiod
+    - service: hzp-iam-svc-regression
+      k8sEndpoint: outbound
+      nats: outbound
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-iam-configuration-svc
+        - hzp-app: hzp-iam-svc
+        - hzp-app: keycloak
+        - hzp-app: hzp-iam-session-svc
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-role: mist-service
+        - hzp-app: hzp-iam-configuration-svc
+        - hzp-app: hzp-iam-svc
+        - hzp-app: keycloak
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: istiod
+    - service: hzp-oe-template-mgr-svc-regression
+      nats: bidirectional
+      k8sEndpoint: outbound
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-ece-factory-os
+        - hzp-app: hzp-oe-template-mgr-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-role: mist-service
+        - hzp-app: hzp-ece-factory-os
+        - hzp-app: hzp-oe-template-mgr-svc
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: postgresql
+        - hzp-app: istiod
+    - service: hzp-rules-svc-regression
+      externalInternetTraffic: outbound
+      nats: bidirectional
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: hzp-inventory-svc
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: postgresql
+        - hzp-app: rabbitmq
+        - hzp-app: hzp-tags-svc
+        - hzp-app: hzp-inventory-svc
+    - service: hzp-time-svc-regression
+      inboundRequests:
+        - hzp-app: hzp-time-svc
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: hzp-time-svc
+        - hzp-app: istiod
+    - service: hzp-upgrade-svc-regression
+      nats: bidirectional
+      k8sEndpoint: bidirectional
+      inboundRequests:
+        - hzp-app: hzp-delco-svc
+        - hzp-app: hzp-health-check-svc
+        - hzp-app: hzp-upgrade-svc
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: eo-vault
+        - hzp-app: hzp-inventory-svc
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: hzp-delco-svc
+        - hzp-app: hzp-health-check-svc
+        - hzp-app: hzp-upgrade-svc
+        - hzp-role: mist-service
+        - hzp-app: postgresql
+        - hzp-app: hzp-catalog-svc
+        - hzp-app: istiod
+        - hzp-app: eo-vault
+        - hzp-app: hzp-inventory-svc
+    - service: eo-vault-regression
+      k8sEndpoint: bidirectional
+      inboundRequests:
+        - hzp-app: hzp-recovery-svc
+        - hzp-app: hzp-certificate-svc
+        - hzp-app: eo-vault
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: fido-owner
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-role: init-check
+        - hzp-role: mist-service
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: hzp-upgrade-svc
+        - hzp-role: fusion-service
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: hzp-recovery-svc
+        - hzp-app: hzp-certificate-svc
+        - hzp-app: eo-vault
+        - hzp-app: hzp-eo-initialization-svc
+        - hzp-app: fido-owner
+        - hzp-app: hzp-inventory-svc
+        - hzp-app: hzp-fru-cru-svc
+        - hzp-role: init-check
+        - hzp-role: mist-service
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: istiod
+        - hzp-app: hzp-upgrade-svc
+        - hzp-role: fusion-service
+    - service: hzp-tags-svc-regression
+      nats: bidirectional
+      k8sEndpoint: outbound
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-app: hzp-tags-svc
+        - hzp-app: postgresql
+    - service: hzp-notification-svc-regression
+      nats: bidirectional
+      k8sEndpoint: outbound
+      inboundRequests:
+        - hzp-role: mist-service
+        - hzp-app: keycloak
+        - hzp-app: hzp-notification-svc
+        - hzp-app: hzp-iam-svc
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: postgresql
+      outboundRequests:
+        - hzp-app: hzp-flag-manager-svc
+        - hzp-role: mist-service
+        - hzp-app: keycloak
+        - hzp-app: hzp-notification-svc
+        - hzp-app: hzp-iam-svc
+        - hzp-app: hzp-iam-session-svc
+        - hzp-app: postgresql

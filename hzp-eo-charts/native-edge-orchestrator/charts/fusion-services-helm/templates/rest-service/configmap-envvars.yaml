@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ template "fusion-services.name" . }}-rest-service-envvars
+  annotations:
+    {{- include "fusion-services.merge" ( list .Values.commonAnnotations "" ) | nindent 4 }}
+data:
+  {{ range $key, $value := .Values.rest_service.env -}}
+  {{ $key }}: {{ tpl $value $ | quote }}
+  {{ end -}}

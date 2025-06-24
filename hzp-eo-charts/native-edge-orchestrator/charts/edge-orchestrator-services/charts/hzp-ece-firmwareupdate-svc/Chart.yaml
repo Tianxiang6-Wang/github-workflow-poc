@@ -1,0 +1,11 @@
+annotations:
+  containerImages: |
+    - firmware-update-svc
+    - busybox
+    - common-locales-bundle
+apiVersion: v2
+appVersion: latest
+description: A Helm chart for ECE firmware update service
+name: hzp-ece-firmwareupdate-svc
+type: application
+version: 0.1.0
