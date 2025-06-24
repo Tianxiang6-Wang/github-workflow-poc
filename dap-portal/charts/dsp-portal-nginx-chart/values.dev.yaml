@@ -1,0 +1,18 @@
+domain: "dev.sp.dell.com" # FIXME: temporary workaround for ingress per namespace
+
+ingress:
+  annotations:
+    alb.ingress.kubernetes.io/group.name: "saas-dsp-portal-dev"
+    alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:eu-west-1:702886132326:certificate/aa01e3eb-053d-40c7-8f00-5f70741a3b3d"
+  host: "dsp-portal.dev.sp.dell.com"
+
+mtlsService:
+  enabled: false
+  annotations:
+    external-dns.alpha.kubernetes.io/hostname: mtls-dsp-portal.dev.sp.dell.com
+
+isOnPrem: true
+di:
+  baseUrl: "https://www.dell.com"
+  clientId: "3433bcfa-421b-4fc5-a9c6-2c60081864e3"
+    

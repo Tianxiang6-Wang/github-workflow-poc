@@ -1,0 +1,17 @@
+annotations:
+  buildWorkflowURL: https://github.com/fusion-e/dsp-iam-svc/actions/runs/15756034601/attempts/1
+apiVersion: v2
+appVersion: 0.1.24
+dependencies:
+- condition: global.installDependencies
+  name: dsp-iam-login-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 1.0.29
+- condition: global.standAloneDeploy
+  name: dsp-portal-nats-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.1.11
+description: DSP Portal Helm chart for the IAM service
+name: dsp-iam-svc-chart
+type: application
+version: 0.1.24

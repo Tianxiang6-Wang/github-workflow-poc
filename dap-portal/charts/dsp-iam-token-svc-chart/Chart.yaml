@@ -1,0 +1,8 @@
+annotations:
+  buildWorkflowURL: https://github.com/fusion-e/dsp-iam-token-svc/actions/runs/15663467917/attempts/1
+apiVersion: v2
+appVersion: 0.0.21
+description: DSP IAM Token Service Helm Chart
+name: dsp-iam-token-svc-chart
+type: application
+version: 0.0.38

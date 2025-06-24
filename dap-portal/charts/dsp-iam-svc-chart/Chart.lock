@@ -1,0 +1,9 @@
+dependencies:
+- name: dsp-iam-login-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 1.0.29
+- name: dsp-portal-nats-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.1.11
+digest: sha256:273d17786106897cdee6997304a55b0bc6af71e335cab012817fc53f0fc0b4ef
+generated: "2025-06-19T10:49:09.976057702Z"

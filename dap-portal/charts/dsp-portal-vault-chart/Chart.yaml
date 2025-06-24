@@ -1,0 +1,6 @@
+apiVersion: v2
+appVersion: 1.15.6
+description: Official HashiCorp Vault Chart
+kubeVersion: '>= 1.16.0-0'
+name: dsp-portal-vault-chart
+version: 0.9.21

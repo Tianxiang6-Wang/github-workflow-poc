@@ -1,0 +1,117 @@
+{{- $svc := .Values.svc -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.svc.name }}
+  labels:
+    hzp-app: {{ .Values.svc.name }}
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: {{ .Values.svc.port }}
+      protocol: TCP
+      name: http
+  selector:
+    hzp-app: {{ .Values.svc.name }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+spec:
+{{- if not .Values.svc.autoScaling.enabled }}
+  replicas: {{ .Values.svc.replicaCount }}
+{{- end }}
+  selector:
+    matchLabels:
+      hzp-app: {{ .Values.svc.name }}
+  template:
+    metadata:
+      annotations:
+{{- tpl (toYaml .Values.svc.podAnnotations) . | replace "'" "" | nindent 8 }}
+      labels:
+{{- tpl (toYaml .Values.svc.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      serviceAccountName: {{ .Values.svc.rbac.namePrefix }}-sa
+      {{- with .Values.image.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}
+      containers:
+        - image: "{{ .Values.global.registry }}/{{ .Values.image.name }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          name: {{ .Values.svc.name }}
+          {{ $_ := set .Values "iamProxyEntry" "./main" }}
+          {{ tpl (toYaml .Values.global.iamProxy.commandDecorator) . | nindent 10 }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.svc.port }}
+          resources:
+            {{- toYaml .Values.svc.resources | nindent 12 }}
+          env:
+            - name: SIDECAR_INJECTED
+              value: "{{ .Values.global.iamProxy.sidecarEnabled }}"
+            - name: NATS_URL
+              value: "nats://nats:4222"
+            - name: NAMESPACE
+              value:  {{ .Release.Namespace }}
+            - name: INTERNAL_INGRESS_NAMESPACE
+              value: {{ tpl $svc.internalIngressNamespace . | quote }}
+            - name: AUTO_CONFIRM
+              value: "true"
+            - name: EVENTING_TYPE
+              value: {{ .Values.global.message.type | quote }}
+            - name: EO_IP
+              value: {{ .Values.global.ingress.fqdn }}
+            - name: EO_NAME
+              value: {{ .Values.global.eoName }}
+            - name: NGINX_GW_ENABLED
+              value: "{{ .Values.global.nginx_gw.enabled }}"
+            - name: ENABLE_INSTRUMENTATION
+              value: {{ .Values.global.instrumentation.enabled | quote }}
+          {{- toYaml .Values.svc.env | nindent 12 }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+      initContainers:
+        - name: init-nats
+          image: "{{ .Values.global.registry }}/{{ .Values.global.busybox.image.name }}:{{ .Values.global.busybox.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.global.busybox.image.pullPolicy }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: NATS_HOST
+              value: "nats"
+            - name: NATS_MONITORING_PORT
+              value: "8222"
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for Jetstream NATS to become ready...'
+              command="wget -S ${NATS_HOST}:${NATS_MONITORING_PORT}/healthz  2>&1 | awk '/^  HTTP/{print $2}'"
+              status=$(eval "$command")
+              echo "status: $status"
+              while [[ "$status" != *"HTTP/1.1 200 OK"* ]]; do
+                  sleep 2;
+                  status=$(eval "$command")
+                  echo "status: $status"
+              done;
+              echo 'Jetstream OK ✓'

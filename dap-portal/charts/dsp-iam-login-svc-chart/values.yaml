@@ -1,0 +1,744 @@
+global:
+  registry: "702886132326.dkr.ecr.eu-west-1.amazonaws.com"
+  installDependencies: true
+  postgres:
+    internal: true
+    host:
+    auth:
+      existingSecret: postgres-secret # pragma: allowlist secret
+      dbUser: keycloak
+      dbPasswordSecretKey: keycloak-db-password # pragma: allowlist secret
+      database: keycloak
+  keycloak:
+    deploy: true
+    scheme: http
+    host: dsp-iam-login-svc-http.{{ .Release.Namespace }}.svc.cluster.local
+    port: "80"
+    auth:
+      secretName: keycloak-secret # pragma: allowlist secret
+    settings:
+      forceAdminUserPostFirstLoginActions: true
+    dsp:
+      enabled: true
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  busybox:
+    image:
+      name: eo-images/busybox
+      pullPolicy: Always
+      tag: 1.36.1
+  hzputil:
+    image:
+      name: eo-images/hzp-util
+      pullPolicy: Always
+      tag: 0.1.3
+  services:
+    - name: keycloak
+      m2m: true
+      vault: true
+      vaultPolicies: |-
+        # policy for PKI
+        path "pki/eo/*" {
+          capabilities = ["read", "list", "create", "update", "patch", "delete"]
+        }
+    #    - name: hzp-attestation-svc
+    #      m2m: true
+    #      vault: true
+    #    - name: mist
+    #      m2m: true
+    #      vault: false
+    #    - name: hzp-notification-svc
+    #      m2m: true
+    #      vault: true
+    #    - name: hzp-certificate-svc
+    #      m2m: true
+    #      vault: false
+    #    - name: hzp-inventory-svc
+    #      m2m: true
+    #      vault: false
+    #    - name: hzp-rules-svc
+    #      m2m: true
+    #      vault: true
+    #    - name: hzp-metrics-svc
+    #      m2m: true
+    #      vault: true
+    - name: hzp-iam-session-svc
+      m2m: true
+      vault: true
+      vaultPolicies: |-
+        # policy for KV
+        path "kv/eo/hzp-iam-session-svc/*" {
+          capabilities = ["read", "list", "create", "update", "patch", "delete"]
+        }
+  upgrade:
+    migration: false
+
+nameOverride: "dsp-iam-login-svc"
+fullnameOverride: "dsp-iam-login-svc"
+
+replicaCount: 1
+
+# defaults are dev:
+dellEnvironment: "dev"
+sslCertificates: "arn:aws:acm:eu-west-1:702886132326:certificate/aa01e3eb-053d-40c7-8f00-5f70741a3b3d"
+albName: "dev.sp.dell.com"
+albGroupName: "saas-dsp-portal-dev"
+domain: "dev.sp.dell.com"
+
+# values that contains list of items for configmap env:
+extended_list_env:
+extended_list_values:
+
+
+#replace values from configmap.yaml of your service
+#set the configs values Hardcoded from old vluefile env values.
+# ALL!!! values must be in QUOTES!!!!
+config:
+  configmap:
+
+
+# set all the deployment envs HERE!
+# secretname= global.secretname
+# keyToEnvName= the name of the env-ar on the pods (dell__Secret__ConnectionStrings__dellConnectionString)
+# key = the actual key needed from the secret
+# u can add more then 1 secret to use(see in your value global parameter)
+externalsecrets:
+
+image:
+  image: "eo-images/keycloak-login"
+  tag: 26.0.7-edb27d5-151
+  pullPolicy: Always
+  imagePullSecrets:
+    - name: docker-secret
+# - name: myRegistrKeySecretName
+
+# Mapping between IPs and hostnames that will be injected as entries in the Pod's hosts files
+hostAliases: []
+# - ip: "1.2.3.4"
+#   hostnames:
+#     - "my.host.com"
+
+# Indicates whether information about services should be injected into Pod's environment variables, matching the syntax of Docker links
+enableServiceLinks: false
+
+# Pod management policy. One of `Parallel` or `OrderedReady`
+podManagementPolicy: Parallel
+
+# Pod restart policy. One of `Always`, `OnFailure`, or `Never`
+restartPolicy: Always
+
+serviceAccount:
+  # Specifies whether a ServiceAccount should be created
+  create: true
+  # Specifies whether the ServiceAccount can get and list pods
+  allowReadPods: false
+  # The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+  # Additional annotations for the ServiceAccount
+  annotations: {}
+  # Additional labels for the ServiceAccount
+  labels:
+    hzp-app: keycloak
+    hzp-role: eo-service
+  # Image pull secrets that are attached to the ServiceAccount
+  imagePullSecrets: []
+  # Automount API credentials for the Service Account
+  automountServiceAccountToken: true
+
+rbac:
+  create: true
+  rules:
+    - apiGroups: [ "batch" ]
+      resources: [ "jobs" ]
+      resourceNames: [ "vault-bootstrap" ]
+      verbs: [ "list","get","watch" ]
+  # RBAC rules for KUBE_PING
+  #  - apiGroups:
+  #      - ""
+  #    resources:
+  #      - pods
+  #    verbs:
+  #      - get
+  #      - list
+
+# SecurityContext for the entire Pod. Every container running in the Pod will inherit this SecurityContext. This might be relevant when other components of the environment inject additional containers into running Pods (service meshes are the most prominent example for this)
+podSecurityContext:
+  fsGroup: 1000
+
+# SecurityContext for the Keycloak container
+securityContext:
+  runAsUser: 1000
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+
+# Additional init containers, e. g. for providing custom themes
+extraInitContainers: ""
+
+# When using service meshes which rely on a sidecar, it may be necessary to skip init containers altogether,
+# since the sidecar doesn't start until the init containers are done, and the sidecar may be required
+# for network access.
+# For example, Istio in strict mTLS mode prevents the dbchecker init container from ever completing
+skipInitContainers: false
+
+# Additional sidecar containers, e. g. for a database proxy, such as Google's cloudsql-proxy
+extraContainers: ""
+
+# Lifecycle hooks for the Keycloak container
+lifecycleHooks: |
+#  postStart:
+#    exec:
+#      command:
+#        - /bin/sh
+#        - -c
+#        - ls
+
+# Termination grace period in seconds for Keycloak shutdown. Clusters with a large cache might need to extend this to give Infinispan more time to rebalance
+terminationGracePeriodSeconds: 60
+
+# The internal Kubernetes cluster domain
+clusterDomain: cluster.local
+
+## Overrides the default entrypoint of the Keycloak container
+command:
+  - /bin/sh
+  - -c
+  - |
+    sed -i "s/{BRAND}/$PRODUCT_NAME/g" /opt/keycloak/themes/dap/login/messages/messages_en.properties
+    sed -i "s/{BRAND}/$PRODUCT_NAME/g" /opt/keycloak/themes/dap/email/messages/messages_en.properties
+    /opt/keycloak/bin/kc.sh --verbose start --import-realm --http-enabled=true --http-port=8080 --hostname-strict=false --features-disabled="organization" --spi-truststore-provider=vault --spi-events-listener-jboss-logging-success-level=info --spi-events-listener-jboss-logging-error-level=warn --spi-user-profile-declarative-user-profile-config-file=/opt/keycloak/data/keycloak-default-user-profile.json
+
+
+## Overrides the default args for the Keycloak container
+args: []
+
+# Additional environment variables for Keycloak
+extraEnv: |
+  - name: CERT_SERVICE_URL
+    value: http://dsp-portal-certificate-svc
+  - name: DSP_ENABLED
+    value: "true"
+  - name: DELL_SECURITY_ADMIN_USR_PWD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secret
+        key: dell-security-admin-usr-pwd
+  - name: KEYCLOAK_AUTOMATION_CLIENT_NAME
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secret
+        key: automation-client-name
+  - name: KEYCLOAK_AUTOMATION_CLIENT_PWD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secret
+        key: automation-client-pwd
+  - name: INTERNAL_CLIENT_IDS
+    value: "${KEYCLOAK_AUTH_CLIENT_NAME}"
+  - name: INTERNAL_USER_IDS
+    value: ""
+  - name: KC_BOOTSTRAP_ADMIN_USERNAME
+    value: keycloak
+  - name: KC_BOOTSTRAP_ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secret
+        key: keycloak-password
+  - name: KEYCLOAK_SECURITY_ADMIN_USR_PWD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secret
+        key: security-admin-usr-pwd
+  - name: KEYCLOAK_AUTH_CLIENT_PWD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secret
+        key: auth-client-pwd
+  - name: KEYCLOAK_AUTH_CLIENT_NAME
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secret
+        key: auth_client-name
+  - name: KEYCLOAK_IAM_CLIENT_PWD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secret
+        key: iam-client-pwd
+  - name: KEYCLOAK_DELCO_CLIENT_PWD
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secret
+        key: delco-client-pwd
+  - name: KEYCLOAK_IAM_CLIENT_NAME
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secret
+        key: iam-client-name
+  - name: KEYCLOAK_DELCO_CLIENT_NAME
+    valueFrom:
+      secretKeyRef:
+        name: keycloak-secret
+        key: delco-client-name
+  - name: JAVA_OPTS_APPEND
+    value: >-
+      -XX:+UseContainerSupport
+      -XX:MaxRAMPercentage=50.0
+      -Djava.awt.headless=true
+      -Djgroups.dns.query={{ include "keycloak.fullname" . }}-headless
+
+# Additional environment variables for Keycloak mapped from Secret or ConfigMap
+extraEnvFrom: ""
+sslRequired: "external"
+
+#  Pod priority class name
+priorityClassName: ""
+
+# Pod affinity
+affinity: |
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            {{- include "keycloak.selectorLabels" . | nindent 10 }}
+          matchExpressions:
+            - key: app.kubernetes.io/component
+              operator: NotIn
+              values:
+                - test
+        topologyKey: kubernetes.io/hostname
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchLabels:
+              {{- include "keycloak.selectorLabels" . | nindent 12 }}
+            matchExpressions:
+              - key: app.kubernetes.io/component
+                operator: NotIn
+                values:
+                  - test
+          topologyKey: topology.kubernetes.io/zone
+
+# Topology spread constraints template
+topologySpreadConstraints:
+
+# Node labels for Pod assignment
+# nodeSelector: {}
+
+# Node taints to tolerate
+# tolerations: []
+
+# Additional Pod labels
+podLabels:
+  hzp-app: keycloak
+  hzp-role: eo-service
+  
+
+# Additional Pod annotations
+podAnnotations:
+  hzp.iam.webhook/authentication-enabled: "false"
+  hzp.iam.webhook/authorization-enabled: "false"
+
+# Liveness probe configuration
+livenessProbe: |
+  httpGet:
+    path: '{{ tpl .Values.http.relativePath $ | trimSuffix "/" }}/'
+    port: http
+  initialDelaySeconds: 0
+  timeoutSeconds: 5
+
+# Readiness probe configuration
+readinessProbe: |
+  httpGet:
+    path: '{{ tpl .Values.http.relativePath $ | trimSuffix "/" }}/realms/master' # wokeignore:rule=master
+    port: http
+  initialDelaySeconds: 10
+  timeoutSeconds: 1
+
+# Startup probe configuration
+startupProbe: |
+  httpGet:
+    path: '{{ tpl .Values.http.relativePath $ | trimSuffix "/" }}/'
+    port: http
+  initialDelaySeconds: 15
+  timeoutSeconds: 1
+  failureThreshold: 60
+  periodSeconds: 5
+
+# Pod resource requests and limits
+resources:
+   requests:
+     cpu: "5m"
+     memory: "256Mi"
+   limits:
+     cpu: "500m"
+     memory: "1024Mi"
+
+# Add additional volumes, e. g. for custom themes
+extraVolumes: |
+  - name: realm-secret # pragma: allowlist secret
+    secret:
+      secretName: realm-secret
+
+# Add additional volumes mounts, e. g. for custom themes
+extraVolumeMounts: |
+  - name: realm-secret # pragma: allowlist secret
+    mountPath: "/opt/keycloak/data/import/"
+    readOnly: true
+
+# Add additional ports, e. g. for admin console or exposing JGroups ports
+extraPorts: []
+
+# Annotations for the StatefulSet
+statefulsetAnnotations: {}
+
+# Additional labels for the StatefulSet
+statefulsetLabels: {}
+
+# Configuration for secrets that should be created
+secrets: {}
+  # mysecret:
+  #   type: {}
+  #   annotations: {}
+  #   labels: {}
+  #   stringData: {}
+  #   data: {}
+
+service:
+  # Annotations for headless and HTTP Services
+  annotations: {}
+  # Additional labels for headless and HTTP Services
+  labels:
+    hzp-app: keycloak
+    hzp-role: eo-service
+  # key: value
+  # The Service type
+  type: ClusterIP
+  # Optional IP for the load balancer. Used for services of type LoadBalancer only
+  loadBalancerIP: ""
+  # The http Service port
+  httpPort: 80
+  # The HTTP Service node port if type is NodePort
+  httpNodePort: 30880
+  # The HTTPS Service port
+  httpsPort: 8443
+  # The HTTPS Service node port if type is NodePort
+  httpsNodePort: null
+  # Additional Service ports, e. g. for custom admin console
+  extraPorts: []
+  # When using Service type LoadBalancer, you can restrict source ranges allowed
+  # to connect to the LoadBalancer, e. g. will result in Security Groups
+  # (or equivalent) with inbound source ranges allowed to connect
+  loadBalancerSourceRanges: []
+  # When using Service type LoadBalancer, you can preserve the source IP seen in the container
+  # by changing the default (Cluster) to be Local.
+  # See https://kubernetes.io/docs/tasks/access-application-cluster/create-external-load-balancer/#preserving-the-client-source-ip
+  externalTrafficPolicy: "Cluster"
+  # Session affinity
+  # See https://kubernetes.io/docs/concepts/services-networking/service/#proxy-mode-userspace
+  sessionAffinity: ""
+  # Session affinity config
+  sessionAffinityConfig: {}
+
+ingress:
+  # If `true`, an Ingress is created
+  enabled: false
+  # The name of the Ingress Class associated with this ingress
+  ingressClassName: ""
+  # The Service port targeted by the Ingress
+  servicePort: http
+  # Ingress annotations
+  annotations: {}
+    ## Resolve HTTP 502 error using ingress-nginx:
+    ## See https://www.ibm.com/support/pages/502-error-ingress-keycloak-response
+    # nginx.ingress.kubernetes.io/proxy-buffer-size: 128k
+
+  # Additional Ingress labels
+  labels: {}
+   # List of rules for the Ingress
+  rules:
+    -
+      # Ingress host
+      host: '{{ .Release.Name }}.keycloak.example.com'
+      # Paths for the host
+      paths:
+        - path: '{{ tpl .Values.http.relativePath $ | trimSuffix "/" }}/'
+          pathType: Prefix
+  # TLS configuration
+  # tls:
+  #   - hosts:
+  #       - keycloak.example.com
+  #     secretName: ""
+
+  # ingress for console only (/auth/admin)
+  console:
+    # If `true`, an Ingress is created for console path only
+    enabled: false
+    # The name of Ingress Class associated with the console ingress only
+    ingressClassName: ""
+    # Ingress annotations for console ingress only
+    annotations: {}
+    rules:
+      -
+        # Ingress host
+        host: '{{ .Release.Name }}.keycloak.example.com'
+        # Paths for the host
+        paths:
+          - path: '{{ tpl .Values.http.relativePath $ | trimSuffix "/" }}/admin'
+            pathType: Prefix
+
+    # Console TLS configuration
+    tls: []
+#      - hosts:
+#          - console.keycloak.example.com
+#        secretName: ""
+
+## Network policy configuration
+networkPolicy:
+  # If true, the Network policies are deployed
+  enabled: false
+
+  # Additional Network policy labels
+  labels:
+    - hzp-app: keycloak
+    - hzp-role: eo-service
+
+  # Define all other external allowed source
+  # See https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.18/#networkpolicypeer-v1-networking-k8s-io
+  extraFrom: []
+
+route:
+  # If `true`, an OpenShift Route is created
+  enabled: false
+  # Path for the Route
+  path: /
+  # Route annotations
+  annotations: {}
+  # Additional Route labels
+  labels: {}
+  # Host name for the Route
+  host: ""
+  # TLS configuration
+  tls:
+    # If `true`, TLS is enabled for the Route
+    enabled: true
+    # Insecure edge termination policy of the Route. Can be `None`, `Redirect`, or `Allow`
+    insecureEdgeTerminationPolicy: Redirect
+    # TLS termination of the route. Can be `edge`, `passthrough`, or `reencrypt`
+    termination: edge
+
+dbchecker:
+  enabled: true
+  image:
+    # Docker image used to check Postgresql readiness at startup
+    repository: busybox
+    # Image tag for the dbchecker image
+    tag: 1.36.1
+    # Image pull policy for the dbchecker image
+    pullPolicy: IfNotPresent
+  # SecurityContext for the dbchecker container
+  securityContext:
+    allowPrivilegeEscalation: false
+    runAsUser: 1000
+    runAsGroup: 1000
+    runAsNonRoot: true
+  # Resource requests and limits for the dbchecker container
+  resources:
+    requests:
+      cpu: "20m"
+      memory: "32Mi"
+    limits:
+      cpu: "20m"
+      memory: "32Mi"
+
+database:
+  # don't create secret for db password. Instead use existing k8s secret
+  # existingSecret: "postgres-secret"
+  existingSecret: postgres-secret
+  vendor: postgres
+  username: keycloak
+  database: keycloak
+  dbPasswordKey: keycloak-db-password
+
+cache:
+  # Use "custom" to disable automatic cache configuration
+  stack: default
+
+hostname:
+  httpEnabled: true
+  proxyHeaders: xforwarded
+
+metrics:
+  enabled: true
+
+health:
+  enabled: true
+
+http:
+  # For backwards compatibility reasons we set this to the value used by previous Keycloak versions.
+  relativePath: "/auth"
+
+serviceMonitor:
+  # If `true`, a ServiceMonitor resource for the prometheus-operator is created
+  enabled: false
+  # Optionally sets a target namespace in which to deploy the ServiceMonitor resource
+  namespace: ""
+  # Optionally sets a namespace for the ServiceMonitor
+  namespaceSelector: {}
+  # Annotations for the ServiceMonitor
+  annotations: {}
+  # Additional labels for the ServiceMonitor
+  labels: {}
+  # Interval at which Prometheus scrapes metrics
+  interval: 10s
+  # Timeout for scraping
+  scrapeTimeout: 10s
+  # The path at which metrics are served
+  path: '{{ tpl .Values.http.relativePath $ | trimSuffix "/" }}/metrics'
+  # The Service port at which metrics are served
+  port: http
+
+extraServiceMonitor:
+  # If `true`, a ServiceMonitor resource for the prometheus-operator is created
+  enabled: false
+  # Optionally sets a target namespace in which to deploy the ServiceMonitor resource
+  namespace: ""
+  # Optionally sets a namespace for the ServiceMonitor
+  namespaceSelector: {}
+  # Annotations for the ServiceMonitor
+  annotations: {}
+  # Additional labels for the ServiceMonitor
+  labels: {}
+  # Interval at which Prometheus scrapes metrics
+  interval: 10s
+  # Timeout for scraping
+  scrapeTimeout: 10s
+  # The path at which metrics are served
+  path: '{{ tpl .Values.http.relativePath $ | trimSuffix "/" }}/realms/master/metrics' # wokeignore:rule=master
+  # The Service port at which metrics are served
+  port: http
+
+prometheusRule:
+  # If `true`, a PrometheusRule resource for the prometheus-operator is created
+  enabled: false
+  # Annotations for the PrometheusRule
+  annotations: {}
+  # Additional labels for the PrometheusRule
+  labels: {}
+  # List of rules for Prometheus
+  rules: []
+  # - alert: keycloak-IngressHigh5xxRate
+  #   annotations:
+  #     message: The percentage of 5xx errors for keycloak over the last 5 minutes is over 1%.
+  #   expr: |
+  #     (
+  #       sum(
+  #         rate(
+  #           nginx_ingress_controller_response_duration_seconds_count{exported_namespace="mynamespace",ingress="mynamespace-keycloak",status=~"5[0-9]{2}"}[1m]
+  #         )
+  #       )
+  #       /
+  #       sum(
+  #         rate(
+  #           nginx_ingress_controller_response_duration_seconds_count{exported_namespace="mynamespace",ingress="mynamespace-keycloak"}[1m]
+  #         )
+  #       )
+  #     ) * 100 > 1
+  #   for: 5m
+  #   labels:
+  #     severity: warning
+
+autoscaling:
+  # If `true`, a autoscaling/v2 HorizontalPodAutoscaler resource is created (requires Kubernetes 1.18 or above)
+  # Autoscaling seems to be most reliable when using KUBE_PING service discovery (see README for details)
+  # This disables the `replicas` field in the StatefulSet
+  enabled: false
+  # Additional HorizontalPodAutoscaler labels
+  labels: {}
+  # The minimum and maximum number of replicas for the Keycloak StatefulSet
+  minReplicas: 3
+  maxReplicas: 10
+  # The metrics to use for scaling
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+  # The scaling policy to use. This will scale up quickly but only scale down a single Pod per 5 minutes.
+  # This is important because caches are usually only replicated to 2 Pods and if one of those Pods is terminated this will give the cluster time to recover.
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 300
+
+test:
+  # If `true`, test resources are created
+  enabled: false
+  testsuite: test-suites/smoke.xml
+  keycloak:
+    url: http://keycloak-http
+    realm: hzp
+    authRealm: hzp
+    internalPrefix: internal
+    image:
+      name: keycloak-smoke-tests
+      pullPolicy: Always
+  image:
+    # The image for the test Pod
+    repository: unguiculus/docker-python3-phantomjs-selenium
+    # The tag for the test Pod image
+    tag: v1
+    # The image pull policy for the test Pod image
+    pullPolicy: IfNotPresent
+  # SecurityContext for the entire test Pod
+  podSecurityContext:
+    fsGroup: 1000
+    seccompProfile:
+      type: RuntimeDefault
+  # SecurityContext for the test container
+  securityContext:
+    runAsUser: 1000
+    runAsNonRoot: true
+    allowPrivilegeEscalation: false
+  # See https://helm.sh/docs/topics/charts_hooks/#hook-deletion-policies
+  deletionPolicy: before-hook-creation
+
+# Subchart values
+hook:
+  jobAnnotations:
+    "helm.sh/hook": post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
+    "helm.sh/hook-weight": "-1"
+  podLabels:
+    hzp-app: keycloak-upgrade-job
+    hzp-role: eo-service
+    hzp.iam.webhook/active: "false"
+    sidecar.istio.io/inject: "false"
+  upgradeJob:
+    name: keycloak-upgrade-job
+    enabled: true
+
+dbinit:
+  postgres:
+    enabled: true
+    name: "dsp-iam-login-svc"
+    prefix: 
+    dbName: "keycloak" # The db username is the same as the db name by design.
+
+postgresql-chart:
+  fullnameOverride: "postgresql"
+
+migration:
+  importFilesPath: "/workspace"
+  targetNamespace: "hzp"
+  clientsImporter:
+    image:
+      name: eo-images/iam-data-migration-svc
+      tag: 3.2.0.0-f1599a0-3107ba1c
+

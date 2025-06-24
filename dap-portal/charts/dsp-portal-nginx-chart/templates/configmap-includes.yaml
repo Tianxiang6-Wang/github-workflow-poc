@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "microservice.fullname" . }}-conf-includes-internal
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+data:
+{{ (tpl (.Files.Glob "files/config_includes/internal/*.template").AsConfig .) | indent 2 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "microservice.fullname" . }}-conf-includes-tls
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+data:
+{{ (tpl (.Files.Glob "files/config_includes/external_tls/*.template").AsConfig .) | indent 2 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "microservice.fullname" . }}-conf-includes-mtls
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+data:
+{{ (tpl (.Files.Glob "files/config_includes/external_mtls/*.template").AsConfig .) | indent 2 }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "microservice.fullname" . }}-conf-includes-mtls-recovery
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+data:
+{{ (tpl (.Files.Glob "files/config_includes/external_mtls_recovery/*.template").AsConfig .) | indent 2 }}

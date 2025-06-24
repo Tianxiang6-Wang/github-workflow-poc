@@ -1,0 +1,6 @@
+apiVersion: v2
+appVersion: 0.0.16
+description: dell Deployment Helm Chart
+name: dsp-portal-db-init-chart
+type: application
+version: 0.0.16

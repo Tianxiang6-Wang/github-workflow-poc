@@ -1,0 +1,228 @@
+global:
+  registry: "702886132326.dkr.ecr.eu-west-1.amazonaws.com"
+  
+nameOverride: "dsp-security-gui"
+fullnameOverride: "dsp-security-gui"
+
+replicaCount: 1
+
+# values that contains list of tiems for configmap env:
+extended_list_env:
+extended_list_values:
+
+
+#replace values from configmap.yaml of your service
+#set the configs values Hardcoded from old vluefile env values.
+# ALL!!! values must be in QUOTES!!!!
+config:
+  configmap:
+
+
+# set all the deployment envs HERE!
+# secretname= global.secretname
+# keyToEnvName= the name of the env-ar on the pods (dell__Secret__ConnectionStrings__dellConnectionString)
+# key = the actual key needed from the secret
+# u can add more then 1 secret to use(see in your value global parameter)
+externalsecrets:
+
+
+image:
+  image: "dsp-security-gui"
+  tag: ""
+  pullPolicy: Always
+  imagePullSecrets:
+    - name: docker-secret
+
+# set in deployment.yaml (previously was hardcoded inside the deployment)
+entrypoint:
+  cmd: dotnet
+  arg: ""
+  workingDir: "/app"
+
+containerPort:
+  http: 3000
+
+terminationGracePeriodSeconds: 30
+
+lifecycle: {}
+
+updateStrategy: {}
+
+extraLabels: []
+
+extraEnvs: []
+
+startupProbe:
+  httpGet:
+    path: /
+    port: http
+    scheme: HTTP
+  initialDelaySeconds: 30
+  periodSeconds: 120
+  timeoutSeconds: 100
+  successThreshold: 1
+  failureThreshold: 3
+
+livenessProbe:
+  httpGet:
+    path: /
+    port: http
+    scheme: HTTP
+  initialDelaySeconds: 30
+  periodSeconds: 120
+  timeoutSeconds: 100
+  successThreshold: 1
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /
+    port: http
+    scheme: HTTP
+  initialDelaySeconds: 30
+  periodSeconds: 120
+  timeoutSeconds: 100
+  successThreshold: 1
+  failureThreshold: 3
+
+volumeMounts: {}
+  # - name: nginx-conf
+  #   mountPath: /etc/nginx/nginx.conf
+  #   subPath: nginx.conf
+  # - name: nginx-conf
+  #   mountPath: /etc/nginx/security.conf
+  #   subPath: security.conf
+  # - name: nginx-conf
+  #   mountPath: /etc/nginx/replacements.conf
+  #   subPath: replacements.conf
+
+deployment:
+  enabled: true
+
+# previus hardcoded in deployment.yaml
+# now we can set dell.prod for pproduction apps (as for now all apps are dell.local)
+# dnsConfig:
+#   searches:
+
+service:
+  enabled: true
+  type: ClusterIP
+  labels: []
+  http:
+    port: 3000
+    targetPort: null
+    nodePort: null
+  #Only if you need one service to listen to two ports (Better to split that service to 2 mircoservices.)
+  #Must be used with Multiple ingress paths.
+  multiPortService:
+    enabled: false
+    http:
+      port: 4999
+      name: external
+      targetPort: null
+
+ingress:
+  enabled: true
+  #ALB Annotations: https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.2/guide/ingress/annotations/#annotations
+  annotations: {}
+  hosts:
+  - path: /
+    pathType: ImplementationSpecific
+
+  multipath:
+    enabled: true
+    hosts:
+    - paths:
+      - path: /*
+        pathType: ImplementationSpecific
+        backend:
+          # serviceName: app1-service
+          servicePort: 3000
+
+# Whether or not we want a pod disruption budget, enabled by default, but this only is enabled if replicaCount > 1
+podDistuptionBudget:
+  enabled: true
+  minAvailable: 1
+
+resources:
+  requests:
+    memory: "1024Mi"
+    cpu: "500m"
+  limits:
+    memory: "2048Mi"
+
+
+# we should use only HPA OR Keda.
+# if keda is needed plz use keda as the cpu\mem scaler
+autoscaling: # Only one can be enabled
+  minReplicas: 1
+  maxReplicas: 3
+  hpa:
+    enabled: true
+    metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          averageValue: 500m
+          type: Utilization
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          averageValue: 1024Mi
+          type: Utilization
+
+
+# criticalinfra = all our criticalinfra apps (namespace criticalinfra)
+# infrastructure = internal tools(like devtools apps)
+# dell = rest of dell microservices (exclude criticalinfra)
+# only 1 selector will be selected!!
+nodeSelector: {}
+  # kubernetes.io/os: linux
+
+
+# The folowing property is mandetory only for critical infra!!!
+# tolerations: {}
+tolerations: {}
+  # - key: "app"
+  #   operator: "Equal"
+  #   value: "dell"
+  # - key: "app"
+  #   operator: "Equal"
+  #   value: "dell-prod"
+
+volumes: {}
+  # - name: nginx-conf
+  #   configMap:
+  #     name: nginx-conf
+  #     items:
+  #       - key: nginx.conf
+  #         path: nginx.conf
+  #       - key: security.conf
+  #         path: security.conf
+  #       - key: replacements.conf
+  #         path: replacements.conf
+
+podAntiAffinity:
+  enabled: false
+
+topologySpreadConstraints: {}
+
+
+
+# Create serviceaccount for the service
+serviceAccount:
+  enabled: false
+  annotations: {}
+
+#Commit: DEVOPS-5837-FR-Hashmaps
+hashcalculation:
+  enabled: false
+  # payerstolog: [248,371,444]
+
+  ## Thirdparties
+  # Set configurations for third party applications in this section
+thirdParties:
+  dynatraceVersionDetection:
+    enabled: true

@@ -1,0 +1,8 @@
+annotations:
+  buildWorkflowURL: https://github.com/fusion-e/dsp-datacollection-svc/actions/runs/15486016858/attempts/1
+apiVersion: v2
+appVersion: 0.0.4
+description: dell Deployment Helm Chart
+name: dsp-datacollection-svc-chart
+type: application
+version: 0.0.4

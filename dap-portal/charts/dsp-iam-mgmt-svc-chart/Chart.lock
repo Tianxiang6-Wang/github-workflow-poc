@@ -1,0 +1,12 @@
+dependencies:
+- name: dsp-portal-db-init-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.16
+- name: dsp-iam-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.1.17
+- name: dsp-portal-nats-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.1.11
+digest: sha256:e74e54b9c61c28c3c91d7bd8ae13eb51fe3610951de1538a0e966ec5be1d4d13
+generated: "2025-06-19T13:23:10.593078665Z"

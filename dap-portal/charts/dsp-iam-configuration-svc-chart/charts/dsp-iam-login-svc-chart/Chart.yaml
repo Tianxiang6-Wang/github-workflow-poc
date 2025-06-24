@@ -1,0 +1,22 @@
+annotations:
+  buildWorkflowURL: https://github.com/fusion-e/dsp-iam-login-svc/actions/runs/15251807328/attempts/1
+apiVersion: v2
+appVersion: 1.0.29
+dependencies:
+- condition: global.installDependencies
+  name: postgresql-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com/bitnami
+  version: 16.5.3-official
+- alias: dbinit
+  condition: dbinit.postgres.enabled
+  name: dsp-portal-db-init-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.16
+- condition: standAloneDeploy
+  name: dsp-portal-vault-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.8.0
+description: DSP Portal Helm chart for the IAM login service
+name: dsp-iam-login-svc-chart
+type: application
+version: 1.0.29

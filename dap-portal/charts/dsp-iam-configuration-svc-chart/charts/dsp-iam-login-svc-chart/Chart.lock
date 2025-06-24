@@ -1,0 +1,12 @@
+dependencies:
+- name: postgresql-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com/bitnami
+  version: 16.5.3-official
+- name: dsp-portal-db-init-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.16
+- name: dsp-portal-vault-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.8.0
+digest: sha256:293c61ce97443055b61a4ceb682a5f34739aa521f6d55fc0e8da6301982a9f34
+generated: "2025-05-26T10:37:05.697780701Z"

@@ -1,0 +1,40 @@
+{{- if .Values.service.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "microservice.name" . }}
+  namespace: {{ include "microservice.namespace" . | quote }}
+  labels:
+    {{- include "microservice.labels" . | nindent 4 }}
+    {{- if .Values.service.labels }}
+    {{- toYaml .Values.service.labels | nindent 4 }}
+    {{- end }}
+spec:
+  type: "{{ .Values.service.type }}"
+  ports:
+  {{- $setNodePorts := (or (eq .Values.service.type "NodePort") (eq .Values.service.type "LoadBalancer")) }}
+    - name: http
+      port: {{ .Values.service.http.port }}
+      protocol: TCP
+      {{- if .Values.service.http.targetPort}}
+      targetPort: {{ .Values.service.http.targetPort }}
+      {{- else}}
+      targetPort: http
+      {{- end }}
+      {{- if (and $setNodePorts (not (empty .Values.service.http.nodePort))) }}
+      nodePort: {{ .Values.service.http.nodePort }}
+      {{- end }}
+{{- if .Values.service.multiPortService.enabled }}
+    - name: custom
+      port: {{ .Values.service.multiPortService.http.port }}
+      protocol: TCP
+      {{- if .Values.service.multiPortService.http.targetPort}}
+      targetPort: {{ .Values.service.multiPortService.http.targetPort }}
+      {{- else}}
+      targetPort: http
+      {{- end }}
+      nodePort: null
+{{- end }}
+  selector:
+    {{- include "microservice.selectorLabels" . | nindent 4 }}
+{{- end }}

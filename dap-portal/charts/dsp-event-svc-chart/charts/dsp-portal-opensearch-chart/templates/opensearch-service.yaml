@@ -1,0 +1,13 @@
+{{ if .Values.global.opensearch.deploy -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "opensearch.fullname" . }}-opensearch
+  labels:
+{{- tpl (toYaml .Values.global.opensearch.statefulset.labels) . | replace "'" "" | nindent 8 }}
+spec:
+  ports:
+  - port: 9200
+  selector:
+    app: opensearch
+{{- end }}

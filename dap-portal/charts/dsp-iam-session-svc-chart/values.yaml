@@ -1,0 +1,337 @@
+global:
+  registry: "702886132326.dkr.ecr.eu-west-1.amazonaws.com"
+  installDependencies: false
+  standAloneDeploy: true
+  cookie_domain: "sp.dell.com"
+  is-saas-env: true
+  staticOnPremOrgId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+  postgres:
+    internal: true
+    host:
+  authnzEnabled: true
+
+nameOverride: "dsp-iam-session-svc"
+fullnameOverride: "dsp-iam-session-svc"
+
+replicaCount: 1
+
+# defaults are dev:
+dellEnvironment: "dev"
+sslCertificates: "arn:aws:acm:eu-west-1:702886132326:certificate/aa01e3eb-053d-40c7-8f00-5f70741a3b3d"
+albName: "dev.sp.dell.com"
+albGroupName: "saas-dsp-portal-dev"
+domain: "dev.sp.dell.com"
+
+# values that contains list of tiems for configmap env:
+extended_list_env:
+extended_list_values:
+
+
+#replace values from configmap.yaml of your service
+#set the configs values Hardcoded from old vluefile env values.
+# ALL!!! values must be in QUOTES!!!!
+config:
+  configmap:
+
+
+# set all the deployment envs HERE!
+# secretname= global.secretname
+# keyToEnvName= the name of the env-ar on the pods (dell__Secret__ConnectionStrings__dellConnectionString)
+# key = the actual key needed from the secret
+# u can add more then 1 secret to use(see in your value global parameter)
+externalsecrets:
+
+
+image:
+  image: "eo-images/iam-session-svc"
+  tag: "3.2.0.0-ca3581d-302280d5"
+  pullPolicy: Always
+  imagePullSecrets:
+    - name: docker-secret
+
+# set in deployment.yaml (previously was hardcoded inside the deployment)
+entrypoint:
+  cmd: "./main"
+  arg: ""
+  workingDir: "/home/iamsession"
+
+containerPort:
+  http: 8080
+
+terminationGracePeriodSeconds: 30
+
+lifecycle: {}
+
+updateStrategy: {}
+
+extraLabels: []
+
+extraEnvs:
+  - name: EVENTING_TYPE
+    value: "nats"
+  - name: DSP_ENABLED
+    value: "true"
+  - name: ENABLE_PLAYGROUND
+    value: "false"
+  - name: APP_PORT
+    value: "8080"
+  - name: VAULT_PORT
+    value: "8200"
+  - name: APPROLE_ID
+    valueFrom:
+      secretKeyRef:
+        name: hzp-iam-session-svc-vault-secret
+        key: role-id
+        optional: false
+  - name: APPROLE_SECRET_ID
+    valueFrom:
+      secretKeyRef:
+        name: hzp-iam-session-svc-vault-secret
+        key: secret-id
+        optional: false
+  - name: APPROLE_ID_PATH
+    value: eo-approle
+  - name: KV_ENGINE_PATH
+    value: "kv/eo/hzp-iam-session-svc"
+  - name: VAULT_CERTS_KV_MOUNT_POINT
+    value: "kv/m2m/hzp-iam-session-svc"
+  - name: SERVICE_VERSION
+    value: "0.1.0"
+  - name: VAULT_HOST
+    value: "http://edgevault"
+  - name: NATS_URL
+    value: "nats://nats:4222"
+  - name: NATS_SERVER_MONITORING_URL
+    value: "http://nats:8222/varz"
+  - name: KEYCLOAK_URL
+    value: "http://dsp-iam-login-svc-http"
+  - name: IAM_ORG_SVC_URL
+    value: "http://dsp-iam-org-svc"
+  - name: SESSION_SERVICE_URL
+    value: "http://dsp-iam-session-svc"
+  - name: AUTH_CLIENT_ID
+    value: "hzp-iam-session-svc"
+  - name: TOKEN_SVC_URL
+    value: "http://dsp-iam-token-svc"
+
+startupProbe:
+  httpGet:
+    path: /admin/health/dependency
+    port: 14000
+    scheme: HTTP
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+livenessProbe:
+  httpGet:
+    path: /admin/health/liveness
+    port: 14000
+    scheme: HTTP
+  initialDelaySeconds: 5
+  periodSeconds: 30
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /admin/health/dependency
+    port: 14000
+    scheme: HTTP
+  initialDelaySeconds: 5
+  periodSeconds: 20
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+volumeMounts:
+  - name: ca-cert-orchestrator
+    mountPath: /etc/dsp-iam-session-svc/certs
+    readOnly: true
+  # - name: nginx-conf
+  #   mountPath: /etc/nginx/nginx.conf
+  #   subPath: nginx.conf
+  # - name: nginx-conf
+  #   mountPath: /etc/nginx/security.conf
+  #   subPath: security.conf
+  # - name: nginx-conf
+  #   mountPath: /etc/nginx/replacements.conf
+  #   subPath: replacements.conf
+
+deployment:
+  enabled: true
+
+# previus hardcoded in deployment.yaml
+# now we can set dell.prod for pproduction apps (as for now all apps are dell.local)
+# dnsConfig:
+#   searches:
+
+service:
+  enabled: true
+  type: ClusterIP
+  labels: []
+  http:
+    port: 80
+    targetPort: 8080
+    protocol: TCP
+    name: http
+  #Only if you need one service to listen to two ports (Better to split that service to 2 mircoservices.)
+  #Must be used with Multiple ingress paths.
+  multiPortService:
+    enabled: false
+    http:
+      port: 4999
+      name: external
+      targetPort: null
+
+ingress:
+  enabled: false
+  #ALB Annotations: https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.2/guide/ingress/annotations/#annotations
+  annotations: {}
+  hosts:
+  - path: /
+    pathType: ImplementationSpecific
+
+  multipath:
+    enabled: false
+    hosts:
+    - paths:
+      - path: /
+        pathType: ImplementationSpecific
+        backend:
+          # serviceName: app1-service
+          servicePort: 5000
+      - path: /health
+        pathType: ImplementationSpecific
+        backend:
+          # serviceName: app1-service
+          servicePort: 5000
+      - path: /config
+        pathType: ImplementationSpecific
+        backend:
+          # serviceName: app1-service
+          servicePort: 5000
+      - path: /action
+        pathType: ImplementationSpecific
+        backend:
+          # serviceName: app1-service
+          servicePort: 5000
+
+# Whether or not we want a pod disruption budget, enabled by default, but this only is enabled if replicaCount > 1
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+resources:
+  requests:
+    memory: "25Mi"
+    cpu: "50m"
+  limits:
+    memory: "200Mi"
+    cpu: "100m"
+
+# we should use only HPA OR Keda.
+# if keda is needed plz use keda as the cpu\mem scaler
+autoscaling: # Only one can be enabled
+  minReplicas: 1
+  maxReplicas: 3
+  hpa:
+    enabled: true
+    metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          averageValue: 150m
+          type: Utilization
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          averageValue: 300Mi
+          type: Utilization
+
+
+# criticalinfra = all our criticalinfra apps (namespace criticalinfra)
+# infrastructure = internal tools(like devtools apps)
+# dell = rest of dell microservices (exclude criticalinfra)
+# only 1 selector will be selected!!
+nodeSelector: {}
+  # kubernetes.io/os: linux
+
+
+# The folowing property is mandetory only for critical infra!!!
+# tolerations: {}
+tolerations: {}
+  # - key: "app"
+  #   operator: "Equal"
+  #   value: "dell"
+  # - key: "app"
+  #   operator: "Equal"
+  #   value: "dell-prod"
+
+volumes:
+  - name: ca-cert-orchestrator
+    secret:
+      secretName: dapo-root-ca
+  # - name: nginx-conf
+  #   configMap:
+  #     name: nginx-conf
+  #     items:
+  #       - key: nginx.conf
+  #         path: nginx.conf
+  #       - key: security.conf
+  #         path: security.conf
+  #       - key: replacements.conf
+  #         path: replacements.conf
+
+
+podAntiAffinity:
+  enabled: false
+
+topologySpreadConstraints: {}
+
+
+
+# Create serviceaccount for the service
+serviceAccount:
+  enabled: false
+  annotations: {}
+    # Here's an example of assigning an IAM role to a pod
+    # eks.amazonaws.com/role-arn: arn:aws:iam::123123123:role/role-name-goes-here
+
+#Commit: DEVOPS-5837-FR-Hashmaps
+hashcalculation:
+  enabled: false
+  # payerstolog: [248,371,444]
+
+  ## Thirdparties
+  # Set configurations for third party applications in this section
+thirdParties:
+  dynatraceVersionDetection:
+    enabled: true
+
+isOnPrem: true
+useLatestLib: false
+internalClientOrgId: "internal"
+onPrem:
+  orgName: "dell_technologies"
+
+di:
+  clientId: ""
+  clientPwd: ""
+  baseUrl: "https://www-poc.dell.com"
+  externalIssuer: "https://www.dell.com"
+  tokenPath: "/di/v3/fp/oidc/token"
+
+
+
+dbinit:
+  postgres:
+    enabled: true
+    name: dsp-iam-session-svc
+    prefix:
+    dbName: "hzp_iam_session_svc" # The db username is the same as the db name by design.

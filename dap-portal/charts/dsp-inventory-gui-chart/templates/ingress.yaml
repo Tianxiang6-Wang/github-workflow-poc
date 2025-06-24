@@ -1,0 +1,64 @@
+{{- if .Values.ingress.enabled -}}
+{{- $fullName := include "microservice.name" . -}}
+{{- $servicePort := .Values.service.http.port -}}
+{{- $ingressPath := .Values.ingress.path -}}
+{{- $ingressPathType := .Values.ingress.pathType -}}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "microservice.name" . }}
+  namespace: {{ include "microservice.namespace" . | quote }}
+  labels:
+{{ include "microservice.labels" . | indent 4 }}
+  annotations:
+    {{- with .Values.ingress.annotations }}
+      {{- toYaml . | nindent 4 }}
+    {{- end }}
+    external-dns.alpha.kubernetes.io/hostname: {{ include "ingress.host.default" . | quote }}
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/group.name: {{ .Values.albGroupName }}
+    alb.ingress.kubernetes.io/certificate-arn: {{ .Values.sslCertificates }}
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80},{"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=4000
+    alb.ingress.kubernetes.io/healthcheck-port: {{ .Values.service.http.port | quote }}
+    alb.ingress.kubernetes.io/healthcheck-protocol: {{ .Values.livenessProbe.httpGet.scheme | default "HTTP" | quote }}
+    alb.ingress.kubernetes.io/success-codes: '200'
+    alb.ingress.kubernetes.io/healthcheck-path: {{ .Values.livenessProbe.httpGet.path | default "/health" | quote }}
+spec:
+  ingressClassName: alb
+  rules:
+  {{- if and (.Values.ingress.hosts) ( not .Values.ingress.multipath.enabled) }}
+  {{- range .Values.ingress.hosts }}
+  - host: {{ .host | default (include "ingress.host.default" $)| quote }}
+    http:
+      paths:
+      - path: {{ $ingressPath }}
+        pathType: {{ $ingressPathType }} 
+        backend:
+          service:
+            name: {{ $fullName }}
+            port: 
+              number: {{ $servicePort }}
+  {{- end }}
+  {{- end }}
+{{- /*
+For multi path and multiports.
+*/}}
+  {{- if and (.Values.ingress.multipath.hosts) (.Values.ingress.multipath.enabled)  }}
+  {{- range $host := .Values.ingress.multipath.hosts }}
+  - host: {{ $host.host | default (include "ingress.host.default" $)| quote }}
+    http:
+      paths:
+      {{- range $path := $host.paths }}
+      - path: {{ $path.path }}
+        pathType: {{ $path.pathType }}
+        backend:
+            service:
+              name: {{ $fullName }}
+              port:
+                number: {{ $path.backend.servicePort }}
+      {{- end }}
+  {{- end }}
+  {{- end }}
+{{- end }}

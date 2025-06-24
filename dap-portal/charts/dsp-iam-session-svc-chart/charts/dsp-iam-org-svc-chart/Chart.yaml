@@ -1,0 +1,26 @@
+annotations:
+  buildWorkflowURL: https://github.com/fusion-e/dsp-iam-org-svc/actions/runs/14975628932/attempts/1
+apiVersion: v2
+appVersion: 0.0.25
+dependencies:
+- condition: global.standAloneDeploy
+  name: postgresql
+  repository: oci://registry-1.docker.io/bitnamicharts
+  version: 16.5.3
+- alias: dbinit
+  condition: dbinit.postgres.enabled
+  name: dsp-portal-db-init-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.8
+- condition: global.standAloneDeploy
+  name: dsp-iam-login-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 1.0.15
+- condition: global.standAloneDeploy
+  name: dsp-portal-nats-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.1.11
+description: DSP IAM Organization Service Helm Chart
+name: dsp-iam-org-svc-chart
+type: application
+version: 0.0.25

@@ -1,0 +1,6 @@
+Installed {{ .Chart.Name }} version {{ .Chart.Version }} (app version: {{ .Chart.AppVersion }})
+in namespace {{ .Release.Namespace }} as helm release {{ .Release.Name }}.
+
+The instance is accessible at:
+
+https://{{ .Values.global.ingress.fqdn }}

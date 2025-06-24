@@ -1,0 +1,43 @@
+{{- if .Values.cronjob.refreshManifest.enabled }}
+{{- $fullName := include "microservice.fullname" . -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ include "microservice.fullname" . }}-refresh-manifest
+  namespace: {{ include "microservice.namespace" . | quote }}
+  labels:
+    {{- include "microservice.labels" . | nindent 4 }}
+    {{- if .Values.cronjob.refreshManifest.labels }}
+    {{- toYaml .Values.cronjob.refreshManifest.labels | nindent 4 }}
+    {{- end }}
+spec:
+  schedule: "{{ .Values.cronjob.refreshManifest.schedule }}"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          imagePullSecrets:
+            - name: docker-secret
+          initContainers:
+          - name: wait-for-catalog
+            image: "{{ .Values.global.registry }}/{{ .Values.cronjob.waitCatalog.image }}"
+            command:
+              - sh
+              - -c
+              - |
+                echo 'Waiting for catalog svc to become ready...'
+                until printf "." && nc -z -w 2 {{ $fullName }} {{ .Values.service.http.port }}; do
+                  sleep 2;
+                done;
+                echo 'catalog svc OK ✓'
+          containers:
+          - name: refresh-manifest
+            image: "{{ .Values.global.registry }}/{{ .Values.cronjob.refreshManifest.image }}"
+            imagePullPolicy: IfNotPresent
+            command:
+            - /bin/sh
+            - -c
+            - curl -X POST http://{{ $fullName }}:{{ .Values.service.http.port }}/api/v1/catalog/manifest -w "Response code %{http_code}\n"
+          restartPolicy: Never
+{{- end }}

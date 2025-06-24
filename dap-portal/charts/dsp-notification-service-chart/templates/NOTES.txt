@@ -1,0 +1,16 @@
+{{ $.Release.Name }} has been installed on namespace: {{ include "microservice.namespace" . }}.
+container image is: {{ .Values.image.registry }}/{{ .Values.image.image }}:{{ .Values.image.tag}}
+
+{{ if .Values.autoscaling.enabled }}
+You have autoscaling enabled from {{ .Values.autoscaling.minReplicas }} Replicas to {{ .Values.autoscaling.maxReplicas }} Replicas
+{{- else }}
+Application replica count is: {{ .Values.replicaCount }}
+{{- end }}
+
+{{ if .Values.ingress.enabled }}
+From outside the cluster, the server URL(s) are:
+{{- range .Values.ingress.hosts }}
+     http://{{ .host }}
+{{- end }}
+{{- end }}
+

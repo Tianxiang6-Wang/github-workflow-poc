@@ -1,0 +1,89 @@
+{{- if .Values.initjob.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "microservice.fullname" . }}-certs-init-job
+  namespace: {{ include "microservice.namespace" . | quote }}
+  annotations:
+{{- tpl (toYaml .Values.initjob.annotations) . | replace "'" "" | nindent 4 }}
+  labels:
+{{ include "microservice.labels" . | indent 4 }}
+{{- with .Values.extraLabels }}
+{{- toYaml . | nindent 4 }}
+{{- end }}
+spec:
+  backoffLimit: 20
+  template:
+    metadata:
+      labels:
+        {{- include "microservice.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.serviceAccount.enabled }}
+      serviceAccountName: {{ template "microservice.fullname" . }}
+      {{- end }}
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      {{- with .Values.image.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - image: "{{ .Values.global.registry }}/{{ .Values.hzputil.image }}:{{ .Values.hzputil.tag }}"
+          name: {{ include "microservice.fullname" . }}-job-container
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          resources:
+            {{- toYaml .Values.initjob.resources | nindent 12 }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - -c
+            - |
+              echo "Initializing"
+              sleep 10
+              SECRET_NAMESPACE="{{ .Release.Namespace }}"
+              export cert1=$(kubectl get secret -n ${SECRET_NAMESPACE} tls-credential -o jsonpath="{.data.cert}" | base64 -d)
+              echo 'Calling Certificate svc to trigger update of TLS certificate...'
+              for i in $(seq 1 10); do
+                response=$(curl -s http://dsp-portal-certificate-svc/api/v1/updatecertificate -H "Content-Type: application/json" -d '{"query":"query{updateIstio}"}')
+                if echo $response | jq -e '.data.updateIstio' > /dev/null; then
+                  echo 'Done ✓'
+                  exit 0
+                elif echo $response | jq -e '.errors' > /dev/null; then
+                  echo "Error from response: $(echo $response | jq -r '.errors[0].message')"
+                else
+                  echo "Unexpected response: $response"
+                fi
+                echo "Failed to update TLS cert, retrying..." && sleep 10
+              done
+              echo 'Failed to update TLS cert'; exit 1
+      initContainers:
+        - image: "{{ .Values.global.registry }}/{{ .Values.busybox.image }}:{{ .Values.busybox.tag }}"
+          name: init-certificate
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for Certificate Svc to become ready...'
+              until printf "." && nc -z -w 2 dsp-portal-certificate-svc 80; do
+                  sleep 2;
+              done;
+              echo 'Certificate Svc OK ✓'
+      restartPolicy: OnFailure
+{{- end }}

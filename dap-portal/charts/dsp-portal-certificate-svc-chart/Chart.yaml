@@ -1,0 +1,23 @@
+annotations:
+  buildWorkflowURL: https://github.com/fusion-e/dsp-portal-certificate-svc/actions/runs/15762094520/attempts/1
+apiVersion: v2
+appVersion: 0.0.45
+dependencies:
+- alias: dbinit
+  condition: dbinit.postgres.enabled
+  name: dsp-portal-db-init-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.16
+- condition: global.installDependencies
+  name: postgresql-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com/bitnami
+  version: 16.5.3-official
+- alias: nats
+  condition: global.installDependencies
+  name: dsp-portal-nats-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.1.8
+description: dell Deployment Helm Chart
+name: dsp-portal-certificate-svc-chart
+type: application
+version: 0.0.45

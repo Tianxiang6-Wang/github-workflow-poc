@@ -1,0 +1,172 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-mngmnt-job
+spec:
+  template:
+    metadata:
+      labels:
+        hzp-app: keycloak-mngmnt
+        hzp-role: eo-service
+      annotations:
+        "helm.sh/hook": post-install,post-upgrade
+    spec:
+      restartPolicy: OnFailure
+      {{- with .Values.image.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - image: {{ .Values.global.registry }}/{{ .Values.global.hzputil.image.name }}:{{ .Values.global.hzputil.image.tag }}
+          name: keycloak-mngmnt
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          env:
+            - name: KEYCLOAK_URL
+              value: "{{ .Values.global.keycloak.scheme }}://{{ tpl .Values.global.keycloak.host . }}:{{ .Values.global.keycloak.port }}"
+            - name: KEYCLOAK_ADMIN_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: keycloak-password
+            - name: KEYCLOAK_CLIENT_PWD
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: iam-client-pwd
+            - name: KEYCLOAK_CLIENT_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: iam-client-name
+          command:
+            - "/bin/sh"
+            - "-c"
+          args:
+            - |
+              #!/bin/sh
+              echo "Starting client creation job"
+              # Keycloak server information
+              KEYCLOAK_URL=${KEYCLOAK_URL}
+              CLIENT_SECRET=${KEYCLOAK_CLIENT_PWD}
+              CLIENT_NAME=${KEYCLOAK_CLIENT_NAME}
+              KEYCLOAK_USERNAME="keycloak"
+              KEYCLOAK_PASSWORD=${KEYCLOAK_ADMIN_PWD}
+              KEYCLOAK_TOKEN=""
+              MASTER_CLIENT_ID=""
+              echo "Get admin token"
+              token_response=$(curl -s -X POST \
+                --retry 10 --retry-all-errors \
+                -H "Content-Type: application/x-www-form-urlencoded" \
+                --data-urlencode "grant_type=password" \
+                --data-urlencode "client_id=admin-cli" \
+                --data-urlencode "username=${KEYCLOAK_USERNAME}" \
+                --data-urlencode "password=${KEYCLOAK_PASSWORD}" \
+                "${KEYCLOAK_URL}/auth/realms/master/protocol/openid-connect/token")
+              KEYCLOAK_TOKEN=`echo "$token_response" | jq -r '.access_token'`
+              if [ -z "$KEYCLOAK_TOKEN" ] || [ "$KEYCLOAK_TOKEN" = "null" ]; then
+                  echo "Failed to get admin token : ${token_response}"
+                  exit 1
+              fi
+              
+              echo "Creating master client"
+              http_status=$(curl -s -X POST  \
+                --retry 10 --retry-all-errors \
+                -H "Authorization: Bearer $KEYCLOAK_TOKEN" \
+                -H "Content-Type: application/json" \
+                -d '{
+                    "clientId": "'"$CLIENT_NAME"'",
+                    "enabled": true,
+                    "standardFlowEnabled": false,
+                    "implicitFlowEnabled": false,
+                    "directAccessGrantsEnabled": true,
+                    "serviceAccountsEnabled": true,
+                    "secret": "'"$CLIENT_SECRET"'"
+                  }' \
+                "${KEYCLOAK_URL}/auth/admin/realms/master/clients")
+
+              
+              client_id=$(curl -s -X GET \
+                 -H "Authorization: Bearer ${KEYCLOAK_TOKEN}" \
+                -H "Content-Type: application/json" \
+               "${KEYCLOAK_URL}/auth/admin/realms/master/clients" |
+              jq -r '.[] | select(.clientId == "'"$CLIENT_NAME"'") | .id') 
+              if [ -z "$client_id" ]; then
+                echo "Failed to retrieve client ID. Exiting."
+                exit 1
+              fi
+              
+              echo "Client ID: $client_id"
+              
+              echo "Getting service account user"
+              
+              service_account_user_id=$(curl -s -X GET \
+                -H "Authorization: Bearer ${KEYCLOAK_TOKEN}" \
+                -H "Content-Type: application/json" \
+                "${KEYCLOAK_URL}/auth/admin/realms/master/clients/${client_id}/service-account-user" | jq -r '.id')
+              
+              echo "Service Account User ID: ${service_account_user_id}"
+              
+              if [ -z "service_account_user_id" ]; then
+                echo "Failed to retrieve service account user ID. Exiting."
+                exit 1
+              fi
+              
+              echo "Getting admin role id"
+              
+              admin_role_id=$(curl -s -X GET \
+                  -H "Authorization: Bearer ${KEYCLOAK_TOKEN}" \
+                  -H "Content-Type: application/json" \
+                  "${KEYCLOAK_URL}/auth/admin/realms/master/roles" |
+                   jq -r '.[] | select(.name == "admin") | .id')
+              
+              if [ -z "admin_role_id" ]; then
+                echo "Failed to admin role ID. Exiting."
+                exit 1
+              fi
+              
+              echo "Assigning admin role to the client"
+              
+              http_status=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+                      -H "Authorization: Bearer ${KEYCLOAK_TOKEN}" \
+                      -H "Content-Type: application/json" \
+                      -d "[{\"id\": \"${admin_role_id}\", \"name\": \"admin\"}]" \
+                      "${KEYCLOAK_URL}/auth/admin/realms/master/users/${service_account_user_id}/role-mappings/realm")
+              
+              # Check the HTTP status code
+               if [ "$http_status" -eq 204 ]; then
+                   echo "Role assigned  (HTTP status code: $http_status)"
+               elif [ "$http_status" -eq 409 ]; then
+                   echo "Realm hzp already exist (HTTP status code: $http_status)"
+               else
+                   echo "Status code not handled (HTTP status code: $http_status)"
+                   exit 1
+               fi
+      initContainers:
+        - name: init-keycloak
+          image: {{ .Values.global.registry }}/{{ .Values.global.busybox.image.name }}:{{ .Values.global.busybox.image.tag }}
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for Keycloak to become ready...'
+              until printf "." && nc -z -w 2 {{ tpl .Values.global.keycloak.host . }} {{ .Values.global.keycloak.port }}; do
+                  sleep 2;
+              done;
+              echo 'Keycloak OK ✓'

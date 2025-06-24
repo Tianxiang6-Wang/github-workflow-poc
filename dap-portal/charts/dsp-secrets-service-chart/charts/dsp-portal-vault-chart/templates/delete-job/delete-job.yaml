@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  annotations:
+    "helm.sh/hook": pre-upgrade,pre-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+  name: delete-jobs-sa
+  namespace: {{ .Release.Namespace }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  annotations:
+    "helm.sh/hook": pre-upgrade,pre-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+  name: delete-jobs-role
+  namespace: {{ .Release.Namespace }}
+rules:
+  - apiGroups:
+      - "batch"
+    resources:
+      - jobs
+    verbs:
+      - delete
+      - list
+      - patch
+      - get
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  annotations:
+    "helm.sh/hook": pre-upgrade,pre-delete
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation
+  name: delete-jobs-rolebinding
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: delete-jobs-role
+subjects:
+  - kind: ServiceAccount
+    name: delete-jobs-sa
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: delete-jobs
+  namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": pre-upgrade,pre-delete
+    "helm.sh/hook-delete-policy": before-hook-creation
+    "helm.sh/hook-weight": "-4"
+spec:
+  backoffLimit: 5
+  template:
+    metadata:
+      labels:
+        hzp-app: delete-jobs
+        hzp-role: eo-service
+        hzp.iam.webhook/active: "false"
+    spec:
+      restartPolicy: OnFailure
+      serviceAccountName: delete-jobs-sa
+      securityContext:
+        seccompProfile:
+          type: RuntimeDefault
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.deleteJob $ ) | trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.deleteJob $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.deleteJob $ ) | trim | nindent 8 }}
+      containers:
+        - image: "{{ .Values.global.registry }}/{{ .Values.deleteJob.image.image }}:{{ .Values.deleteJob.image.tag }}"
+          name: delete-jobs
+          imagePullPolicy: Always
+          command:
+            - bash
+            - -c
+            - |
+              set -e
+              echo "Deleting vault-bootstrap job before upgrade"
+              kubectl delete job -n {{ .Release.Namespace }} vault-bootstrap --ignore-not-found=true
+              echo "Job deleted"
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: {{ .Values.deleteJob.podSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.deleteJob.podSecurityContext.runAsGroup }}
+            allowPrivilegeEscalation: false

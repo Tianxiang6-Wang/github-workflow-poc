@@ -1,0 +1,8 @@
+annotations:
+  buildWorkflowURL: https://github.com/fusion-e/dsp-catalog-gui/actions/runs/15748651673/attempts/1
+apiVersion: v2
+appVersion: 0.0.146
+description: dell Deployment Helm Chart
+name: dsp-catalog-gui-chart
+type: application
+version: 0.0.146

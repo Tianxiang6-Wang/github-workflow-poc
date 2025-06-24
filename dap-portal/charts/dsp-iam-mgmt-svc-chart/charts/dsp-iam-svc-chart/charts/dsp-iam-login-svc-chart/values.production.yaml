@@ -1,0 +1,8 @@
+dellEnvironment: "production"
+sslCertificates: "arn:aws:acm:eu-west-1:008791006138:certificate/bccd01c0-7701-4aa3-adfe-ec4d1e929188"
+albGroupName: "saas-dsp-portal-production"
+domain: "sp.dell.com"
+
+# Used to prefer scheduling pods of the same deployment to diffrent nodes.
+podAntiAffinity:
+  enabled: true

@@ -1,0 +1,158 @@
+global:
+  ingress:
+    fqdn: ""  # Must be set.
+  is-saas-env: true
+  enableKeycloak: false
+  authnzEnabled: true
+  installDependencies: false  # TODO: must modify repos to use this global
+  standAloneDeploy: false
+  registry: 702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  imageRegistry: 702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  cookie_domain: automation.dell.com
+  imagePullSecrets:
+  - name: docker-secret
+  postgres:
+    internal: true
+dsp-portal-nginx-chart:
+  mtlsService:
+    enabled: false
+postgresql-chart:
+  fullnameOverride: "postgresql"
+  security:
+    allowInsecureImages: true
+  primary:
+    podLabels:
+      hzp-app: postgresql
+      
+    podAnnotations:
+      hzp.iam.webhook/authentication-enabled: "false"
+      hzp.iam.webhook/authorization-enabled: "false"
+  global:
+    security:
+      allowInsecureImages: true
+dsp-portal-opensearch-chart: {}
+dsp-portal-nats-chart:
+  installDependencies: false  # must turn this into a global
+  standAloneDeploy: false
+dsp-portal-vault-chart:
+  installDependencies: false  # must turn this into a global
+  standAloneDeploy: false
+dsp-iam-webhook-svc-chart:
+  installDependencies: false  # must turn this into a global
+  standAloneDeploy: false
+dsp-iam-login-svc-chart:
+  installDependencies: false  # must turn this into a global
+  standAloneDeploy: false
+  ingress:
+    enabled: false  # it's false by default anyway
+dsp-iam-session-svc-chart:
+  installDependencies: false  # must turn this into a global
+  standAloneDeploy: false
+  ingress:
+    enabled: false  # it's false by default anyway
+dsp-iam-org-svc-chart:
+  installDependencies: false  # must turn this into a global
+  standAloneDeploy: false
+  ingress:
+    enabled: false  # it's false by default anyway
+dsp-iam-svc-chart:
+  installDependencies: false  # must turn this into a global
+  standAloneDeploy: false
+  ingress:
+    enabled: false  # it's false by default anyway
+dsp-iam-configuration-svc-chart:
+  installDependencies: false  # must turn this into a global
+  standAloneDeploy: false
+  ingress:
+    enabled: false  # it's false by default anyway
+dsp-iam-policy-svc-chart:
+  installDependencies: false  # must turn this into a global
+  standAloneDeploy: false
+  ingress:
+    enabled: false  # it's false by default anyway
+dsp-iam-mgmt-svc-chart:
+  installDependencies: false  # must turn this into a global
+  standAloneDeploy: false
+  ingress:
+    enabled: false  # it's false by default anyway
+dsp-iam-token-svc-chart:
+  ingress:
+    enabled: false  # it's false by default anyway
+dsp-catalog-svc-chart:  # FIXME: S3, complex dev values
+  installDependencies: false  # must turn this into a global
+  standAloneDeploy: false
+  ingress:
+    enabled: false
+dsp-license-svc-chart:  # FIXME: S3, complex dev values
+  installDependencies: false  # must turn this into a global
+  standAloneDeploy: false
+  ingress:
+    enabled: false
+dsp-catalog-gui-chart:
+  ingress:
+    enabled: false
+dsp-portal-gui-chart:
+  ingress:
+    enabled: false
+dsp-services-gui-chart:
+  ingress:
+    enabled: false
+dsp-agreement-svc-chart:
+  ingress:
+    enabled: false
+  config:
+    configmap:
+      iamserviceuseragreement: "http://dsp-iam-session-svc/api/v2/auth/user-agreement"
+      iamserviceexternalauthtoken: "http://dsp-iam-session-svc/api/v2/auth/external-token"
+      taclinkurl: "https://i.dell.com/sites/csdocuments/Legal_Docs/en/us/dell-automation-platform-sd-en.pdf"
+      tacitemorder: "0"
+      tacversion: "1.0"
+      offerversion: "1.0"  
+dsp-secrets-service-chart:
+  ingress:
+    enabled: false
+dsp-iam-gui-chart:
+  ingress:
+    enabled: false
+dsp-inventory-gui-chart:
+  ingress:
+    enabled: false
+dsp-event-svc-chart:
+  installDependencies: false  # must turn this into a global
+  standAloneDeploy: false
+  ingress:
+    enabled: false
+  opensearch:
+    deploy: true
+dsp-notification-service-chart:
+  installDependencies: false  # must turn this into a global
+  standAloneDeploy: false
+  ingress:
+    enabled: false
+dsp-security-gui-chart:
+  ingress:
+    enabled: false
+dsp-portal-infra-svc-chart:
+  vms:
+    enabled: false
+    vmsAccessTokenEndpoint: ""
+    vmsAccessTokenType: ""
+    vmsXferVoucherEndpoint: ""
+    vmsXferVoucherType: ""
+    vmsXferVoucherOAuth: ""
+    vmsXferVoucherAppId: ""
+    vmsXferVoucherSecret: ""
+  standAloneDeploy: false
+  installDependencies: false
+  ingress:
+    enabled: false
+dsp-portal-certificate-svc-chart:
+  standAloneDeploy: false
+  installDependencies: false  # must turn this into a global
+  ingress:
+    enabled: false
+dsp-datacollection-svc-chart:
+  standAloneDeploy: false
+  installDependencies: false  # must turn this into a global
+  ingress:
+    enabled: false

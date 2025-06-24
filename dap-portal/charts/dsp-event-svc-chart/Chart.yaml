@@ -1,0 +1,26 @@
+annotations:
+  buildWorkflowURL: https://github.com/fusion-e/dsp-event-svc/actions/runs/15754580062/attempts/1
+apiVersion: v2
+appVersion: 0.0.106
+dependencies:
+- alias: dbinit
+  condition: dbinit.postgres.enabled
+  name: dsp-portal-db-init-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.16
+- condition: global.installDependencies
+  name: postgresql-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com/bitnami
+  version: 16.5.3-official
+- condition: global.installDependencies
+  name: dsp-portal-nats-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.1.9
+- condition: global.installDependencies
+  name: dsp-portal-opensearch-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.2.1
+description: dell Deployment Helm Chart
+name: dsp-event-svc-chart
+type: application
+version: 0.0.106

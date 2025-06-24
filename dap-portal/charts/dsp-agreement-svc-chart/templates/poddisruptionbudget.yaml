@@ -1,0 +1,19 @@
+{{- if .Values.podDistuptionBudget.enabled -}}
+{{- if or (and (.Values.autoscaling.hpa.enabled) (gt (.Values.autoscaling.minReplicas | int) 1)) (and (not .Values.autoscaling.hpa.enabled) (gt (.Values.replicaCount | int) 1)) }}
+apiVersion: {{ ternary "policy/v1" "policy/v1beta1" (semverCompare ">=1.21.0-0" .Capabilities.KubeVersion.Version) }}
+kind: PodDisruptionBudget
+metadata:
+  labels:
+  {{- include "microservice.labels" . | nindent 4 }}
+  {{- with .Values.extraLabels }}
+  {{- toYaml . | nindent 4 }}
+  {{- end }}
+  name: {{ include "microservice.fullname" . }}
+  namespace: {{ include "microservice.namespace" . | quote }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "microservice.selectorLabels" . | nindent 6 }}
+  minAvailable: {{ .Values.podDistuptionBudget.minAvailable }}
+{{- end }}
+{{- end }}

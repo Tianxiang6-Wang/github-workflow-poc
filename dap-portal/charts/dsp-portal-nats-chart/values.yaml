@@ -1,0 +1,54 @@
+global:
+
+  storageClass:
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+
+  registry: 702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  pullPolicy: IfNotPresent
+
+  components:
+    - image: busybox
+      name: busybox
+      version: 1.36.1
+      project: /eo-images/
+
+    - image: nats
+      name: nats
+      version: 2.10.8
+      project: /eo-images/
+
+    - image: hzp-util
+      name: hzp-util
+      version: 0.1.3
+      project: /eo-images/
+
+nats:
+  jetStream:
+    domain: "dsp_portal_hub"
+    pvc:
+      resources:
+        # Should be larger than the nats.jetStream.maxStorage.
+        storage: "8Gi"
+    service:
+      fullname: nats
+      port: 4222
+    maxMemory: "8589934592"
+    maxStorage: "12884901888"
+  job:
+    createStream:
+      enabled: true
+      podAnnotations:
+      podLabels:
+        hzp-app: "nats-create-stream-job"
+        hzp-role: "eo-service"
+      # max memory for each stream. Total memory should be less than nats.jetStream.maxMemory 
+      maxMemory:
+        portal: "5GiB"
+        orch: "5GiB"
+      # retention for all streams
+      retention: "3d"
+image:
+  imagePullSecrets:
+      - name: docker-secret

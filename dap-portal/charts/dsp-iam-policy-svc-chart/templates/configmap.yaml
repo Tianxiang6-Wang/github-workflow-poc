@@ -1,0 +1,28 @@
+{{ $buildid := default false (hasKey .Values.config "env") }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "microservice.fullname" . }}
+  namespace: {{ include "microservice.namespace" . | quote }}
+data:
+  {{- if .Values.config.configmap }}
+    {{- range $key, $value := .Values.config.configmap }}
+    {{ $key }}: {{ $value | quote}}
+    {{- end -}}
+  {{- end -}}
+
+  {{- if and .Values.extended_list_values .Values.extended_list_env }}
+    {{ .Values.extended_list_env }}: {{- range .Values.extended_list_values }}
+    {{ . | indent 2 }}{{- end }}
+  {{- end -}}
+
+  {{- if .Values.hashcalculation.enabled }}
+    {{- range $key, $value := .Values.hashcalculation.payerstolog }}
+    dell__Plain__HashCalculation__PayersToLog__{{ $key }}: {{ $value | quote }}
+    {{- end }}
+  {{- end -}}
+
+  {{- if not (empty $buildid) }}
+  {{ $currentTime := now | date "2006-01-02" }}
+    dell__Plain__SwaggerSettings__dellVersion: {{ include "microservice.version" . | quote }}
+  {{- end }}

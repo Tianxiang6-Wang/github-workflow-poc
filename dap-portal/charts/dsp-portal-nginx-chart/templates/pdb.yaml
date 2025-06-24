@@ -1,0 +1,13 @@
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  labels:
+    app: {{ include "microservice.fullname" . }}
+  name: {{ include "microservice.fullname" . }}
+  namespace: {{ .Release.Namespace | quote }}
+spec:
+  minAvailable: {{ .Values.pdb.minAvailable }}
+  selector:
+    matchLabels:
+      app: {{ include "microservice.fullname" . }}
+

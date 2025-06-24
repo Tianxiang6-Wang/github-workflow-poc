@@ -1,0 +1,99 @@
+{{- if .Values.service.audit.retentionPurgeJob.enabled }}
+{{- $auditRetentionPurgeJob := .Values.service.audit.retentionPurgeJob -}}
+{{- $name := "dsp-audit-retention-purge-cronjob"}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ $name }}
+  namespace: {{ .Release.Namespace }}
+  annotations: {{- tpl (toYaml $auditRetentionPurgeJob.podAnnotations) . | replace "'" "" | nindent 4 }}
+spec:
+  schedule: "1 0 * * *"   # Run every day at 00:01
+  successfulJobsHistoryLimit: 7   # Keep last 7 successful jobs so that we can capture data atleast for a week
+  failedJobsHistoryLimit: 7
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        metadata:
+          annotations:
+            hzp.iam.webhook/authentication-enabled: "false"
+            hzp.iam.webhook/authorization-enabled: "false"
+          labels:
+            hzp-app: "dsp-event-svc"
+
+        spec:
+          {{- if .Values.serviceAccount.enabled }}
+          serviceAccountName: {{ include "microservice.fullname" . }}
+          {{- end }}
+          {{- with .Values.image.imagePullSecrets }}
+          imagePullSecrets:
+          {{- toYaml . | nindent 12 }}
+          {{- end }}
+          containers:
+          - name: {{ $name }}
+            image: "{{ .Values.global.registry }}/{{ .Values.image.image }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+            securityContext:
+              runAsUser: 1001
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop: [ "ALL" ]
+              runAsNonRoot: true
+              seccompProfile:
+                type: RuntimeDefault
+            imagePullPolicy: {{ .Values.image.pullPolicy }}
+            {{ $_ := set .Values "iamProxyEntry" "./audit-retention-purge-tool" }}
+            {{ tpl (toYaml .Values.iamProxy.commandDecorator) . | nindent 12 }}
+            {{- if $auditRetentionPurgeJob.entrypoint.workingDir }}
+            workingDir: {{ $auditRetentionPurgeJob.entrypoint.workingDir }}
+            {{- end }}
+            env:
+            {{- if and .Values.dbinit.postgres.enabled }}
+            {{- if .Values.global.postgres.internal }}
+            - name: DB_HOST
+              value: postgresql.{{ .Release.Namespace }}.svc.cluster.local
+            {{- else }}
+            - name: DB_HOST
+              value: {{ .Values.global.postgres.host }}
+            {{- end }}
+            {{- if .Values.dbinit.postgres.prefix }}
+            - name: DB_USER # The db username is the same as the db name by design
+              value: {{ printf "%s-%s" .Values.dbinit.postgres.prefix (.Values.dbinit.postgres.dbName | default "default") }}
+            - name: DB_NAME # The db username is the same as the db name by design
+              value: {{ printf "%s-%s" .Values.dbinit.postgres.prefix (.Values.dbinit.postgres.dbName | default "default") }}
+            {{ else }}
+            - name: DB_USER # The db username is the same as the db name by design
+              value: {{ .Values.dbinit.postgres.dbName | default "default" }}
+            - name: DB_NAME # The db username is the same as the db name by design
+              value: {{ .Values.dbinit.postgres.dbName | default "default" }}
+            {{- end }}
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_PA
+              valueFrom:
+                secretKeyRef:
+                  name: "postgresql"
+                  key: {{ include "microservice.fullname" . }}
+            {{- end }}
+            - name: IS_INTERNAL_OPENSEARCH
+              value:  "{{.Values.opensearch.deploy}}"
+            - name: SIDECAR_INJECTED
+              value: "true"
+            - name: OPENSEARCH_ADDRESS
+              value: {{ tpl .Values.opensearch.address . | quote }}
+            {{- if .Values.opensearch.deploy }}
+            - name: OPENSEARCH_USERNAME
+              value: admin
+            - name: OPENSEARCH_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dsp-portal-opensearch-secret
+                  key: adminPassword
+            {{- else }}
+            - name: OPENSEARCH_MODE
+              value:  {{.Values.opensearch.mode}}
+            - name: OPENSEARCH_AWS_REGION
+              value:  {{.Values.opensearch.region}}
+            {{- end }}
+          restartPolicy: Never
+{{- end }}

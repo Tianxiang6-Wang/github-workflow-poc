@@ -1,0 +1,24 @@
+
+{{- if and .Values.autoscaling.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "microservice.name" . }}
+  namespace: {{ include "microservice.namespace" . | quote }}
+  labels:
+{{ include "microservice.labels" . | indent 4 }}
+{{- with .Values.extraLabels }}
+{{- toYaml . | nindent 4 }}
+{{- end }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "microservice.name" . }}
+  minReplicas: {{ .Values.autoscaling.minReplicas }}
+  maxReplicas: {{ .Values.autoscaling.maxReplicas }}
+  metrics:
+  {{- with .Values.autoscaling.hpa.metrics }}
+  {{- toYaml . | nindent 2 }}
+  {{- end }}
+{{- end }}

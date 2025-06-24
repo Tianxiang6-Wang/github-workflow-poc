@@ -1,0 +1,302 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "keycloak.fullname" . }}
+  {{- with .Values.statefulsetAnnotations }}
+  annotations:
+    {{- range $key, $value := . }}
+    {{- printf "%s: %s" $key (tpl $value $ | quote) | nindent 4 }}
+    {{- end }}
+  {{- end }}
+  labels:
+    {{- include "keycloak.labels" . | nindent 4 }}
+    {{- range $key, $value := .Values.statefulsetLabels }}
+    {{- printf "%s: %s" $key (tpl $value $ | quote) | nindent 4 }}
+    {{- end }}
+spec:
+  selector:
+    matchLabels:
+      {{- include "keycloak.selectorLabels" . | nindent 6 }}
+{{/*  {{- if not .Values.autoscaling.enabled }}*/}}
+{{/*  replicas: {{ .Values.replicas }}*/}}
+{{/*  {{- end }}*/}}
+  serviceName: {{ include "keycloak.fullname" . }}-headless
+  podManagementPolicy: {{ .Values.podManagementPolicy }}
+  updateStrategy:
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        checksum/config-startup: {{ include (print .Template.BasePath "/configmap-startup.yaml") . | sha256sum }}
+        force-upgrade-restart-roll: {{ randAlphaNum 5 | quote }}
+        checksum/secrets: {{ tpl (toYaml .Values.secrets) . | sha256sum }}
+        {{- range $key, $value := .Values.podAnnotations }}
+        {{- printf "%s: %s" $key (tpl $value $ | quote) | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "keycloak.selectorLabels" . | nindent 8 }}
+        {{- range $key, $value := .Values.podLabels }}
+        {{- printf "%s: %s" $key (tpl $value $ | quote) | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.image.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - image: {{ .Values.global.registry }}/{{ .Values.global.hzputil.image.name }}:{{ .Values.global.hzputil.image.tag }}
+          name: init-vault
+          imagePullPolicy: Always
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+          command:
+            - sh
+            - -c
+            - |
+              echo 'Waiting for Vault to become ready...'
+              until printf "." && nc -z -w 2 edgevault.{{ .Release.Namespace }}.svc.cluster.local 8200; do
+                sleep 2;
+              done;
+              echo 'Vault OK ✓'
+              echo 'Waiting for Vault bootstrap job to complete...'
+              until kubectl get jobs -n {{ .Release.Namespace }} vault-bootstrap -o jsonpath='{.status.conditions[?(@.type=="Complete")].status}' | grep True ; do sleep 5 ; done
+              echo 'Vault bootstrap OK ✓'
+{{/*        {{- if and .Values.dbchecker.enabled }}*/}}
+{{/*        - name: dbchecker*/}}
+{{/*          image: {{ include "manifest.image.name" (dict "name" "busybox" "globals" .Values.global.components "repo" .Values.global.repository) }}*/}}
+{{/*          imagePullPolicy: {{ .Values.dbchecker.image.pullPolicy }}*/}}
+{{/*          securityContext:*/}}
+{{/*            {{- toYaml .Values.dbchecker.securityContext | nindent 12 }}*/}}
+{{/*          env: */}}
+{{/*            - name: DB_HOST*/}}
+{{/*              valueFrom:*/}}
+{{/*                configMapKeyRef:*/}}
+{{/*                  name: create-postgres-host-configmap*/}}
+{{/*                  key: postgresHost*/}}
+{{/*            - name: DB_PORT*/}}
+{{/*              valueFrom:*/}}
+{{/*                configMapKeyRef:*/}}
+{{/*                  name: create-postgres-host-configmap*/}}
+{{/*                  key: postgresPort*/}}
+{{/*          command:*/}}
+{{/*            - sh*/}}
+{{/*            - -c*/}}
+{{/*            - |*/}}
+{{/*              echo 'Waiting for PostgreSQL to become ready...'*/}}
+
+{{/*              until printf "." && nc -z -w 2  $DB_HOST $DB_PORT; do*/}}
+{{/*                  sleep 2;*/}}
+{{/*              done;*/}}
+
+{{/*              echo 'PostgreSQL OK ✓'*/}}
+{{/*          resources:*/}}
+{{/*            {{- toYaml .Values.dbchecker.resources | nindent 12 }}*/}}
+{{/*        {{- end }}*/}}
+{{/*        {{- with .Values.extraInitContainers }}*/}}
+{{/*        {{- tpl . $ | nindent 8 }}*/}}
+{{/*        {{- end }}*/}}
+{{/*      {{- end }}*/}}
+{{/*    {{- end }}*/}}
+{{/*      {{- include "images.pullSecrets" . | nindent 6 }}*/}}
+      containers:
+        - image: {{ .Values.global.registry }}/{{ .Values.image.image }}:{{ .Values.image.tag }}
+          name: keycloak
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- if .Values.command }}
+          command:
+            {{- toYaml .Values.command | nindent 12 }}
+          {{- end }}
+          {{- if .Values.args }}
+          args:
+            {{- toYaml .Values.args | nindent 12 }}
+          {{- end }}
+          {{- with .Values.lifecycleHooks }}
+          lifecycle:
+          {{- tpl . $ | nindent 12 }}
+          {{- end }}
+          env:
+            - name: AUTH_CLIENT_ID
+              value: "keycloak"
+            - name: SINK_URL
+              value: ""
+            - name: SMTP_API_V2
+              value: "http://hzp-notification-svc.{{ .Release.Namespace }}.svc.cluster.local/api/v2/notifications/send-email"
+            - name: PRODUCT_NAME
+              value: "Dell Solutions Platform"
+          {{- if .Values.http.relativePath }}
+            - name: KC_HTTP_RELATIVE_PATH
+              value: {{ tpl .Values.http.relativePath $ | trimSuffix "/" }}
+            {{- end }}
+            {{- if eq .Values.cache.stack "default" }}
+            - name: KC_CACHE
+              value: "ispn"
+            - name: KC_CACHE_STACK
+              value: "kubernetes"
+            {{- end }}
+            {{- if .Values.hostname.httpEnabled }}
+            - name: KC_PROXY_HEADERS
+              value: {{ .Values.hostname.proxyHeaders }}
+            - name: KC_HTTP_ENABLED
+              value: "true"
+            {{- end }}
+            {{- if .Values.database.vendor }}
+            - name: KC_DB
+              value: {{ .Values.database.vendor }}
+            {{- end }}
+            {{- if and .Values.dbinit.postgres.enabled }}
+            {{- if .Values.global.postgres.internal }}
+            - name: KC_DB_URL_HOST
+              value: postgresql.{{ .Release.Namespace }}.svc.cluster.local
+            {{- else }}
+            - name: KC_DB_URL_HOST
+              value: {{ .Values.global.postgres.host }}
+            {{- end }}
+            {{- if .Values.dbinit.postgres.prefix }}
+            - name: KC_DB_USERNAME # The db username is the same as the db name by design
+              value: {{ printf "%s-%s" .Values.dbinit.postgres.prefix (.Values.dbinit.postgres.dbName | default "default") }}
+            - name: KC_DB_URL_DATABASE # The db username is the same as the db name by design
+              value: {{ printf "%s-%s" .Values.dbinit.postgres.prefix (.Values.dbinit.postgres.dbName | default "default") }}
+            {{ else }}
+            - name: KC_DB_USERNAME # The db username is the same as the db name by design
+              value: {{ .Values.dbinit.postgres.dbName | default "default" }}
+            - name: KC_DB_URL_DATABASE # The db username is the same as the db name by design
+              value: {{ .Values.dbinit.postgres.dbName | default "default" }}
+            {{- end }}
+            - name: KC_DB_URL_PORT
+              value: "5432"
+            - name: KC_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: "postgresql"
+                  key: {{ include "microservice.fullname" . }}
+            {{- end }}
+            {{- if .Values.metrics.enabled }}
+            - name: KC_METRICS_ENABLED
+              value: "true"
+            {{- end }}
+            {{- if .Values.metrics.enabled }}
+            - name: KC_HEALTH_ENABLED
+              value: "true"
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- tpl . $ | nindent 12 }}
+            {{- end }}
+            - name: APPROLE_ID
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-vault-secret
+                  key: role-id
+                  optional: false
+            - name: APPROLE_SECRET_ID
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-vault-secret
+                  key: secret-id
+                  optional: false
+            - name: APPROLE_ID_PATH
+              value: "eo-approle"
+            - name: VAULT_PKI_PATH
+              value: "pki/eo"
+            - name: VAULT_CERTS_KV_MOUNT_POINT
+              value: "kv/m2m/keycloak"
+            - name: VAULT_URL
+              value: "http://edgevault.{{ .Release.Namespace }}.svc.cluster.local:8200"
+            - name: VAULT_CA_ISSUERS
+              value: "issuer.ece.eo.edge.dell.com,issuer.m2m.edge.dell.com"
+            - name: KC_SSL_REQUIRED
+              value: {{ .Values.sslRequired }}
+            - name: EO_IP
+              value: 127.0.0.1
+            - name: EO_NAME
+              value: {{ .Release.Name }}
+            - name: TRUSTSTORE_FILE_PATH_CONFIG_PROPERTY
+              value: "/etc/java/java-21-openjdk/java-21-openjdk-21.0.5.0.11-2.el9.x86_64/lib/security/cacerts"
+            - name: TRUSTSTORE_TYPE_CONFIG_PROPERTY
+              value: "JKS"
+          envFrom:
+            {{- with .Values.extraEnvFrom }}
+            {{- tpl . $ | nindent 12 }}
+            {{- end }}
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+            - name: https
+              containerPort: 8443
+              protocol: TCP
+            {{- with .Values.extraPorts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- with .Values.livenessProbe }}
+          livenessProbe:
+            {{- tpl . $ | nindent 12 }}
+          {{- end }}
+          {{- with .Values.readinessProbe }}
+          readinessProbe:
+            {{- tpl . $ | nindent 12 }}
+          {{- end }}
+          {{- with .Values.startupProbe }}
+          startupProbe:
+            {{- tpl . $ | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          volumeMounts:
+{{/*            {{- include "logLevel.configMap.mount" $ | indent 12 }}*/}}
+            {{- with .Values.extraVolumeMounts }}
+            {{- tpl . $ | nindent 12 }}
+            {{- end }}
+{{/*          {{- with .Values.extraContainers }}*/}}
+{{/*          {{- tpl . $ | nindent 8 }}*/}}
+{{/*          {{- end }}*/}}
+{{/*      {{- with .Values.imagePullSecrets }}*/}}
+{{/*      imagePullSecrets:*/}}
+{{/*        {{- toYaml . | nindent 8 }}*/}}
+{{/*      {{- end }}*/}}
+      serviceAccountName: {{ include "keycloak.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+{{/*      {{- with .Values.hostAliases }}*/}}
+{{/*      hostAliases:*/}}
+{{/*        {{- toYaml . | nindent 8 }}*/}}
+{{/*      {{- end }}*/}}
+      enableServiceLinks: {{ .Values.enableServiceLinks }}
+      restartPolicy: {{ .Values.restartPolicy }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values $ ) | trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values $ ) | trim | nindent 8 }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- tpl . $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints:
+        {{- tpl . $ | nindent 8 }}
+      {{- end }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      volumes:
+{{/*        {{- include "logLevel.configMap.volume" $ | indent 8 }}*/}}
+{{/*        {{- with .Values.startupScripts }}*/}}
+{{/*        - name: startup*/}}
+{{/*          configMap:*/}}
+{{/*            name: {{ include "keycloak.fullname" $ }}-startup*/}}
+{{/*            defaultMode: 0555*/}}
+{{/*            items:*/}}
+{{/*              {{- range $key, $value := . }}*/}}
+{{/*              - key: {{ $key }}*/}}
+{{/*                path: {{ $key }}*/}}
+{{/*              {{- end }}*/}}
+{{/*        {{- end }}*/}}
+        {{- with .Values.extraVolumes }}
+        {{- tpl . $ | nindent 8 }}
+        {{- end }}

@@ -1,0 +1,99 @@
+global:
+  installDependencies: true
+  eoName: "Dell Automation Platform Portal"
+  registry: "702886132326.dkr.ecr.eu-west-1.amazonaws.com"
+  busybox:
+    image:
+      name: eo-images/busybox
+      pullPolicy: Always
+      tag: 1.36.1
+  message:
+    type: nats
+  ingress:
+    fqdn: localhost # for smoke/regression test
+  nginx_gw:
+    enabled: true
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  instrumentation:
+    enabled: false
+  iamProxy:
+    sidecarEnabled: false
+    commandDecorator:
+      command:
+        - sh
+        - -c
+        - |
+          if [ "$SIDECAR_INJECTED" == "true" ]; then
+            echo 'Waiting for sidecar proxy to become ready...'
+            until printf "." && nc -z -w 2 127.0.0.1 15006; do
+                sleep 2;
+            done;
+            echo 'Sidecar proxy is ready ✓'
+          else
+            echo 'No sidecar proxy detected ✓'
+          fi
+          echo 'sleeping for 10 seconds'
+          sleep 10
+          exec {{ .Values.iamProxyEntry }} &
+          pid=$!
+          trap 'kill -SIGTERM $pid; wait $pid' SIGTERM
+          wait $pid
+
+svc:
+  name: &serviceName dsp-ingress-authz-svc
+  replicaCount: 1
+  port: 8080
+  podLabels:
+    hzp-app: *serviceName
+    hzp-role: eo-service
+    hzp.iam.webhook/active: 'true'
+  podAnnotations:
+    hzp.iam.webhook/authentication-enabled: "false"
+    hzp.iam.webhook/authorization-enabled: "false"
+  resources:
+    limits:
+      cpu: 100m
+      memory: 200Mi
+    requests:
+      cpu: 5m
+      memory: 25Mi
+  rbac:
+    namePrefix: ingress-authz-svc
+  env:
+    - name: PLACEHOLDER
+      value: ""
+  internalIngressNamespace: istio-system
+  autoScaling:
+    enabled: false
+    labels: {}
+    minReplicas: 1
+    maxReplicas: 4
+    metrics:
+      - type: Resource
+        resource:
+          name: cpu
+          target:
+            type: Utilization
+            averageUtilization: 80
+    behavior:
+      scaleDown:
+        stabilizationWindowSeconds: 600
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 600
+      scaleUp:
+        stabilizationWindowSeconds: 60
+        policies:
+          - type: Pods
+            value: 1
+            periodSeconds: 60
+
+image:
+  name: eo-images/ingress-authz-svc
+  pullPolicy: Always
+  tag: 3.2.0.0-4fff730-3af79238
+  imagePullSecrets:
+    - name: docker-secret

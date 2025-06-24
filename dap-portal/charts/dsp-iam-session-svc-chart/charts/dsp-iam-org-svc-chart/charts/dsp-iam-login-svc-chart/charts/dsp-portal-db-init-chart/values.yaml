@@ -1,0 +1,9 @@
+global:
+  registry: "702886132326.dkr.ecr.eu-west-1.amazonaws.com"
+# Postgres initialization job configuration
+postgres:
+  enabled: 
+  name: 
+  external: 
+  prefix: 
+  dbName:  # The db username is the same as the db name by design

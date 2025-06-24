@@ -1,0 +1,166 @@
+# We want this job to run even if using external opensearch (deploy: false)
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "opensearch.fullname" . }}-opensearch-manage
+  labels:
+{{- tpl (toYaml .Values.global.opensearch.job.labels) . | replace "'" "" | nindent 8 }}
+  annotations:
+{{- tpl (toYaml .Values.global.opensearch.job.annotations) . | replace "'" "" | nindent 8 }}
+spec:
+  backoffLimit: 10
+  template:
+    metadata:
+      annotations:
+        hzp.iam.webhook/authentication-enabled: "false"
+        hzp.iam.webhook/authorization-enabled: "false"
+      labels:
+{{- tpl (toYaml .Values.global.opensearch.job.podLabels) . | replace "'" "" | nindent 8 }}
+    spec:
+      restartPolicy: OnFailure
+      {{- if not .Values.global.opensearch.deploy }}
+      serviceAccountName: {{.Values.global.opensearch.serviceAccountName}}
+      {{- end}}
+      {{- with .Values.image.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      nodeSelector: {{- include "pods.nodeSelector" ( list .Values.job $ ) | trim | nindent 8 }}
+      tolerations: {{- include "pods.tolerations" ( list .Values.job $ ) | trim | nindent 8 }}
+      affinity: {{- include "pods.affinity" ( list .Values.job $ ) | trim | nindent 8 }}
+      containers:
+      {{ if .Values.global.opensearch.deploy -}}
+      - name: security-init
+        image: {{ include "osearch.manifest.image.name" (dict "name" "opensearch" "globals" .Values.global.components "repo" .Values.global.registry) }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: ["ALL"]
+          runAsNonRoot: true
+          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          seccompProfile:
+            type: RuntimeDefault
+        env:
+         - name: JAVA_HOME
+           value: /opensearch/opensearch/jdk
+         - name: LOGSTASH_PASSWORD
+           valueFrom:
+             secretKeyRef:
+               name: {{ include "opensearch.fullname" . }}-opensearch-secret
+               key: logstashPassword
+               optional: false
+         - name: ADMIN_PASSWORD
+           valueFrom:
+             secretKeyRef:
+               name: {{ include "opensearch.fullname" . }}-opensearch-secret
+               key: adminPassword
+               optional: false
+         - name: READONLY_PASSWORD
+           valueFrom:
+             secretKeyRef:
+               name: {{ include "opensearch.fullname" . }}-opensearch-secret
+               key: readOnlyPassword
+               optional: false
+        volumeMounts:
+        - name: certs
+          mountPath: /opensearch/opensearch/config/certs
+        command: ["/bin/bash"]
+        args:
+          - -c
+          - >-
+              openssl pkcs8 -topk8 -inform PEM -outform PEM -nocrypt -in /opensearch/opensearch/config/certs/node1.key -out /tmp/node1.key;
+              openssl x509 -in /opensearch/opensearch/config/certs/node1.crt -out /tmp/node1.crt;
+              openssl x509 -in /opensearch/opensearch/config/certs/ca.crt -out /tmp/ca.crt;
+              cd /opensearch/opensearch/config/opensearch-security;
+              export ADMIN_PASSWORD_HASH=$(../../plugins/opensearch-security/tools/hash.sh -p $ADMIN_PASSWORD|grep -v ^\*);
+              export LOGSTASH_PASSWORD_HASH=$(../../plugins/opensearch-security/tools/hash.sh -p $LOGSTASH_PASSWORD|grep -v ^\*);
+              export READONLY_PASSWORD_HASH=$(../../plugins/opensearch-security/tools/hash.sh -p $READONLY_PASSWORD|grep -v ^\*);
+              printf -v sed_command 's|%q|%q|g' "ADMIN_PASSWORD_HASH" "$ADMIN_PASSWORD_HASH";
+              sed -i "$sed_command" internal_users.yml;
+              printf -v sed_command 's|%q|%q|g' "LOGSTASH_PASSWORD_HASH" "$LOGSTASH_PASSWORD_HASH";
+              sed -i "$sed_command" internal_users.yml;
+              printf -v sed_command 's|%q|%q|g' "READONLY_PASSWORD_HASH" "$READONLY_PASSWORD_HASH";
+              sed -i "$sed_command" internal_users.yml;
+              until /usr/bin/curl --connect-timeout 2 -s --insecure https://{{ include "opensearch.fullname" $ }}-opensearch:9200; do echo Wait for OpenSearch to start...; sleep 1; done;
+              ../../plugins/opensearch-security/tools/securityadmin.sh -h {{ include "opensearch.fullname" $ }}-opensearch -cacert /tmp/ca.crt -cert /tmp/node1.crt -key /tmp/node1.key -nhnv -icl -arc;
+              sleep 30;
+              /usr/bin/curl http://localhost:15022/quitquitquit 2>/dev/null || true;
+      {{- end }}
+      - name: opensearch-manage
+        securityContext:
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        args:
+        - ./scripts/add_templates.py
+        {{- if .Release.IsUpgrade }}
+        - --upgrade
+        {{- end }}
+        {{- include "get.secretEnvVars.envFromWithHeader" (list $ "opensearch-manage") | indent 8 }}
+        env:
+      {{- if not .Values.global.opensearch.deploy }}
+        {{- if .Values.global.opensearch.mode }}
+        - name: OPENSEARCH_MODE
+          value: {{ .Values.global.opensearch.mode }}
+        {{- end }}
+        {{- if .Values.global.opensearch.region }}
+        - name: OPENSEARCH_AWS_REGION
+          value: {{ .Values.global.opensearch.region }}
+        {{- end }}
+        - name: OPENSEARCH_HOST
+          value: {{ .Values.global.opensearch.host }}
+        - name: OPENSEARCH_PORT
+          value: "{{ .Values.global.opensearch.port }}"
+        - name: OPENSEARCH_USER
+          value: {{ .Values.global.opensearch.username }}
+      {{- else }}
+        - name: OPENSEARCH_HOST
+          value: {{ include "opensearch.fullname" $ }}-opensearch
+        - name: OPENSEARCH_PORT
+          value: "9200"
+        - name: OPENSEARCH_USER
+          value: admin
+      {{- end }}
+        - name: OPENSEARCH_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "opensearch.fullname" . }}-opensearch-secret
+              key: adminPassword
+              optional: false
+        - name: OPENSEARCH_SSL
+          value: "{{ if .Values.global.opensearch.tls }}1{{ end }}"
+        - name: OPENSEARCH_VERIFY_CERTS
+          value: "{{ if .Values.global.opensearch.verifyCerts }}1{{ end }}"
+        image: {{ include "osearch.manifest.image.name" (dict "name" "opensearch-manage" "globals" .Values.global.components "repo" .Values.global.registry) }}
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        securityContext:
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        resources: {}
+      volumes:
+      - name: certs
+        secret:
+          secretName: {{ include "opensearch.fullname" . }}-opensearch-secret
+          items:
+            - key: node1.crt
+              path: node1.crt
+            - key: node1.key
+              path: node1.key
+            - key: ca.crt
+              path: ca.crt
+      securityContext:
+        runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+        fsGroup: 1000
+        runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+      restartPolicy: Never

@@ -1,0 +1,39 @@
+{{- if and .Values.postgres.enabled }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "microservice.jobname" . }}
+  namespace: {{ .Release.Namespace }}
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "microservice.jobname" . }}
+  namespace: {{ .Release.Namespace }}
+rules:
+- apiGroups: [""]
+  resources: ["secrets", "serviceaccounts"]
+  verbs: ["create", "get", "list", "patch"]
+- apiGroups: ["rbac.authorization.k8s.io"]
+  resources: ["roles", "rolebindings"]
+  verbs: ["get", "patch"]
+- apiGroups: ["batch"]
+  resources: ["jobs"]
+  verbs: ["get"]
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "microservice.jobname" . }}
+  namespace: {{ .Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ include "microservice.jobname" . }}
+subjects:
+- kind: ServiceAccount
+  name: {{ include "microservice.jobname" . }}
+{{- end }}

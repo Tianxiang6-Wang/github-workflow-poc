@@ -1,0 +1,23 @@
+dellEnvironment: "dev"
+sslCertificates: "arn:aws:acm:eu-west-1:702886132326:certificate/aa01e3eb-053d-40c7-8f00-5f70741a3b3d"
+albGroupName: "saas-dsp-portal-dev"
+domain: "dev.sp.dell.com"
+
+# Used to prefer scheduling pods of the same deployment to diffrent nodes.
+podAntiAffinity:
+  enabled: true
+
+standAloneDeploy: true
+
+#global:
+#  postgresql:
+#    auth:
+#      existingSecret: postgres-secret # pragma: allowlist secret
+#      database: keycloak
+#      username: keycloak
+#      postgresPassword: postgres
+#      secretKeys:
+#        userPasswordKey: keycloak-db-password
+
+#postgresql-chart:
+#  fullnameOverride: "postgresql"

@@ -1,0 +1,182 @@
+{{- if and $.Values.global.upgrade.migration $.Values.global.staticOnPremOrgId }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: keycloak-import
+spec:
+  activeDeadlineSeconds: 7200
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        hzp-app: keycloak-migration
+        hzp-role: eo-service
+    spec:
+      restartPolicy: Never
+      {{- with .Values.image.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: wait-for-realm
+          image: {{ .Values.global.registry }}/{{ .Values.image.image }}:{{ .Values.image.tag }}
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              echo "waiting for Keycloak to be ready…"
+              until curl -sf "$KEYCLOAK_URL/health/ready"; do
+                echo "Keycloak not ready, sleeping 5s…"
+                sleep 5
+              done
+              echo "Keycloak is ready — logging in…"
+              until /opt/keycloak/bin/kcadm.sh config credentials \
+                      --server "$KEYCLOAK_URL" \
+                      --realm master \
+                      --user "$KEYCLOACK_USER" \
+                      --password "$KEYCLOAK_PASS"; do
+                echo "Login failed, retrying in 5s…"
+                sleep 5
+              done
+              echo "waiting for realm '$TARGET_REALM'…"
+              until /opt/keycloak/bin/kcadm.sh get realms/$TARGET_REALM > /dev/null 2>&1; do
+                echo "Realm not found, retrying in 5s…"
+                sleep 5
+              done
+              echo "realm '$TARGET_REALM' exists, proceeding!"
+          env:
+            - name: KEYCLOAK_URL
+              value: 'http://{{ include "keycloak.fullname" . }}-http.{{ .Release.Namespace }}.svc.cluster.local/auth'
+            - name: TARGET_REALM
+              value: {{ .Values.global.staticOnPremOrgId }}
+            - name: KEYCLOACK_USER
+              value: keycloak
+            - name: KEYCLOAK_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: keycloak-password
+        - name: downloader-cleaner
+          image: {{ .Values.global.registry }}/{{ .Values.global.hzputil.image.name }}:{{ .Values.global.hzputil.image.tag }}
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              set -e
+              echo "downloading hzp-realm.json from SeaweedFS…"
+              curl -s --fail \
+                "http://$SEAWEED_FILER/buckets/migration/hzp-realm.json" \
+                -o {{ .Value.migration.importFilesPath }}/hzp-realm.json
+
+              echo "cleaning & role-mapping…"
+              jq '
+                del(.roles, .defaultRole, .clients) |
+                def mapRoles:
+                  if     . == "Administrator"       then ["Portal Administrator","Orchestrator Administrator"]
+                  elif   . == "Operational Manager" then ["Portal Operational Manager","Orchestrator Operational Manager"]
+                  elif   . == "Viewer"              then ["Portal Viewer","Orchestrator Viewer"]
+                  elif   . == "Application Admin"   then ["Portal Viewer","Orchestrator Application Admin"]
+                  else [.] end ;
+                .users |= map(
+                  select(.serviceAccountClientId == null)
+                  | del(.serviceAccountClientId, .clientRoles)
+                  | .realmRoles |= (
+                      map(mapRoles) | add | unique
+                      | map(select(. != "hzp-security-admin" and (test("^default-roles-")|not)))
+                    )
+                ) |
+                (.groups? // []) |= map(
+                  .realmRoles |= (
+                    map(mapRoles) | add | unique
+                    | map(select(. != "hzp-security-admin" and (test("^default-roles-")|not)))
+                  )
+                )
+              ' {{ .Value.migration.importFilesPath }}/hzp-realm.json > {{ .Value.migration.importFilesPath }}/clean.json
+              ls -lh {{ .Value.migration.importFilesPath }}
+          env:
+            - name: SEAWEED_FILER
+              value: "eo-management-seaweedfs-filer.{{ .Value.migration.targetNamespace }}.svc.cluster.local:8888"
+          volumeMounts:
+            - name: realm-data
+              mountPath: {{ .Value.migration.importFilesPath }}
+      containers:
+        - name: keycloak-importer
+          image: {{ .Values.global.registry }}/{{ .Values.image.image }}:{{ .Values.image.tag }}
+          imagePullPolicy: Always
+          command: ["/bin/sh","-c"]
+          args:
+            - |
+              set -e
+
+              echo "logging in with kcadm…"
+              /opt/keycloak/bin/kcadm.sh config credentials \
+                --server "$KEYCLOAK_URL" \
+                --realm master \
+                --user "$KEYCLOACK_USER" \
+                --password "$KEYCLOAK_PASS"
+
+              echo "deleting old administrator (if any)…"
+              ADMIN_ID=$(
+                /opt/keycloak/bin/kcadm.sh get users \
+                  -r "$TARGET_REALM" \
+                  -q username=administrator \
+                  --fields id --format csv \
+                | tail -n +2 | cut -d',' -f1 | tr -d '\r'
+              )
+              if [ -n "$ADMIN_ID" ]; then
+                /opt/keycloak/bin/kcadm.sh delete users/"$ADMIN_ID" -r "$TARGET_REALM"
+              fi
+
+              echo "now running partialImport"
+              /opt/keycloak/bin/kcadm.sh create partialImport \
+                -r "$TARGET_REALM" \
+                -s ifResourceExists=OVERWRITE \
+                -f {{ .Value.migration.importFilesPath }}/clean.json
+
+              echo "import complete"
+          env:
+            - name: KEYCLOAK_URL
+              value: 'http://{{ include "keycloak.fullname" . }}-http.{{ .Release.Namespace }}.svc.cluster.local/auth'
+            - name: TARGET_REALM
+              value: {{ .Values.global.staticOnPremOrgId }}
+            - name: KEYCLOACK_USER
+              value: keycloak
+            - name: KEYCLOAK_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: keycloak-password
+          volumeMounts:
+            - name: realm-data
+              mountPath: {{ .Value.migration.importFilesPath }}
+
+        - name: client-importer
+          image: {{ .Values.global.registry }}/{{ .Values.migration.clientsImporter.image.name }}:{{ .Values.migration.clientsImporter.image.tag }}
+          imagePullPolicy: Always
+          env:
+            - name: DB_HOST
+              value: postgresql.{{ .Release.Namespace }}.svc.cluster.local
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_PA
+              valueFrom:
+                secretKeyRef:
+                  name: "postgresql"
+                  key: "dsp-iam-mgmt-svc"
+            - name: IMPORT_REALM_FILE_PATH
+              value: '{{ .Value.migration.importFilesPath }}/hzp-realm.json'
+            - name: KEYCLOAK_URL
+              value: 'http://{{ include "keycloak.fullname" . }}-http.{{ .Release.Namespace }}.svc.cluster.local/auth'
+            - name:  ON_PREM_ORG_ID
+              value: {{ .Values.global.staticOnPremOrgId }}
+            - name: KEYCLOACK_USER
+              value: keycloak
+            - name: KEYCLOAK_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: keycloak-secret
+                  key: keycloak-password
+
+      volumes:
+        - name: realm-data
+          emptyDir: {}
+
+{{- end }}

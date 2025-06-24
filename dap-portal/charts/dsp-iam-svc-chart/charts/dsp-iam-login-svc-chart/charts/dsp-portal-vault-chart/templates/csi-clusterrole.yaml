@@ -1,0 +1,21 @@
+{{- template "vault.csiEnabled" . -}}
+{{- if .csiEnabled -}}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ template "vault.fullname" . }}-csi-provider-clusterrole"
+  labels:
+    app.kubernetes.io/name: {{ include "vault.name" . }}-csi-provider
+    app.kubernetes.io/instance: eo-management
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+    env: "{{ .Release.Namespace }}"
+    name: "{{ template "vault.fullname" . }}-csi-provider-clusterrole"
+    globalName: "{{ tpl .Values.global.clusterResourcesPrefix . }}{{ template "vault.fullname" . }}-csi-provider-clusterrole"
+rules:
+- apiGroups:
+  - ""
+  resources:
+  - serviceaccounts/token
+  verbs:
+  - create
+{{- end }}

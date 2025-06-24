@@ -1,0 +1,108 @@
+annotations:
+  buildWorkflowURL: https://github.com/fusion-e/dsp-portal-chart/actions/runs/15765121415/attempts/1
+apiVersion: v2
+appVersion: 1.0.0-dev
+dependencies:
+- name: dsp-portal-nginx-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.1.88
+- condition: global.postgres.internal
+  name: postgresql-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com/bitnami
+  version: 16.5.3-official
+- name: dsp-portal-nats-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.1.11
+- name: dsp-portal-vault-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.9.21
+- condition: dsp-event-svc-chart.opensearch.deploy
+  name: dsp-portal-opensearch-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.2.4
+- condition: global.enableKeycloak
+  name: dsp-iam-login-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 1.0.39
+- name: dsp-iam-session-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.1.41
+- name: dsp-iam-org-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.43
+- condition: global.enableKeycloak
+  name: dsp-iam-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.1.24
+- condition: global.enableKeycloak
+  name: dsp-iam-configuration-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.14
+- name: dsp-iam-policy-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.40
+- name: dsp-iam-mgmt-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.57
+- name: dsp-iam-token-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.38
+- name: dsp-iam-gui-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.118
+- name: dsp-ingress-authz-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.16
+- condition: global.is-saas-env
+  name: dsp-catalog-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.197
+- condition: global.is-saas-env
+  name: dsp-catalog-gui-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.146
+- name: dsp-license-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.33
+- name: dsp-portal-gui-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.145
+- name: dsp-services-gui-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.56
+- name: dsp-agreement-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.62
+- name: dsp-secrets-service-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.12
+- name: dsp-inventory-gui-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.114
+- name: dsp-event-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.106
+- name: dsp-notification-service-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.3.52
+- name: dsp-security-gui-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.100
+- name: dsp-portal-infra-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.125
+- name: dsp-portal-certificate-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.45
+- name: dsp-datacollection-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.0.4
+description: Helm chart for DAP Portal
+home: https://github.com/fusion-e/dsp-portal-chart
+keywords:
+- dell
+- dap
+- portal
+name: dap-portal
+type: application
+version: 0.0.919

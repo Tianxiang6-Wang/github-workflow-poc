@@ -1,0 +1,280 @@
+global:
+  installDependencies: true
+  registry: "702886132326.dkr.ecr.eu-west-1.amazonaws.com"
+  postgres:
+    internal: true
+    host:
+  
+nameOverride: "dsp-portal-infra-svc"
+fullnameOverride: "dsp-portal-infra-svc"
+
+replicaCount: 1
+
+# values that contains list of tiems for configmap env:
+extended_list_env:
+extended_list_values:
+
+
+# replace values from configmap.yaml of your service
+# set the configs values Hardcoded from old valuefile env values.
+# ALL!!! values must be in QUOTES!!!!
+config:
+  configmap:
+
+
+# set all the deployment envs HERE!
+# secretname= global.secretname
+# keyToEnvName= the name of the env-ar on the pods (dell__Secret__ConnectionStrings__dellConnectionString)
+# key = the actual key needed from the secret
+# u can add more then 1 secret to use(see in your value global parameter)
+externalsecrets:
+#  - secretname: postgresql
+#    keys:
+#      - key: dsp-portal-infra-svc
+#        keyToEnvName: DB_PA
+
+extraEnvs:
+  - name: NATS_URL
+    value: nats.{{ .Release.Namespace }}.svc.cluster.local:4222
+  # NATS_MONITORING_URL used by init container
+  - name: NATS_MONITORING_URL
+    value: nats.{{ .Release.Namespace }}.svc.cluster.local:8222
+
+# Postgres configuration
+dbinit:
+  postgres:
+    enabled: true
+    name: dsp-portal-infra-svc
+    dbName: "dsp_portal_infra_svc" # The db username is the same as the db name by design
+
+postgresql-chart:
+  fullnameOverride: "postgresql"
+
+image:
+  image: "dsp-portal-infra-svc"
+  tag: ""
+  pullPolicy: Always
+  imagePullSecrets:
+    - name: docker-secret
+
+init:
+  registry: "702886132326.dkr.ecr.eu-west-1.amazonaws.com"
+  image: "eo-images/busybox"
+  tag: "1.36.1"
+
+dockerSecret:
+  create: false
+  dockerConfigJSON: ""
+
+entrypoint:
+#   cmd: dotnet
+#   arg: ""
+   workingDir: "/app"
+
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+
+containerPort:
+  http: 8080
+
+terminationGracePeriodSeconds: 30
+
+lifecycle: {}
+
+updateStrategy: {}
+
+extraLabels: []
+
+startupProbe:
+  httpGet:
+    path: /admin/health/dependency
+    port: http
+    scheme: HTTP
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+livenessProbe:
+  httpGet:
+    path: /admin/health/dependency
+    port: http
+    scheme: HTTP
+  initialDelaySeconds: 5
+  periodSeconds: 30
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /admin/health/dependency
+    port: http
+    scheme: HTTP
+  initialDelaySeconds: 5
+  periodSeconds: 20
+  timeoutSeconds: 5
+  successThreshold: 1
+  failureThreshold: 3
+
+volumeMounts: {}
+  # - name: nginx-conf
+  #   mountPath: /etc/nginx/nginx.conf
+  #   subPath: nginx.conf
+  # - name: nginx-conf
+  #   mountPath: /etc/nginx/security.conf
+  #   subPath: security.conf
+  # - name: nginx-conf
+  #   mountPath: /etc/nginx/replacements.conf
+  #   subPath: replacements.conf
+
+deployment:
+  enabled: true
+
+# previus hardcoded in deployment.yaml
+# now we can set dell.prod for pproduction apps (as for now all apps are dell.local)
+# dnsConfig:
+#   searches:
+
+service:
+  enabled: true
+  type: ClusterIP
+  labels: []
+  http:
+    port: 80
+    targetPort: 8080
+    nodePort: null
+  # Only if you need one service to listen to two ports (Better to split that service to 2 mircoservices.)
+  # Must be used with Multiple ingress paths.
+  multiPortService:
+    enabled: false
+    http:
+      port: 4999
+      name: external
+      targetPort: null
+
+ingress:
+  enabled: false
+  # ALB Annotations: https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.2/guide/ingress/annotations/#annotations
+  annotations: {}
+  hosts:
+  - path: /
+    pathType: ImplementationSpecific
+
+  multipath:
+    enabled: true
+    hosts:
+    - paths:
+      - path: /
+        pathType: ImplementationSpecific
+        backend:
+          # serviceName: app1-service
+          servicePort: 8080
+      - path: /health
+        pathType: ImplementationSpecific
+        backend:
+          # serviceName: app1-service
+          servicePort: 8080
+
+# Whether or not we want a pod disruption budget, enabled by default, but this only is enabled if replicaCount > 1
+podDistuptionBudget:
+  enabled: true
+  minAvailable: 1
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "300Mi"
+
+
+# we should use only HPA OR Keda.
+# if keda is needed plz use keda as the cpu\mem scaler
+autoscaling: # Only one can be enabled
+  minReplicas: 1
+  maxReplicas: 3
+  hpa:
+    enabled: true
+    metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          averageValue: 150m
+          type: Utilization
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          averageValue: 300Mi
+          type: Utilization
+
+
+# criticalinfra = all our criticalinfra apps (namespace criticalinfra)
+# infrastructure = internal tools(like devtools apps)
+# dell = rest of dell microservices (exclude criticalinfra)
+# only 1 selector will be selected!!
+nodeSelector: {}
+  # kubernetes.io/os: linux
+
+
+# The folowing property is mandetory only for critical infra!!!
+# tolerations: {}
+tolerations: {}
+  # - key: "app"
+  #   operator: "Equal"
+  #   value: "dell"
+  # - key: "app"
+  #   operator: "Equal"
+  #   value: "dell-prod"
+
+volumes: {}
+  # - name: nginx-conf
+  #   configMap:
+  #     name: nginx-conf
+  #     items:
+  #       - key: nginx.conf
+  #         path: nginx.conf
+  #       - key: security.conf
+  #         path: security.conf
+  #       - key: replacements.conf
+  #         path: replacements.conf
+
+podAntiAffinity:
+  enabled: false
+
+topologySpreadConstraints: {}
+
+
+
+# Create serviceaccount for the service
+serviceAccount:
+  enabled: false
+  annotations: {}
+    # Here's an example of assigning an IAM role to a pod
+    # eks.amazonaws.com/role-arn: arn:aws:iam::123123123:role/role-name-goes-here
+
+#Commit: DEVOPS-5837-FR-Hashmaps
+hashcalculation:
+  enabled: false
+  # payerstolog: [248,371,444]
+
+  ## Thirdparties
+  # Set configurations for third party applications in this section
+thirdParties:
+  dynatraceVersionDetection:
+    enabled: true
+
+# Use production configuration as default values. Need to sync with production values if below values changed.
+vms:
+  enabled: true
+  vmsAccessTokenEndpoint: 2c63062c0098b7314f8443099663de6c0a89df72982aad93a94c8f5a605133ebd557d0afd2bccb3e5608a92dcc2e5da0609d097c62f48470e2b0af4ad9e28e010a8b59589e4139e702ac89ecdeb25b4380fa7dc7366f14a33d
+  vmsAccessTokenType: 40155348f0ab3f68dd0ee8d277ed2b46cc7f3dc23353e426e62bdd5b2869
+  vmsXferVoucherEndpoint: cfc76067f2a08b259410d276fafbad6cc08b59a5ae1398eea0244ae4f16b0f06cf97429507ddc19783abcae665f81fe8c9cac42a9fef32da3cc3f67aafe5f26d53f24e71930ea549e4e221
+  vmsXferVoucherType: cc707a7ebbfbc5b8519b10cd7b4bd64ebb5a7a75209dafe902cc5c07eb915350a5
+  vmsXferVoucherOAuth: dc0e09f210a9c2b9d3ead5d04da5250fdf07be89874cbc5a3a3d48e10a23fb2d97e0596fd9a0f17c810938eceddaf8c1a3b36d8b36ccd0c56536ddc34503b71cfc77ab6f9ed4932665f8b7ccf91c552f3e9f8c62913887026393
+  vmsXferVoucherAppId: be5a38f13808ca558b9b1911c88fa7138b6adca009fd85c14dde3efc90642e87994ba8146ef3d2f35b92a24da13a70d3d7b82fa436d480cf9145f5f43cc88a59
+  vmsXferVoucherSecret: a1b8ff5f34286cb6395b4162cc3e21add0a150ea0fc7492f083b1fc317b9bcccdb9892fe7b6d26a9c339a9968f79d0c68c19cf5df291cf53e33307d69d339fb2a00291d32786a5fd144f6bbd3dd49c1bfe1a6c978478d6d5863be2716c82638f50f07b2db2c72fddda7c3ff011ed0cc179a6

@@ -1,0 +1,8 @@
+annotations:
+  buildWorkflowURL: https://github.com/fusion-e/dsp-portal-nginx/actions/runs/15755742016/attempts/1
+apiVersion: v2
+appVersion: 0.1.88
+description: DSP portal nginx Helm Chart
+name: dsp-portal-nginx-chart
+type: application
+version: 0.1.88

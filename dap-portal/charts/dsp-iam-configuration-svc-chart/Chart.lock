@@ -1,0 +1,6 @@
+dependencies:
+- name: dsp-iam-login-svc-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 1.0.29
+digest: sha256:973e420835c28c2017bcc7f870f24990c0ed119f5f86fe9dc3b73913f08ab03f
+generated: "2025-06-15T13:01:51.496539036Z"

@@ -1,0 +1,11 @@
+dellEnvironment: "staging"
+sslCertificates: "arn:aws:acm:eu-west-1:816069151864:certificate/b11d162c-f8b2-4b7d-a722-524da4b7f639"
+albGroupName: "saas-dsp-portal-staging"
+domain: "staging.sp.dell.com"
+
+#nodeSelector:
+#  app: dell
+
+# Used to prefer scheduling pods of the same deployment to different nodes.
+podAntiAffinity:
+  enabled: true

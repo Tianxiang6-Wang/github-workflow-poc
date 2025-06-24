@@ -1,0 +1,44 @@
+dsp-iam-session-svc-chart:
+  di:
+    baseUrl: "https://www.dell.com"
+    clientId: "3433bcfa-421b-4fc5-a9c6-2c60081864e3"
+dsp-portal-nginx-chart:
+  di:
+    baseUrl: "https://www.dell.com"
+    clientId: "3433bcfa-421b-4fc5-a9c6-2c60081864e3"
+  ingress:
+    annotations:
+      alb.ingress.kubernetes.io/scheme: "internet-facing"
+      alb.ingress.kubernetes.io/group.name: saas-dsp-portal-production
+      alb.ingress.kubernetes.io/wafv2-acl-arn: arn:aws:wafv2:us-east-1:008791006138:regional/webacl/saas-waf-prod/a4aa36a5-c750-4059-a70f-362385571ed4
+      alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:008791006138:certificate/039bd4fc-bbe4-4fcf-bebb-20c78f4bea88
+dsp-catalog-svc-chart:
+  serviceAccount:
+    enabled: true
+    annotations:
+      eks.amazonaws.com/role-arn: arn:aws:iam::008791006138:role/dsp-portal-s3
+  extraEnvs:
+  - name: S3_BUCKET_NAME
+    value: dell-dap-prod-dsp-portal-catalog
+  - name: SESSION_SVC_URL
+    value: "http://dsp-iam-session-svc:80"
+dsp-iam-token-svc-chart:
+  tokenSvc:
+    issuerURL: https://dsp-portal.automation.dell.com
+    externalIssuerJWKsURL: https://www.dell.com/di/v3/fp/v3/keys/public
+dsp-agreement-svc-chart:
+  config:
+    configmap:
+      tokenurl: "https://apigtwb2c.us.dell.com/auth/oauth/v2/token"
+      aotgreementsapiurl: "https://apigtwb2c.us.dell.com/aot-producer/api/clickwrap/agreements"
+dsp-portal-infra-svc-chart:
+  vms:
+    #TODO: need to product vms info for this part
+    enabled: true
+    vmsAccessTokenEndpoint: 2c63062c0098b7314f8443099663de6c0a89df72982aad93a94c8f5a605133ebd557d0afd2bccb3e5608a92dcc2e5da0609d097c62f48470e2b0af4ad9e28e010a8b59589e4139e702ac89ecdeb25b4380fa7dc7366f14a33d
+    vmsAccessTokenType: 40155348f0ab3f68dd0ee8d277ed2b46cc7f3dc23353e426e62bdd5b2869
+    vmsXferVoucherEndpoint: cfc76067f2a08b259410d276fafbad6cc08b59a5ae1398eea0244ae4f16b0f06cf97429507ddc19783abcae665f81fe8c9cac42a9fef32da3cc3f67aafe5f26d53f24e71930ea549e4e221
+    vmsXferVoucherType: cc707a7ebbfbc5b8519b10cd7b4bd64ebb5a7a75209dafe902cc5c07eb915350a5
+    vmsXferVoucherOAuth: dc0e09f210a9c2b9d3ead5d04da5250fdf07be89874cbc5a3a3d48e10a23fb2d97e0596fd9a0f17c810938eceddaf8c1a3b36d8b36ccd0c56536ddc34503b71cfc77ab6f9ed4932665f8b7ccf91c552f3e9f8c62913887026393
+    vmsXferVoucherAppId: be5a38f13808ca558b9b1911c88fa7138b6adca009fd85c14dde3efc90642e87994ba8146ef3d2f35b92a24da13a70d3d7b82fa436d480cf9145f5f43cc88a59
+    vmsXferVoucherSecret: a1b8ff5f34286cb6395b4162cc3e21add0a150ea0fc7492f083b1fc317b9bcccdb9892fe7b6d26a9c339a9968f79d0c68c19cf5df291cf53e33307d69d339fb2a00291d32786a5fd144f6bbd3dd49c1bfe1a6c978478d6d5863be2716c82638f50f07b2db2c72fddda7c3ff011ed0cc179a6

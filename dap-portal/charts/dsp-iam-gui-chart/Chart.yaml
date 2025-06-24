@@ -1,0 +1,8 @@
+annotations:
+  buildWorkflowURL: https://github.com/fusion-e/dsp-iam-gui/actions/runs/15764726169/attempts/1
+apiVersion: v2
+appVersion: 0.0.118
+description: dell Deployment Helm Chart
+name: dsp-iam-gui-chart
+type: application
+version: 0.0.118

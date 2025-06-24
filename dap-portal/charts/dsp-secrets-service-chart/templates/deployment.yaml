@@ -1,0 +1,228 @@
+{{- if .Values.deployment.enabled }}
+{{ $buildid := default false (hasKey .Values.config "env") }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "microservice.fullname" . }}
+  namespace: {{ include "microservice.namespace" . | quote }}
+  labels:
+{{ include "microservice.labels" . | indent 4 }}
+{{- with .Values.extraLabels }}
+{{- toYaml . | nindent 4 }}
+{{- end }}
+spec:
+  # if autoscaling enabled, replicas not needed
+  {{- if and (not .Values.autoscaling.hpa.enabled) (not .Values.autoscaling.keda.enabled) }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  {{- if .Values.updateStrategy }}
+  strategy:
+    {{ toYaml .Values.updateStrategy | nindent 4 }}
+  {{- end }}
+  selector:
+    matchLabels:
+    {{- include "microservice.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        hzp.iam.webhook/authentication-enabled: "false"
+        hzp.iam.webhook/authorization-enabled: "false"
+      labels:
+        app: secrets
+        hzp-role: fusion-service
+        hzp-app: fusion-secrets-service
+
+        {{- if not (empty $buildid) }}
+        dellAppVersion: {{ include "microservice.version" . | quote }}
+        {{- end }}
+        {{- include "microservice.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- if .Values.terminationGracePeriodSeconds }}
+      terminationGracePeriodSeconds: {{ .Values.terminationGracePeriodSeconds }}
+      {{- end }}
+      {{- with .Values.image.imagePullSecrets }}
+      imagePullSecrets:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- if .Values.dnsConfig }}
+      dnsConfig: {{ toYaml .Values.dnsConfig | nindent 8 }}
+      {{- end }}
+      initContainers:
+        - name: db-wait
+          image: "{{ .Values.global.registry }}/{{ .Values.image.initImage }}:{{ .Values.image.initImageTag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.db "root" $) | nindent 12 }}
+          command:
+            - /usr/bin/env
+            - -S
+            - bash
+            - -exuc
+            - |
+              python -m manager_rest.configure_manager --db-wait {{- include "fusion-services.postgres_host" . | indent 1 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsUser: {{ .Values.initContainerSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.initContainerSecurityContext.runAsGroup }}
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: "0.1"
+            limits:
+              memory: 512Mi
+              cpu: "1"
+        - name: secrets-migrate-db
+          image: "{{ .Values.global.registry }}/{{ .Values.image.migrateDbJobImage }}:{{ .Values.image.migrateDbJobImageTag | default .Chart.AppVersion }}"
+          imagePullPolicy:  {{ .Values.image.pullPolicy }}
+          env:
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.db "root" $) | nindent 12 }}
+          command:
+            - /usr/bin/env
+            - -S
+            - bash
+            - -exuc
+            - |
+              cd /opt/manager/migrations
+              alembic upgrade head
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsUser: {{ .Values.migrateDbJobSecurityContext.runAsUser }}
+            runAsGroup: {{ .Values.migrateDbJobSecurityContext.runAsGroup }}
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              memory: 256Mi
+              cpu: "0.1"
+            limits:
+              memory: 512Mi
+              cpu: "1"
+      containers:
+        - name: secrets
+          image: "{{ .Values.global.registry }}/{{ .Values.image.image }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+#          command: ["{{ .Values.entrypoint.cmd }}"]
+#          args: ["{{ .Values.entrypoint.arg }}"]
+          {{- if .Values.entrypoint.workingDir }}
+          workingDir: {{ .Values.entrypoint.workingDir }}
+          {{- end }}
+          {{- if .Values.lifecycle }}
+          lifecycle: {{ toYaml .Values.lifecycle | nindent 12 }}
+          {{- end }}
+          env:
+            {{- if and .Values.thirdParties.dynatraceVersionDetection.enabled $buildid }}
+            - name: DT_RELEASE_VERSION
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['dellAppVersion']
+            - name: DT_RELEASE_PRODUCT
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.labels['app.kubernetes.io/name']
+            - name: DT_RELEASE_BUILD_VERSION
+              value: {{ now | date "2006-01-02" }}
+            - name: DT_RELEASE_STAGE
+              value: {{ .Values.dellEnvironment }}
+            {{- end }}
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: KubeNamespace
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: NATS_URL
+              value: "nats://nats:4222"
+            {{- include "fusion-services.restservice_keys" . | nindent 12 }}
+            {{- include "fusion-services.vault_env_vars" . | nindent 12 }}
+            {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.db "root" $) | nindent 12 }}
+            - name: DEFAULT_SECRETS_BACKEND
+              value: "vault"
+            - name: VAULT_SECRET_PATH
+              value: {{ .Values.vault.vaultSecretPath }}
+            - name: LOGGING_LEVEL_CONFIGURATION_PATH
+              value: "/opt/logging"
+            - name: LOGGING_LEVEL_GLOBAL_PATH
+              value: "/opt/logging/global-log-level"
+            - name: LOGGING_LEVEL_SERVICE_PATH
+              value: "/opt/logging/global-log-level/fusion-drift"
+
+          ports:
+          {{- range $key, $value := .Values.containerPort }}
+            - name: {{ $key }}
+              containerPort: {{ $value }}
+              protocol: TCP
+          {{- end }}
+          
+          envFrom:
+          - configMapRef:
+              name: {{ include "microservice.fullname" . }}
+          # - secretRef:
+          #     name: {{ include "microservice.fullname" . }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
+            capabilities:
+              drop:
+                - ALL
+          {{- if .Values.volumeMounts }}
+          volumeMounts: {{ toYaml .Values.volumeMounts | nindent 12 }}
+          {{- end }}
+
+          {{- if .Values.resources }}
+          resources: {{ toYaml .Values.resources | nindent 12 }}
+          {{- end }}
+    {{- if .Values.volumes }}
+      volumes: {{ toYaml .Values.volumes | nindent 8 }}
+    {{- end }}
+    {{- if .Values.nodeSelector }}
+      nodeSelector: {{ toYaml .Values.nodeSelector | nindent 8 }}
+      {{- if or (eq .Values.nodeSelector.app "dell") (eq .Values.nodeSelector.app "infra") (eq .Values.nodeSelector.app "infra-devops") }}
+        karpenter.sh/capacity-type: spot
+      {{- end }}
+      {{- if or (eq .Values.nodeSelector.app "dell-prod") (eq .Values.nodeSelector.app "infra-prod") }}
+        karpenter.sh/capacity-type: on-demand
+      {{- end }}
+    {{- end }}
+    {{- if .Values.tolerations }}
+      tolerations: {{ toYaml .Values.tolerations | nindent 8 }}
+    {{- end }}
+    {{- if .Values.podAntiAffinity.enabled }}
+      affinity: 
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 5
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                  - {{ include "microservice.fullname" . }}
+              topologyKey: "kubernetes.io/hostname"      
+    {{- end }}
+    {{- if .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{ toYaml .Values.topologySpreadConstraints | nindent 8 }}
+    {{- end }}
+    
+    {{- if .Values.serviceAccount.enabled }}
+      serviceAccountName: {{ template "microservice.fullname" . }}
+    {{- end }}
+{{- end }}

@@ -1,0 +1,8 @@
+annotations:
+  buildWorkflowURL: https://github.com/fusion-e/dsp-security-gui/actions/runs/15751700119/attempts/1
+apiVersion: v2
+appVersion: 0.0.100
+description: dell Security
+name: dsp-security-gui-chart
+type: application
+version: 0.0.100

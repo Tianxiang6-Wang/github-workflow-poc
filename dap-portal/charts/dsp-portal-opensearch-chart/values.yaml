@@ -1,0 +1,80 @@
+# Global values
+global:
+  registry: 702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  
+  components:
+    - image: opensearch
+      name: opensearch
+      version: 69ac2433b6ec370dc4b086e48010276482f7ebac
+      project: eo-images
+    - image: opensearch-manage
+      name: opensearch-manage
+      version: 69ac2433b6ec370dc4b086e48010276482f7ebac
+      project: eo-images
+
+  storageClassName: gp3
+  
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+ 
+  opensearch:
+    deploy: true
+    mode: ''
+    awsRegion: ''
+    host: 'opensearch'
+    port: 9200
+    username: 'readOnly'
+    password: ''
+    tls: true
+    verifyCerts: false
+    serviceAccountName: ''
+    statefulset:
+      labels:
+        app: opensearch
+        chart: dsp-portal-opensearch
+        heritage: Helm
+        release: dsp-portal-opensearch
+      podLabels:
+        app: opensearch
+        chart: dsp-portal-opensearch
+        heritage: Helm
+        release: dsp-portal-opensearch
+        hzp-app: opensearch
+        
+    job:
+      annotations:
+        helm.sh/hook-delete-policy: before-hook-creation
+      labels:
+        app: opensearch-manage
+        chart: dsp-portal-opensearch-manage
+        heritage: Helm
+        release: dsp-portal-opensearch-manage
+      podLabels:
+        app: opensearch-manage
+        release: dsp-portal-opensearch-manage
+        
+        hzp-app: opensearch
+    resources:
+      heapSize: "-Xms1g -Xmx1g"
+      requests:
+        memory: 1536Mi
+        cpu: 50m
+      limits:
+        memory: 1536Mi
+        cpu: 2000m
+      storageSize: 1Gi
+
+# Settings for future docker images used in the chart.
+image:
+  tag: 69ac2433b6ec370dc4b086e48010276482f7ebac
+  pullPolicy: Always
+  imagePullSecrets:
+    - name: docker-secret
+chart:
+  fullname: dsp-portal
+# Deployment options (replicas, resource quotas etc).
+deployment:
+  defaults:
+    serviceAccountName: ''
+    secretEnvVars: {}

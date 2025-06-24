@@ -1,0 +1,304 @@
+nameOverride: "dsp-event-svc"
+fullnameOverride: "dsp-event-svc"
+
+replicaCount: 1
+
+# defaults are dev:
+dellEnvironment: "dev"
+sslCertificates: "arn:aws:acm:eu-west-1:702886132326:certificate/aa01e3eb-053d-40c7-8f00-5f70741a3b3d"
+albName: "dev.sp.dell.com"
+albGroupName: "saas-dsp-portal-dev"
+domain: "dev.sp.dell.com"
+
+global:
+  installDependencies: true
+  registry: "702886132326.dkr.ecr.eu-west-1.amazonaws.com"
+  postgres:
+    internal: true
+    host:
+
+# values that contains list of tiems for configmap env:
+extended_list_env:
+extended_list_values:
+
+#replace values from configmap.yaml of your service
+#set the configs values Hardcoded from old vluefile env values.
+# ALL!!! values must be in QUOTES!!!!
+config:
+  configmap:
+
+
+# set all the deployment envs HERE!
+# secretname= global.secretname
+# keyToEnvName= the name of the env-ar on the pods (dell__Secret__ConnectionStrings__dellConnectionString)
+# key = the actual key needed from the secret
+# u can add more then 1 secret to use(see in your value global parameter)
+externalsecrets:
+
+
+image:
+  image: "dsp-event-svc"
+  tag: ""
+  pullPolicy: Always
+  imagePullSecrets:
+    - name: docker-secret
+
+# set in deployment.yaml (previously was hardcoded inside the deployment)
+entrypoint:
+  cmd: "./eventsvc.go"
+  arg: ""
+  workingDir: "/home/event_svc"
+
+containerPort:
+  http: 8080
+
+terminationGracePeriodSeconds: 30
+
+lifecycle: {}
+
+updateStrategy: {}
+
+extraLabels: []
+
+#startupProbe:
+#  httpGet:
+#    path: /health
+#    port: http
+#    scheme: HTTP
+#  initialDelaySeconds: 30
+#  periodSeconds: 10
+#  timeoutSeconds: 5
+#  successThreshold: 1
+#  failureThreshold: 3
+
+#livenessProbe:
+#  httpGet:
+#    path: /health
+#    port: http
+#    scheme: HTTP
+#  initialDelaySeconds: 5
+#  periodSeconds: 30
+#  timeoutSeconds: 5
+#  successThreshold: 1
+#  failureThreshold: 3
+
+#readinessProbe:
+#  httpGet:
+#    path: /health
+#    port: http
+#    scheme: HTTP
+#  initialDelaySeconds: 5
+#  periodSeconds: 20
+#  timeoutSeconds: 5
+#  successThreshold: 1
+#  failureThreshold: 3
+
+volumeMounts:
+  #- name: loglevel
+  #  mountPath: /home/log-level/global-log-level
+  #  subPath: global-log-level
+  # - name: nginx-conf
+  #   mountPath: /etc/nginx/nginx.conf
+  #   subPath: nginx.conf
+  # - name: nginx-conf
+  #   mountPath: /etc/nginx/security.conf
+  #   subPath: security.conf
+  # - name: nginx-conf
+  #   mountPath: /etc/nginx/replacements.conf
+  #   subPath: replacements.conf
+
+deployment:
+  enabled: true
+
+# previus hardcoded in deployment.yaml
+# now we can set dell.prod for pproduction apps (as for now all apps are dell.local)
+# dnsConfig:
+#   searches:
+
+service:
+  enabled: true
+  type: ClusterIP
+  labels: []
+  http:
+    port: 8080
+    targetPort: null
+    nodePort: null
+  audit:
+    retentionPurgeJob:
+      enabled: true
+      podAnnotations:
+      podLabels:
+        hzp-app: "dsp-event-svc"
+      entrypoint:
+        workingDir: "/home/event_svc"
+  #Only if you need one service to listen to two ports (Better to split that service to 2 mircoservices.)
+  #Must be used with Multiple ingress paths.
+  multiPortService:
+    enabled: false
+    http:
+      port: 4999
+      name: external
+      targetPort: null
+
+ingress:
+  enabled: false
+  #ALB Annotations: https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.2/guide/ingress/annotations/#annotations
+  annotations: {}
+  hosts:
+  - path: /
+    pathType: ImplementationSpecific
+
+  multipath:
+    enabled: true
+    hosts:
+    - paths:
+      - path: /
+        pathType: ImplementationSpecific
+        backend:
+          # serviceName: app1-service
+          servicePort: 8080
+      - path: /health
+        pathType: ImplementationSpecific
+        backend:
+          # serviceName: app1-service
+          servicePort: 8080
+
+# Whether or not we want a pod disruption budget, enabled by default, but this only is enabled if replicaCount > 1
+podDistuptionBudget:
+  enabled: true
+  minAvailable: 1
+
+resources:
+  requests:
+    memory: "128Mi"
+    cpu: "100m"
+  limits:
+    memory: "300Mi"
+
+
+# we should use only HPA OR Keda.
+# if keda is needed plz use keda as the cpu\mem scaler
+autoscaling: # Only one can be enabled
+  minReplicas: 1
+  maxReplicas: 3
+  hpa:
+    enabled: true
+    metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          averageValue: 150m
+          type: Utilization
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          averageValue: 300Mi
+          type: Utilization
+
+
+# criticalinfra = all our criticalinfra apps (namespace criticalinfra)
+# infrastructure = internal tools(like devtools apps)
+# dell = rest of dell microservices (exclude criticalinfra)
+# only 1 selector will be selected!!
+nodeSelector: {}
+  # kubernetes.io/os: linux
+
+
+# The folowing property is mandetory only for critical infra!!!
+# tolerations: {}
+tolerations: {}
+  # - key: "app"
+  #   operator: "Equal"
+  #   value: "dell"
+  # - key: "app"
+  #   operator: "Equal"
+  #   value: "dell-prod"
+
+volumes:
+  #- name: loglevel
+  #  configMap:
+  #    name: dsp-event-svc
+  # - name: nginx-conf
+  #   configMap:
+  #     name: nginx-conf
+  #     items:
+  #       - key: nginx.conf
+  #         path: nginx.conf
+  #       - key: security.conf
+  #         path: security.conf
+  #       - key: replacements.conf
+  #         path: replacements.conf
+
+podAntiAffinity:
+  enabled: false
+
+topologySpreadConstraints: {}
+
+# Create serviceaccount for the service
+serviceAccount:
+  enabled: false
+  annotations: {}
+    # Here's an example of assigning an IAM role to a pod
+    # eks.amazonaws.com/role-arn: arn:aws:iam::123123123:role/role-name-goes-here
+
+#Commit: DEVOPS-5837-FR-Hashmaps
+hashcalculation:
+  enabled: false
+  # payerstolog: [248,371,444]
+
+  ## Thirdparties
+  # Set configurations for third party applications in this section
+thirdParties:
+  dynatraceVersionDetection:
+    enabled: true
+
+dbinit:
+  postgres:
+    enabled: true
+    name: dsp-event-svc
+    prefix: 
+    dbName: "dsp_event_svc" # The db username is the same as the db name by design.
+
+postgresql-chart:
+  fullnameOverride: "postgresql"
+
+opensearch:
+  deploy: true
+  logstash:
+    username: logstash
+  address: "https://dsp-portal-opensearch.{{ .Release.Namespace }}.svc.cluster.local:9200"
+  mode: aoss
+  region: region
+  serviceAccountName: ''
+
+# nats config
+nats:
+  url: "nats://nats:4222"
+  monitoring_url: "http://nats:8222/healthz"
+
+iamProxy:
+  sidecarEnabled: true
+  commandDecorator:
+    command:
+      - sh
+      - -c
+      - |
+        if [ "$SIDECAR_INJECTED" == "true" ]; then
+          echo 'Waiting for sidecar proxy to become ready...'
+          until printf "." && nc -z -w 2 127.0.0.1 15006; do
+              sleep 2;
+          done;
+          echo 'Sidecar proxy is ready ✓'
+        else
+          echo 'No sidecar proxy detected ✓'
+        fi
+        echo 'sleeping for 10 seconds'
+        sleep 10
+        exec {{ .Values.iamProxyEntry }} &
+        pid=$!
+        trap 'kill -SIGTERM $pid; wait $pid' SIGTERM
+        wait $pid
+        echo "Shutting down Sidecar"
+        curl http://localhost:15022/quitquitquit 2>/dev/null || true

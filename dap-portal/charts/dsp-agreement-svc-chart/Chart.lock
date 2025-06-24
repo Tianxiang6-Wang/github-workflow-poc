@@ -1,0 +1,6 @@
+dependencies:
+- name: dsp-portal-nats-chart
+  repository: oci://702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  version: 0.1.9
+digest: sha256:b58b4d3c70a4a6ae107bed701d250779a5b8a6c8900171c776793f700fc6ef59
+generated: "2025-06-19T07:57:33.401356955Z"

@@ -1,0 +1,152 @@
+global:
+  registry: "702886132326.dkr.ecr.eu-west-1.amazonaws.com"
+  ingress:
+    fqdn: ""
+  is-saas-env: true
+  staticOnPremOrgId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
+  ip_mode: false
+  
+nameOverride: "dsp-portal-nginx"
+fullnameOverride: "dsp-portal-nginx"
+
+replicaCount: 1
+
+image:
+  image: "dsp-portal-nginx"
+  tag: ""
+  pullPolicy: Always
+  imagePullSecrets:
+    - name: docker-secret
+
+ingress:
+  enabled: false
+  ingressClassName: alb
+  #ALB Annotations: https://kubernetes-sigs.github.io/aws-load-balancer-controller/v2.2/guide/ingress/annotations/#annotations
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internal
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/backend-protocol: HTTPS
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80},{"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=4000
+    alb.ingress.kubernetes.io/healthcheck-port: "443"
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTPS
+    alb.ingress.kubernetes.io/success-codes: "200"
+    alb.ingress.kubernetes.io/healthcheck-path: "/health"
+    nginx.ingress.kubernetes.io/backend-protocol: HTTPS
+  host:
+
+service:
+  type: ClusterIP
+  annotations:
+
+tlsService:
+  type: ClusterIP
+  annotations:
+  
+mtlsService:
+  enabled: true
+  type: LoadBalancer
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: ip
+    service.beta.kubernetes.io/aws-load-balancer-type: external
+    service.beta.kubernetes.io/aws-load-balancer-scheme: internal
+  allocateLoadBalancerNodePorts: false
+  externalTrafficPolicy: Local
+
+nodePort: 30443
+
+mtls:
+  defaultPrefix:
+    mTLSHost: "mtls-"
+    mTLSHostRecovery: "mtls-recovery-"
+  mTLSHost:
+  - "mtls.dsp.internal.use.only"
+  mTLSHostRecovery:
+  - "mtls.recovery.dsp.internal.use.only"
+
+iamV2AuthZEnabled: true
+exposeServices: true
+exposeQAServices: false
+
+autoScaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 4
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 80
+  behavior:
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 300
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+        - type: Pods
+          value: 1
+          periodSeconds: 60
+
+pdb:
+  minAvailable: 1
+
+tlsHost:
+  - "*"
+
+# TODO: define what exactly we need to skip
+iam:
+  skippedInternalUrl:
+    - /security
+    - /oe-template-mgr
+    - /inventory
+    - /repository
+    - /nats
+    - /ece-firmwareupdate
+    - /datacollection
+    - /upgrade
+    - /eo-initialization
+    - /job
+    - /product
+    - /fru-cru
+    - /ingress-authz
+    - /compute
+  skippedQAUrl:
+    - /qa
+  skippedContainerRegistryUrl:
+    - /v2
+  skippedFileserverUrl:
+    - /public
+
+nginx:
+  clientMaxBodySize: 20480M
+  resources:
+    requests:
+      memory: 512Mi
+      cpu: 0.5
+    limits:
+      memory: 1Gi
+      cpu: 1
+  sslProtocols: "TLSv1.2 TLSv1.3"
+  routesParams:
+    keycloak:
+      host: dsp-iam-login-svc-http.{{ .Release.Namespace }}.svc.cluster.local
+      port: "80"
+
+isOnPrem: true
+di:
+  baseUrl: "https://www-poc.dell.com/"
+  clientId: "19f39bba-a562-4450-8b28-9af9db434f44"
+  authPath: "/di/v3/fp/oidc/authorize"
+onPrem:
+  orgName: "dell_technologies"
+  baseUrl: "/auth/realms/"
+  clientId:  "auth-client"
+  authPath: "/protocol/openid-connect/auth"
+

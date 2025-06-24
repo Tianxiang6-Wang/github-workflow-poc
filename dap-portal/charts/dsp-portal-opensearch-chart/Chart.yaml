@@ -1,0 +1,5 @@
+apiVersion: v2
+appVersion: 0.2.2
+description: Opensearch
+name: dsp-portal-opensearch-chart
+version: 0.2.4

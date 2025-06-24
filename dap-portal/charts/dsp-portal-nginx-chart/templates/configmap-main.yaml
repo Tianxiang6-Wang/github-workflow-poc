@@ -1,0 +1,133 @@
+{{- $namespace := .Release.Namespace }}
+{{- $mtlsHostList := include "GetMTLSHostList" (dict "namespace" $namespace "fqdn" $.Values.ingress.host "prefix" $.Values.mtls.defaultPrefix.mTLSHost "default" $.Values.mtls.mTLSHost) }}
+{{- $mtlsHostList = print "mtls: \n " $mtlsHostList | fromYaml }}
+{{- $mtlsHosts := join " " $mtlsHostList.mtls -}}
+{{- $mtlsRecoveryHostList := include "GetMTLSHostList" (dict "namespace" $namespace "fqdn" $.Values.ingress.host "prefix" $.Values.mtls.defaultPrefix.mTLSHostRecovery "default" $.Values.mtls.mTLSHostRecovery) }}
+{{- $mtlsRecoveryHostList = print "mtlsRecovery: \n " $mtlsRecoveryHostList | fromYaml }}
+{{- $mtlsHostsRecovery := join " " $mtlsRecoveryHostList.mtlsRecovery -}}
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "microservice.fullname" . }}-conf-main
+  namespace: {{ .Release.Namespace | quote }}
+  annotations:
+data:
+  nginx.conf: |
+    user nginx;
+    pid /tmp/nginx.pid;
+    worker_processes  3;
+    error_log /dev/stderr warn;
+    events {
+      worker_connections  10240;
+    }
+    http {
+      server_names_hash_bucket_size  128;
+      underscores_in_headers on;
+    
+      log_format main escape=none
+              '$time_iso8601  '
+              'remote_addr:$remote_addr  '
+              'method:$request_method  '
+              'uri:$request_uri  '
+              'host:$host  '
+              'upstream_addr:$upstream_addr  '
+              'status:$status  '
+              'bytes_sent:$body_bytes_sent  '
+              'referer:$http_referer  '
+              'useragent:$http_user_agent  '
+              'forwardedfor:$http_x_forwarded_for  '
+              'request_time:$request_time';
+
+      # CIS 5.2.1
+      client_body_timeout     60s;
+      client_header_timeout   60s;
+
+      # CIS 5.2.3
+      large_client_header_buffers 4 8k;
+
+      server {
+          listen       8080;
+          server_name  _;
+          resolver kube-dns.kube-system.svc.cluster.local;
+          include /etc/nginx/includes-internal/*.template;
+          access_log          /dev/stdout main;
+      }
+
+      # NOTE: TLS endpoint, ALB endpoints should be routed to it
+      server {
+          listen       8043 default_server ssl;
+          server_name  _;
+          ssl_certificate /etc/nginx/tls-credentials/cert;
+          ssl_certificate_key /etc/nginx/tls-credentials/key;
+
+          resolver kube-dns.kube-system.svc.cluster.local;
+
+          # TODO: enable lua filters when keycloak and IAM services will be ready
+          rewrite_by_lua_file /etc/nginx/lua/ingress_filter.lua;
+
+          client_max_body_size {{ .Values.nginx.clientMaxBodySize }};
+
+          ssl_protocols {{ .Values.nginx.sslProtocols }};
+
+          # NOTE: microservices routes for external traffic
+          include /etc/nginx/includes-tls/*.template;
+
+          # NOTE: simple healthcheck endpoint for exclude ELB health check logs
+          location = /health {
+            access_log off;
+            add_header 'Content-Type' 'application/json';
+            return 200 '{"status":"UP"}';
+          }
+
+          access_log          /dev/stdout main;
+      }
+
+      # NOTE: MTLS endpoint
+      server {
+          listen       8043 ssl;
+
+          server_name  {{ $mtlsHosts }};
+
+          ssl_certificate /etc/nginx/mtls-credentials/cert;
+          ssl_certificate_key /etc/nginx/mtls-credentials/key;
+          ssl_client_certificate /etc/nginx/mtls-credentials/cacert;
+          # ssl_ciphers         HIGH:!aNULL:!MD5;
+          ssl_ciphers         AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305;
+          ssl_verify_client on;
+
+          resolver kube-dns.kube-system.svc.cluster.local;
+
+          rewrite_by_lua_file /etc/nginx/lua/ingress_filter.lua;
+
+          ssl_protocols {{ .Values.nginx.sslProtocols }};
+
+          include /etc/nginx/includes-mtls/*.template;
+
+          access_log          /dev/stdout main;
+      }
+
+      # NOTE: MTLS recovery endpoint
+      server {
+          listen       8043 ssl;
+          server_name  {{ $mtlsHostsRecovery }};
+
+          ssl_certificate /etc/nginx/mtls-credentials-recovery/cert;
+          ssl_certificate_key /etc/nginx/mtls-credentials-recovery/key;
+          ssl_client_certificate /etc/nginx/mtls-credentials-recovery/cacert;
+          # ssl_ciphers         HIGH:!aNULL:!MD5;
+          ssl_ciphers         AES128-GCM-SHA256:AES256-GCM-SHA384:ECDHE-ECDSA-AES128-GCM-SHA256:ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305;
+          ssl_verify_client on;
+
+          resolver kube-dns.kube-system.svc.cluster.local;
+
+          ssl_protocols {{ .Values.nginx.sslProtocols }};
+
+          rewrite_by_lua_file /etc/nginx/lua/ingress_filter.lua;
+
+          include /etc/nginx/includes-mtls-recovery/*.template;
+
+          access_log          /dev/stdout main;
+      }
+
+    }

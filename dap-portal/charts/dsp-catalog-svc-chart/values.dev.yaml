@@ -1,0 +1,30 @@
+dellEnvironment: "dev"
+sslCertificates: "arn:aws:acm:eu-west-1:702886132326:certificate/aa01e3eb-053d-40c7-8f00-5f70741a3b3d"
+albGroupName: "saas-dsp-portal-dev"
+domain: "dev.sp.dell.com"
+
+#nodeSelector:
+#  app: dell
+
+# Used to prefer scheduling pods of the same deployment to different nodes.
+podAntiAffinity:
+  enabled: true
+
+serviceAccount:
+  enabled: true
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::702886132326:role/dsp-portal-s3
+
+# externalsecrets:
+
+extraEnvs:
+  # s3 bucket config
+  - name: S3_BUCKET_NAME
+    value: dell-dap-dev-dsp-portal-catalog
+  - name: BUCKET_PREFIX_ENABLED
+    value: "true"
+
+loglevel: info
+
+postgresql-chart:
+  fullnameOverride: "postgresql"
