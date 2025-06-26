@@ -57,6 +57,10 @@ spec:
               type: RuntimeDefault
           image: "{{ .Values.global.registry }}/{{ .Values.image.image }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - sh
+            - '-c'
+            - npm run setup-server
 #          command: ["{{ .Values.entrypoint.cmd }}"]
 #          args: ["{{ .Values.entrypoint.arg }}"]
           {{- if .Values.entrypoint.workingDir }}

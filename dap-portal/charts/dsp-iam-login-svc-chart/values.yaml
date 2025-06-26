@@ -79,6 +79,12 @@ fullnameOverride: "dsp-iam-login-svc"
 
 replicaCount: 1
 
+nats:
+  jetStream:
+    service:
+      fullname: nats
+      port: 4222
+
 # defaults are dev:
 dellEnvironment: "dev"
 sslCertificates: "arn:aws:acm:eu-west-1:702886132326:certificate/aa01e3eb-053d-40c7-8f00-5f70741a3b3d"

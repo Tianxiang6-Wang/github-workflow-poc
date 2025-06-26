@@ -132,7 +132,7 @@ spec:
             - name: AUTH_CLIENT_ID
               value: "keycloak"
             - name: SINK_URL
-              value: ""
+              value: "nats://nats:4222"
             - name: SMTP_API_V2
               value: "http://dsp-notification-service:8080/rest/v1/emails/send"
             - name: PRODUCT_NAME
