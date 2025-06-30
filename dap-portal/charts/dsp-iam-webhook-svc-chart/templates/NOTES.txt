@@ -1,0 +1,25 @@
+CHART NAME: {{ .Chart.Name }}
+CHART VERSION: {{ .Chart.Version }}
+APP VERSION: {{ .Chart.AppVersion }}
+
+** Please be patient while the chart is being deployed **
+
+List all helm chart releases with:
+
+    helm list
+
+To check if everything is installed successfully, make sure the following resources show "Ready" as true, it will take some time initially
+
+    kubectl get ksvc -n {{ .Release.Namespace }}
+
+Check the running pods with:
+
+    kubectl get po -n {{ .Release.Namespace }}
+
+To uninstall hzp-iam subchart and all its dependency:
+
+    make uninstall NAMESPACE={{ .Release.Namespace }}
+
+To uninstall only the hzp-iam subchart:
+
+    make uninstall-iam NAMESPACE={{ .Release.Namespace }}

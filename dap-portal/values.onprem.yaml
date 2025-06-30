@@ -1,5 +1,5 @@
 global:
-  cookie_domain: "edge.sgp.delllabs.net"
+  cookie_domain: "kob.dell.com"
   is-saas-env: false
   enableKeycloak: true
   registry: isgedge.artifactory.cec.lab.emc.com/isgedge-docker-local/dap/portal

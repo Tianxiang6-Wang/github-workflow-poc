@@ -1,0 +1,9 @@
+annotations:
+  buildWorkflowURL: https://github.com/fusion-e/dsp-iam-webhook-svc/actions/runs/15676148835/attempts/1
+  imagetag: latest
+apiVersion: v2
+appVersion: 0.1.19
+description: A Helm chart for the IAM proxy configurations
+name: dsp-iam-webhook-svc-chart
+type: application
+version: 0.1.19

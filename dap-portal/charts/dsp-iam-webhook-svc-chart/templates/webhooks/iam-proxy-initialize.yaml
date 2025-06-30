@@ -1,0 +1,85 @@
+{{/*apiVersion: rbac.authorization.k8s.io/v1*/}}
+{{/*kind: ClusterRole*/}}
+{{/*metadata:*/}}
+{{/*  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}hzp-sidecar-initialize-cluster-role"*/}}
+{{/*  annotations:*/}}
+{{/*    "helm.sh/hook": pre-install,pre-upgrade*/}}
+{{/*    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation, hook-failed*/}}
+{{/*    "helm.sh/hook-weight": "2"*/}}
+{{/*    env: "{{ .Release.Namespace }}"*/}}
+{{/*    name: "hzp-sidecar-initialize-cluster-role"*/}}
+{{/*    globalName: "{{ tpl .Values.global.clusterResourcesPrefix . }}hzp-sidecar-initialize-cluster-role"*/}}
+{{/*rules:*/}}
+{{/*  - apiGroups:*/}}
+{{/*      - ""*/}}
+{{/*      - batch*/}}
+{{/*      - rbac.authorization.k8s.io*/}}
+{{/*      - apps*/}}
+{{/*    resources: ['*']*/}}
+{{/*    verbs: ["get", "list", "patch", "create", "update"]*/}}
+{{/*---*/}}
+{{/*apiVersion: rbac.authorization.k8s.io/v1*/}}
+{{/*kind: ClusterRoleBinding*/}}
+{{/*metadata:*/}}
+{{/*  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}hzp-sidecar-initialize-cluster-role-binding"*/}}
+{{/*  annotations:*/}}
+{{/*    "helm.sh/hook": pre-install,pre-upgrade*/}}
+{{/*    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation, hook-failed*/}}
+{{/*    "helm.sh/hook-weight": "2"*/}}
+{{/*    env: "{{ .Release.Namespace }}"*/}}
+{{/*    name: "hzp-sidecar-initialize-cluster-role-binding"*/}}
+{{/*    globalName: "{{ tpl .Values.global.clusterResourcesPrefix . }}hzp-sidecar-initialize-cluster-role-binding"*/}}
+{{/*roleRef:*/}}
+{{/*  apiGroup: rbac.authorization.k8s.io*/}}
+{{/*  kind: ClusterRole*/}}
+{{/*  name: "{{ tpl .Values.global.clusterResourcesPrefix . }}hzp-sidecar-initialize-cluster-role"*/}}
+{{/*subjects:*/}}
+{{/*  - namespace: {{.Release.Namespace}}*/}}
+{{/*    kind: ServiceAccount*/}}
+{{/*    name: hzp-sidecar-initialize-sa*/}}
+{{/*---*/}}
+{{/*apiVersion: v1*/}}
+{{/*kind: ServiceAccount*/}}
+{{/*metadata:*/}}
+{{/*  name: hzp-sidecar-initialize-sa*/}}
+{{/*  labels:*/}}
+{{/*    app.kubernetes.io/component: rbac*/}}
+{{/*    app.kubernetes.io/instance: {{ .Release.Name | quote }}*/}}
+{{/*    app.kubernetes.io/part-of: {{ .Chart.Name | quote  }}*/}}
+{{/*    app.kubernetes.io/name: serviceaccount*/}}
+{{/*  annotations:*/}}
+{{/*    "helm.sh/hook": pre-install,pre-upgrade*/}}
+{{/*    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation, hook-failed*/}}
+{{/*    "helm.sh/hook-weight": "1"*/}}
+{{/*  namespace: {{ .Release.Namespace| quote  }}*/}}
+{{/*---*/}}
+{{/*apiVersion: batch/v1*/}}
+{{/*kind: Job*/}}
+{{/*metadata:*/}}
+{{/*  name: hzp-sidecar-initialize-config-job*/}}
+{{/*  annotations:*/}}
+{{/*{{- tpl (toYaml .Values.proxyInitialize.jobAnnotations) . | replace "'" "" | nindent 4 }}*/}}
+{{/*spec:*/}}
+{{/*  template:*/}}
+{{/*    metadata:*/}}
+{{/*      labels:*/}}
+{{/*{{- tpl (toYaml .Values.proxyInitialize.podLabels) . | replace "'" "" | nindent 8 }}*/}}
+{{/*    spec:*/}}
+{{/*      serviceAccountName: hzp-sidecar-initialize-sa*/}}
+{{/*      restartPolicy: OnFailure*/}}
+{{/*      {{- with .Values.image.imagePullSecrets }}*/}}
+{{/*      imagePullSecrets:*/}}
+{{/*      {{- toYaml . | nindent 8 }}*/}}
+{{/*      {{- end }}*/}}
+{{/*      containers:*/}}
+{{/*        - name: hzp-sidecar-initialize-config*/}}
+{{/*          image: "{{ .Values.global.registry }}{{ .Values.initJob.image.name }}:{{ .Values.initJob.image.tag | default .Chart.AppVersion }}"*/}}
+{{/*          imagePullPolicy: IfNotPresent*/}}
+{{/*          command:*/}}
+{{/*          - bash*/}}
+{{/*          - -c*/}}
+{{/*          - |*/}}
+{{/*            nodeNames=$(kubectl get nodes -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}')*/}}
+{{/*            for node in $nodeNames; do*/}}
+{{/*              kubectl label nodes $node {{ .Values.global.identityTopologyKey }}=$node --overwrite*/}}
+{{/*            done*/}}

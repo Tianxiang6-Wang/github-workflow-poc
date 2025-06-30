@@ -1,0 +1,120 @@
+# Global values (needs to be replicated here because a subchart can't have a dependency on its parent)
+global:
+  registry: 702886132326.dkr.ecr.eu-west-1.amazonaws.com
+  iamAuthZEnabled: true
+  identityTopologyKey: hzp-node-identity
+  clusterResourcesPrefix: '{{ .Release.Namespace }}-'
+  podSecurityContext:
+    runAsUser: 1001
+    runAsGroup: 1001
+  nginx_gw:
+    enabled: true
+  authnzEnabled: true
+
+bootstrap:
+  configmap:
+    name: iam-bootstrap-config
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    sidecar.istio.io/inject: "false"
+    hzp-app: iam-bootstrap-job
+    hzp-role: eo-service
+  name: iam-bootstrap
+  image:
+    name: iam-bootstrap-job
+
+image:
+  imagePullSecrets:
+  - name: docker-secret
+spire:
+  enabled: "false"
+containerSpecConfig:
+  name: iam-injection-specs
+webhook:
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    sidecar.istio.io/inject: "false"
+    hzp-app: &netpolApp hzp-iam-webhook
+    hzp-role: &netpolRole eo-service
+# Subchart values
+proxyConfig:
+  name: &proxyConfigMapName hzp-iam-proxy-config
+  initCertSecretName: init-cert-proxy
+  port: &proxyPort "15006"
+  bundleStrategy: "POLICY_SERVICE" # FILE_SYSTEM, POLICY_SERVICE, NONE
+  outPort: &proxyPort "15001"
+  destinationPort: &externalPort "8012"
+  healthCheckPort: "15022"
+  externalRequestHeader: "X-Eo-External-Request"
+  keysProviderURL: "http://dsp-iam-token-svc"
+  externalRequestHeaderName: "EXTERNAL_REQUEST_HEADER"
+  tokenSvcConfigMapName: dsp-iam-token-svc
+
+proxyInitialize:
+  jobAnnotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-delete-policy": hook-succeeded, before-hook-creation
+    "helm.sh/hook-weight": "2"
+  podLabels:
+    hzp.iam.webhook/active: "false"
+    sidecar.istio.io/inject: "false"
+    hzp-app: *netpolApp
+    hzp-role: *netpolRole
+
+proxyContainer:
+  name: hzp-iam-proxy
+  image:
+    name: /eo-images/hzp-iam-proxy
+    pullPolicy: Always
+    repository:
+    tag: 3.2.0.0-15d7f85-3c7d40c5
+  proxyConfigMapName: *proxyConfigMapName
+
+initConfig:
+  # Subchart values
+  name: &initConfigMapName hzp-iam-init-config
+  srcPort: *externalPort # External port
+  dstPort: *proxyPort # Proxy port
+
+initContainer:
+  # Subchart values
+  name: hzp-iam-proxy-init
+  image:
+    name: /eo-images/hzp-iam-proxy-init
+    pullPolicy: Always
+    repository:
+    tag: 3.2.0.0-15d7f85-2cc55045
+  initConfigMapName: *initConfigMapName
+
+bundleInitContainer:
+  # Subchart values
+  name: hzp-iam-proxy-bundle-init
+  image:
+    pullPolicy: Always
+
+initJob:
+  image:
+    name: /eo-images/kubectl
+    tag: "1.30.5"
+
+webhookSvc:
+  name: hzp-iam-webhook
+  configName: hzp-iam-sidecar-injector
+  replicaCount: 1
+  port: &webhookPort "8443"
+  healthCheckPort: "15022"
+  servicePort: "443"
+  config:
+    excludeOutboundCIDRList:
+  image:
+    name: /eo-images/iam-webhook-svc
+    tag: 3.2.0.0-84e313c-27be3ca9
+    repository:
+    pullPolicy: Always
+  env:
+    - name: CERT_FILE_PATH
+      value: "/etc/ssl/certs/cert.pem"
+    - name: KEY_FILE_PATH
+      value: "/etc/ssl/keys/key.pem"
+    - name: APP_PORT
+      value: *webhookPort

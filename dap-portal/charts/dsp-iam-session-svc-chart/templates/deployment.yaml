@@ -198,8 +198,8 @@ spec:
           envFrom:
           - configMapRef:
               name: {{ include "microservice.fullname" . }}
-          # - secretRef:
-          #     name: {{ include "microservice.fullname" . }}
+          - secretRef:
+              name: dsp-iam-session-svc-client-credentials
 
           {{- if .Values.startupProbe }}
           startupProbe: {{ toYaml .Values.startupProbe | nindent 12 }}

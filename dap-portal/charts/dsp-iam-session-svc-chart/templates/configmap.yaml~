@@ -7,8 +7,8 @@ metadata:
   labels:
     iam.bootstrap/config-type: create-client-config
 data:
-  NAME: "dsp-iam-session-svc"
-  ATTRIBUTES_JSON: "[{\"name\": \"scop\",\"values\": [\"internal\"]}]"
+  ATTRIBUTES_JSON: '[{"name": "scop","values": ["internal"]}]'
+  NAME: dsp-iam-session-svc
   {{- if .Values.config.configmap }}
     {{- range $key, $value := .Values.config.configmap }}
     {{ $key }}: {{ $value | quote}}
