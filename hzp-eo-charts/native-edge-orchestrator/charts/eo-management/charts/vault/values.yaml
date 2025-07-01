@@ -113,7 +113,7 @@ server:
       cpu: 5m
     limits:
       memory: 1Gi
-      cpu: 1000m
+      cpu: 300m
 
   # Ingress allows ingress services to be created to allow external access
   # from Kubernetes to access Vault pods.

@@ -87,7 +87,7 @@ global:
         cpu: 50m
       limits:
         memory: 1536Mi
-        cpu: 2000m
+        cpu: 200m
       storageSize: 8Gi
   postgresql:
     primary:

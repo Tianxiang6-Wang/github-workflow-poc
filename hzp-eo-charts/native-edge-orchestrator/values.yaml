@@ -260,7 +260,7 @@ eo-management:
           cpu: 0.1
         limits:
           memory: 6Gi
-          cpu: 4
+          cpu: 0.2
       data:
         type: "persistentVolumeClaim"
         size: "1Gi"
@@ -283,7 +283,7 @@ eo-management:
           cpu: 0.1
         limits:
           memory: 2Gi
-          cpu: 2
+          cpu: 0.3
       affinity: ""
       logs:
         type: ""
@@ -299,7 +299,7 @@ eo-management:
           cpu: 0.1
         limits:
           memory: 4Gi
-          cpu: 2
+          cpu: 0.3
       index: leveldb
       dataDirs:
         - name: data
@@ -463,7 +463,7 @@ fusion-services-helm:
         cpu: 0.1
       limits:
         memory: 4Gi
-        cpu: 4
+        cpu: 0.3
     s3_access:
       k8s_secret_name: eo-management-seaweedfs-s3-secret
     podLabels:
@@ -620,7 +620,7 @@ fusion-services-helm:
         cpu: 0.1
       limits:
         memory: 2Gi
-        cpu: 1
+        cpu: 0.3
     enableNetworkPolicy: false
     podLabels:
       hzp-app: fusion-secrets-service
@@ -660,7 +660,7 @@ fusion-services-helm:
         cpu: 0.1
       limits:
         memory: 2Gi
-        cpu: 1
+        cpu: 0.3
     enableNetworkPolicy: false
     podLabels:
       hzp-app: fusion-blueprint-service
@@ -693,7 +693,7 @@ fusion-services-helm:
         cpu: 0.1
       limits:
         memory: 2Gi
-        cpu: 1
+        cpu: 0.3
     enableNetworkPolicy: false
     podLabels:
       hzp-app: fusion-deployments-service
@@ -726,7 +726,7 @@ fusion-services-helm:
         cpu: 0.1
       limits:
         memory: 2Gi
-        cpu: 1
+        cpu: 0.2
     enableNetworkPolicy: false
     podLabels:
       hzp-app: fusion-plugins-service
