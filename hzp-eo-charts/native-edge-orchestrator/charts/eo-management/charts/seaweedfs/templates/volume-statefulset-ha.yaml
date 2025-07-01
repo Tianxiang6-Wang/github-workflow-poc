@@ -66,6 +66,14 @@ spec:
         - name: seaweedfs-vol-move-idx
           image: {{ template "volume.image" . }}
           imagePullPolicy: {{ .Values.global.imagePullPolicy | default "IfNotPresent" }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           command: [ '/bin/sh', '-c' ]
           args: [ '{{range $dir :=  .Values.volume.dataDirs }}if ls /{{$dir.name}}/*.idx  >/dev/null 2>&1; then mv /{{$dir.name}}/*.idx /idx/ ; fi; {{end}}' ]
           volumeMounts:
@@ -80,12 +88,18 @@ spec:
         {{ tpl .Values.volume.initContainers . | nindent 8 | trim }}
         {{- end }}
       {{- end }}
-      {{- toYaml .Values.global.seaweedfs.podSecurityContext | nindent 6 }}
       containers:
         - name: seaweedfs
           image: {{ template "volume.image" . }}
           imagePullPolicy: {{ default "IfNotPresent" .Values.global.imagePullPolicy }}
-          {{- toYaml .Values.global.seaweedfs.containerSecurityContext | nindent 10 }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: POD_NAME
               valueFrom:

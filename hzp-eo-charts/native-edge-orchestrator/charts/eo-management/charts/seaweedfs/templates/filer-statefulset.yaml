@@ -67,12 +67,26 @@ spec:
       initContainers:
         {{ tpl .Values.filer.initContainers . | nindent 8 | trim }}
       {{- end }}
-      {{- toYaml .Values.global.seaweedfs.podSecurityContext | nindent 6 }}
+      securityContext:
+        runAsUser: 1001
+        allowPrivilegeEscalation: false
+        capabilities:
+          drop: [ "ALL" ]
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: seaweedfs
           image: {{ template "filer.image" . }}
           imagePullPolicy: {{ default "IfNotPresent" .Values.global.imagePullPolicy }}
-          {{- toYaml .Values.global.seaweedfs.containerSecurityContext | nindent 10 }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: POD_IP
               valueFrom:

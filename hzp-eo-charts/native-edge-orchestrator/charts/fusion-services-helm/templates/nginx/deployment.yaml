@@ -36,17 +36,13 @@ spec:
           image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-nginx" ) "repo" .Values.global.repository) }}
           imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-nginx" ).pullPolicy }}
           securityContext:
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
             seccompProfile:
               type: RuntimeDefault
-            capabilities:
-              drop:
-                - ALL
-              add:
-                - CHOWN
-                - NET_BIND_SERVICE
-                - SETGID
-                - SETUID
           
           ports:
             - containerPort: {{ .Values.nginx.http_port }}

@@ -21,11 +21,6 @@ spec:
       {{- if .Values.rest_service.irsa_service_account }}
       serviceAccount: {{ .Values.rest_service.irsa_service_account }}
       {{- end }}
-      securityContext:
-        runAsNonRoot: true
-        fsGroup: 1000
-        seccompProfile:
-          type: RuntimeDefault
       nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.resources $ )| trim | nindent 8 }}
       tolerations: {{- include "fusion-services.tolerations" ( list .Values.resources $ ) | trim | nindent 8 }}
       affinity: {{- include "fusion-services.affinity" ( list .Values.resources $ ) | trim | nindent 8 }}
@@ -43,13 +38,10 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
-            runAsUser: {{ .Values.resources.initContainerSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.resources.initContainerSecurityContext.runAsGroup }}
+            runAsUser: 1000
+            runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
-            capabilities:
-              drop:
-                - ALL
           resources:
             requests:
               memory: 100Mi
@@ -68,13 +60,10 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             runAsNonRoot: true
-            runAsUser: {{ .Values.resources.initContainerSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.resources.initContainerSecurityContext.runAsGroup }}
+            runAsUser: 1000
+            runAsGroup: 1000
             seccompProfile:
               type: RuntimeDefault
-            capabilities:
-              drop:
-                - ALL
           resources:
             requests:
               memory: 100Mi

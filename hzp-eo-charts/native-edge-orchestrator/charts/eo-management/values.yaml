@@ -408,6 +408,14 @@ seaweedfs:
           - name: data-{{ .Release.Namespace }}
             mountPath: /data
         imagePullPolicy: {{ default "IfNotPresent" .Values.global.imagePullPolicy }}
+        securityContext:
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
   filer:
     resources: |
       requests:
@@ -433,6 +441,14 @@ seaweedfs:
           - name: data-filer
             mountPath: /data
         imagePullPolicy: {{ default "IfNotPresent" .Values.global.imagePullPolicy }}
+        securityContext:
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
       {{- end }}
   s3:
     enabled: true
@@ -493,4 +509,12 @@ seaweedfs:
               mountPath: "/idx/"
           {{- end }}
         imagePullPolicy: {{ default "IfNotPresent" .Values.global.imagePullPolicy }}
+        securityContext:
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
       {{- end }}

@@ -44,7 +44,14 @@ spec:
         - image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.csi.image.name ) "repo" .Values.global.repository) }}
           name: {{ include "vault.name" . }}-csi-provider
           {{ template "csi.resources" . }}
-          {{ template "csi.daemonSet.securityContext.container" . }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           imagePullPolicy: {{ .Values.csi.image.pullPolicy }}
           args:
             - --endpoint=/provider/vault.sock

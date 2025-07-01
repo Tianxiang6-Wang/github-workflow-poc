@@ -13,6 +13,14 @@ spec:
       affinity: {{- include "pods.affinity" ( list .Values.test $ ) | trim | nindent 8 }}
       containers:
         - image: {{ include "manifest.image.name" (dict "name" .Values.test.svc.image.name "globals" .Values.global.components "repo" .Values.global.repository) }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           imagePullPolicy: {{ $test.svc.image.pullPolicy }}
           ports:
             - containerPort: {{ $test.svc.port }}

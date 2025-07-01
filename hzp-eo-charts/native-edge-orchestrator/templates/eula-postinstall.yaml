@@ -42,10 +42,13 @@ spec:
               --data '{"query":"mutation($input: DelcoEvent!) {\r\n saveDelcoEvent(delcoEvent: $input) {\r\n ID\r\n }\r\n}\r\n","variables":{"input":{"eventType":"INFORMATION","reason":"Reconciling","k8sObject":"native-edge-orchestrator","operation":"1.0.0.0","message":"Completed INSTALL of Helm Release","chartKey":"NOT_APPLICABLE","operationType":"INSTALL","operationStatus":"COMPLETED"}}}' \
               --retry 10 --retry-connrefused; do echo "Waiting to connect to the Delco service..."; sleep 5; done
           securityContext:
-            runAsNonRoot: true
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
       containers:
         - image: {{ include "manifest.image.name" (dict "data" (index .Values.components "kubectl" ) "repo" .Values.global.repository) }}
           name: disable-delco-svc
@@ -61,9 +64,12 @@ spec:
               echo "Patching infra status config map"
               kubectl patch configmap infra-status-config -n $(NAMESPACE) --type merge -p '{"data":{"disable_delco_svc":"true"}}'
           securityContext:
-            runAsNonRoot: true
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
       restartPolicy: OnFailure
 {{ end }}

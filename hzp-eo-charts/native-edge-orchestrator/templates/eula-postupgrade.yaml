@@ -30,6 +30,14 @@ spec:
         - image: {{ include "manifest.image.name" (dict "data" (index .Values.components "hzp-util" ) "repo" .Values.global.repository) }}
           name: eula-update
           imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: NAMESPACE
               value: {{ .Release.Namespace }}
@@ -44,6 +52,14 @@ spec:
         - image: {{ include "manifest.image.name" (dict "data" (index .Values.components "kubectl" ) "repo" .Values.global.repository) }}
           name: disable-delco-svc
           imagePullPolicy: IfNotPresent
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: NAMESPACE
               value: {{ .Release.Namespace }}

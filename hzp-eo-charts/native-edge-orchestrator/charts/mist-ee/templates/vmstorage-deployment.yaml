@@ -33,8 +33,13 @@ spec:
         image: {{ include "manifest.image.name" (dict "data" (index .Values.components "mist-vmstorage" ) "repo" .Values.global.repository) }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         securityContext:
+          runAsUser: 1001
           allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
           runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
         command:
         - /bin/sh
         - -c

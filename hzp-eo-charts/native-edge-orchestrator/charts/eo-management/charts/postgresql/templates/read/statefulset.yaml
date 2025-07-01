@@ -97,9 +97,14 @@ spec:
           resources: {{- toYaml .Values.readReplicas.resources | nindent 12 }}
           {{- end }}
           # We don't require a privileged container in this case
-          {{- if .Values.readReplicas.containerSecurityContext.enabled }}
-          securityContext: {{- omit .Values.readReplicas.containerSecurityContext "enabled" | toYaml | nindent 12 }}
-          {{- end }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           command:
             - /bin/sh
             - -ec

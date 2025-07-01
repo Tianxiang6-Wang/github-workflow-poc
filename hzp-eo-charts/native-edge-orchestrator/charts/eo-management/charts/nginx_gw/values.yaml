@@ -208,7 +208,7 @@ nginx:
       memory: 512Mi
       cpu: 0.5
     limits:
-      memory: 2Gi
+      memory: 1Gi
       cpu: 2
   sslProtocols: "TLSv1.2 TLSv1.3"
 rateLimits:

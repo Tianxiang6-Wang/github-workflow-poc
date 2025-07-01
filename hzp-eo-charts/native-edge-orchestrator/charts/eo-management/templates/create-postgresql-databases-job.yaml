@@ -42,9 +42,11 @@ spec:
           name: postgresql-credentials-bootstrap-container
           imagePullPolicy: {{ .Values.global.postgresql.pullPolicy }}
           securityContext:
-            runAsNonRoot: true
-            runAsUser: 1000
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
             seccompProfile:
               type: RuntimeDefault
           volumeMounts:
@@ -89,9 +91,11 @@ spec:
           image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
           imagePullPolicy: {{ .Values.global.postgresql.pullPolicy }}
           securityContext:
-            runAsNonRoot: true
-            runAsUser: 1000
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
             seccompProfile:
               type: RuntimeDefault
           env:

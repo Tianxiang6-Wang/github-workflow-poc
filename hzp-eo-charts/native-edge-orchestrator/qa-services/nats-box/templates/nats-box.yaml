@@ -26,10 +26,13 @@ spec:
         {{- end }}
         imagePullPolicy: Always
         securityContext:
-          runAsNonRoot: true
-          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          runAsUser: 1001
           allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
         command:
         - "tail"
         - "-f"

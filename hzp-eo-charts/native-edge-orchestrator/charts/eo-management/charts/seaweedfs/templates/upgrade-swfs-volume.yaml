@@ -25,9 +25,13 @@ spec:
         image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
         imagePullPolicy: Always
         securityContext:
-          runAsNonRoot: true
-          runAsUser: 1000
+          runAsUser: 1001
           allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
         command:
           - sh
           - -c

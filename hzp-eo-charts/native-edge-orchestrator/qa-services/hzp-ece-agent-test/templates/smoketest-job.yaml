@@ -16,6 +16,14 @@ spec:
       affinity: {{- include "pods.affinity" ( list .Values.test $ ) | trim | nindent 8 }}
       containers:
       - image: {{ include "manifest.image.name" (dict "name" .Values.test.image.name "globals" .Values.global.components "repo" .Values.global.repository) }}
+        securityContext:
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
         env:
           - name: SSH_REMOTE_HOST
             value: "{{ .Values.global.eceAgentTest.env.sshRemoteHost }}"
@@ -51,6 +59,14 @@ spec:
         - name: init-postgres
           image: {{ include "manifest.image.name" (dict "name" "busybox" "globals" .Values.global.components "repo" .Values.global.repository) }}
           imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           env: 
             {{- toYaml .Values.test.postgresql.service.env | nindent 12 }}
           command:
@@ -67,6 +83,14 @@ spec:
         - name: init-event-svc
           image: {{ include "manifest.image.name" (dict "name" "busybox" "globals" .Values.global.components "repo" .Values.global.repository) }}
           imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           command:
             - sh
             - -c
@@ -81,6 +105,14 @@ spec:
         - name: init-jetstream
           image: {{ include "manifest.image.name" (dict "name" "busybox" "globals" .Values.global.components "repo" .Values.global.repository) }}
           imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           command:
             - sh
             - -c
@@ -95,6 +127,14 @@ spec:
         - name: init-inventory
           image: {{ include "manifest.image.name" (dict "name" "busybox" "globals" .Values.global.components "repo" .Values.global.repository) }}
           imagePullPolicy: {{ .Values.test.image.pullPolicy }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           command:
             - sh
             - -c

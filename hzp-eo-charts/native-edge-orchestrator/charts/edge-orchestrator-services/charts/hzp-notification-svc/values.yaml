@@ -50,7 +50,7 @@ svc:
     hzp.iam.webhook/bootstrap: "true"
   resources:
     limits:
-      cpu: 1
+      cpu: 200m
       memory: 4Gi
     requests:
       cpu: 5m

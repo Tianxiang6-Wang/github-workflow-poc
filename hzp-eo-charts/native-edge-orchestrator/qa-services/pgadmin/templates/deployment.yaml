@@ -32,6 +32,14 @@ spec:
                   name: {{ .Values.global.pgadmin.auth.secretName }}
                   key: pgadmin-password
           image: "{{ .Values.global.repository }}{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.Annotations.imagetag }}"
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             {{- toYaml .Values.image.ports | nindent 12 }}

@@ -24,10 +24,13 @@ spec:
         image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
         imagePullPolicy: Always
         securityContext:
-          runAsNonRoot: true
-          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          runAsUser: 1001
           allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
         env:
           - name: NATS_HOST
             value: "jetstream.{{ .Release.Namespace }}.svc.cluster.local"
@@ -52,12 +55,13 @@ spec:
         image: {{ include "manifest.image.name" (dict "data" (index .Values.components "hzp-util" ) "repo" .Values.global.repository) }}
         imagePullPolicy: {{ $createStreamJob.pullPolicy }}
         securityContext:
-          runAsNonRoot: true
-          runAsUser: 1000
-          runAsGroup: 1000
+          runAsUser: 1001
           allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
           seccompProfile:
-              type: RuntimeDefault
+            type: RuntimeDefault
         command:
         - /bin/sh
         - -c

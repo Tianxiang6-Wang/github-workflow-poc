@@ -15,13 +15,17 @@ spec:
     spec:
       {{- include "images.pullSecrets" . | nindent 6 }}
       restartPolicy: Never
-      securityContext:
-        {{- toYaml .Values.securityContext | nindent 8 }}
       initContainers:
         - name: exporter
           image: {{ include "manifest.image.name" (dict "data" (index .Values.components .Values.image.repository ) "repo" .Values.global.repository) }}
           securityContext:
-            {{- toYaml .Values.securityContext | nindent 12 }}
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - name: export-data
               mountPath: /exports
@@ -73,6 +77,14 @@ spec:
       containers:
         - name: uploader
           image:  {{ include "manifest.image.name" (dict "data" (index .Values.components "hzp-util" ) "repo" .Values.global.repository) }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           command: ["/bin/sh","-c"]
           args:
             - |

@@ -38,10 +38,13 @@ spec:
         image: {{ include "manifest.image.name" (dict "data" (index .Values.components "gocky-svc" ) "repo" .Values.global.repository) }}
         imagePullPolicy: {{ .Values.image.pullPolicy }}
         securityContext:
+          runAsUser: 1001
           allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
           runAsNonRoot: true
-          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          seccompProfile:
+            type: RuntimeDefault
         env:
         - name: ORG_ID
           valueFrom:
@@ -85,10 +88,13 @@ spec:
           imagePullPolicy: Always
           name: init-nats-metrics
           securityContext:
-            runAsNonRoot: true
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           env:
           - name: NATS_HOST
             value: "jetstream-metrics.{{ .Release.Namespace }}.svc.cluster.local"

@@ -51,10 +51,13 @@ spec:
           env:
             {{- toYaml .Values.env | nindent 12 }}
           securityContext:
-            runAsNonRoot: true
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+            type: RuntimeDefault
           volumeMounts:
             {{- include "logLevel.configMap.mount" $ | indent 12 }}
           readinessProbe:
@@ -82,10 +85,13 @@ spec:
         image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
         imagePullPolicy: Always
         securityContext:
-          runAsNonRoot: true
-          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          runAsUser: 1001
           allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
         env:
           - name: waiting_for_postgres_to_be_initialized
             valueFrom:

@@ -14,6 +14,14 @@ spec:
       containers:
         - image: {{ include "manifest.image.name" (dict "name" .Values.test.svc.image.name "globals" .Values.global.components "repo" .Values.global.repository) }}
           imagePullPolicy: {{ $test.svc.image.pullPolicy }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: {{ $test.svc.port }}
           env:

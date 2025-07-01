@@ -37,6 +37,14 @@ spec:
         {{- end }}
           name: {{ .Values.svc.name }}
           imagePullPolicy: {{ .Values.svc.image.pullPolicy }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: {{ .Values.svc.port }}
           args:
@@ -69,9 +77,13 @@ spec:
         image: {{ include "manifest.image.name" (dict "name" "busybox" "globals" .Values.global.components "repo" .Values.global.repository) }}
         imagePullPolicy: Always
         securityContext:
-          runAsNonRoot: true
-          runAsUser: 1000
+          runAsUser: 1001
           allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
         env: 
           {{- toYaml .Values.svc.env | nindent 12 }}
         command:

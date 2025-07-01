@@ -22,13 +22,13 @@ spec:
       command: ['wget']
       args: ['{{ .Values.entrypoint.name }}:{{ .Values.service.port }}']
       securityContext:
+        runAsUser: 1001
         allowPrivilegeEscalation: false
-        runAsNonRoot: false # NOTE: necessary for busybox image
+        capabilities:
+          drop: [ "ALL" ]
+        runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
-        capabilities:
-          drop:
-            - ALL
       resources:
         requests:
           memory: 100Mi

@@ -18,13 +18,6 @@ spec:
         {{- include "fusion-services.merge" ( list .Values.commonAnnotations .Values.pluginLoaderJob.podAnnotations ) | nindent 8 }}
     spec:
       automountServiceAccountToken: false
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: {{ .Values.pluginLoaderJob.podSecurityContext.runAsUser }}
-        runAsGroup: {{ .Values.pluginLoaderJob.podSecurityContext.runAsGroup }}
-        fsGroup: 1000
-        seccompProfile:
-          type: RuntimeDefault
       nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.pluginLoaderJob $ )| trim | nindent 8 }}
       tolerations: {{- include "fusion-services.tolerations" ( list .Values.pluginLoaderJob $ ) | trim | nindent 8 }}
       affinity: {{- include "fusion-services.affinity" ( list .Values.pluginLoaderJob $ ) | trim | nindent 8 }}

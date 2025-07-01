@@ -24,9 +24,6 @@ spec:
     spec:
       serviceAccountName: {{ $svc.rbac.name }}
       {{- include "images.pullSecrets" . | nindent 6 }}
-      securityContext:
-        seccompProfile:
-          type: RuntimeDefault
       nodeSelector: {{- include "pods.nodeSelector" ( list .Values.svc $ )| trim | nindent 8 }}
       tolerations: {{- include "pods.tolerations" ( list .Values.svc $ ) | trim | nindent 8 }}
       affinity: {{- include "pods.affinity" ( list .Values.svc $ ) | trim | nindent 8 }}

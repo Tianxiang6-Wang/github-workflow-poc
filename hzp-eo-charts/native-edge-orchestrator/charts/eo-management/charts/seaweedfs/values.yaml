@@ -50,6 +50,9 @@ components:
     version: 3.85
     project: chrislusf/
   busybox:
+    image: busybox
+    version: 1.37.0
+    project: ''
 
 image:
   registry: ""

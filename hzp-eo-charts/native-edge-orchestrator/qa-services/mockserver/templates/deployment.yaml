@@ -31,8 +31,13 @@ spec:
           image: {{ .Values.global.repository}}{{ .Values.image.project }}{{ .Values.image.name }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           securityContext:
-            runAsUser: 0
-            allowPrivilegeEscalation: true
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - name: serviceport
               containerPort: {{ .Values.app.serverPort }}

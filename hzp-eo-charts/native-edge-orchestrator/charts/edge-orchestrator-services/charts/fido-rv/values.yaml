@@ -20,7 +20,7 @@ svc:
   name: &serviceName fido-rv
   resources:
     limits:
-      cpu: 2
+      cpu: 100m
       memory: 1800Mi
     requests:
       cpu: 5m

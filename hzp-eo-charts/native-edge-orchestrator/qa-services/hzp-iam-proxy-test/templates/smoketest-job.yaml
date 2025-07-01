@@ -19,6 +19,14 @@ spec:
       affinity: {{- include "pods.affinity" ( list .Values.test $ ) | trim | nindent 8 }}
       containers:
         - name: iam-proxy-smoke-test-container
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: BASE_EXTERNAL_URL
               value: "{{ $baseExternalURL }}"
@@ -64,6 +72,14 @@ spec:
         - name: init-iam-proxy-smoke-test
           image: "{{ include "manifest.image.name" (dict "name" "busybox" "globals" .Values.global.components "repo" .Values.global.repository) }}"
           imagePullPolicy: {{ $test.image.pullPolicy }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           command:
             - sh
             - -c

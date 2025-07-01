@@ -52,12 +52,18 @@ spec:
       initContainers:
         {{ tpl .Values.s3.initContainers . | nindent 8 | trim }}
       {{- end }}
-      {{- toYaml .Values.global.seaweedfs.podSecurityContext | nindent 6 }}
       containers:
         - name: seaweedfs
           image: {{ template "s3.image" . }}
           imagePullPolicy: {{ default "IfNotPresent" .Values.global.imagePullPolicy }}
-          {{- toYaml .Values.global.seaweedfs.containerSecurityContext | nindent 10 }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: POD_IP
               valueFrom:
@@ -197,10 +203,13 @@ spec:
             failureThreshold: {{ .Values.s3.livenessProbe.failureThreshold }}
             timeoutSeconds: {{ .Values.s3.livenessProbe.timeoutSeconds }}
           {{- end }}
-          {{- if .Values.s3.resources }}
           resources:
-            {{ tpl .Values.s3.resources . | nindent 12 | trim }}
-          {{- end }}
+            requests:
+              memory: 128Mi
+              cpu: 0.1
+            limits:
+              memory: 2Gi
+              cpu: 0.5
       {{- if .Values.s3.sidecars }}
       {{- include "common.tplvalues.render" (dict "value" .Values.s3.sidecars "context" $) | nindent 8 }}
       {{- end }}
