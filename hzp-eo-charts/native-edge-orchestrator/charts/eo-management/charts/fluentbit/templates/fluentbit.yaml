@@ -239,6 +239,8 @@ spec:
     spec:
       {{- include "images.pullSecrets" . | nindent 6 }}
       serviceAccountName: {{ .Values.svc.name }}
+      securityContext:
+        fsGroup: 1001
       tolerations:
         - key: node-role.kubernetes.io/control-plane
           effect: NoSchedule

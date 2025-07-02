@@ -38,6 +38,7 @@ spec:
       {{- end }}
     spec:
       securityContext:
+        fsGroup: 1001
         seccompProfile:
           type: RuntimeDefault
       nodeSelector: {{- include "pods.nodeSelector" ( list .Values.volume $ ) | trim | nindent 8 }}

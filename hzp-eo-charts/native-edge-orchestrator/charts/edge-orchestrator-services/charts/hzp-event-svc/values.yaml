@@ -61,7 +61,7 @@ svc:
     hzp.iam.webhook/active: 'true'
   resources:
     limits:
-      cpu: 600m
+      cpu: 100m
       memory: 300Mi
     requests:
       cpu: 10m

@@ -98,7 +98,7 @@ svc:
     hzp.iam.webhook/exclude-outbound-ports: "443"
   resources:
     limits:
-      cpu: 200m
+      cpu: 100m
       memory: 1000Mi
     requests:
       cpu: 5m
@@ -223,7 +223,7 @@ artifactCleanup:
     sidecar.istio.io/inject: "true"
   resources:
     limits:
-      cpu: 1000m
+      cpu: 200m
       memory: 500Mi
     requests:
       cpu: 100m
@@ -242,7 +242,7 @@ job:
     sidecar.istio.io/inject: "false"
   resources:
     limits:
-      cpu: 1000m
+      cpu: 200m
       memory: 500Mi
     requests:
       cpu: 100m

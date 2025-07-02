@@ -45,6 +45,7 @@ spec:
       {{- end }}
     spec:
       securityContext:
+        fsGroup: 1001
         seccompProfile:
           type: RuntimeDefault
       restartPolicy: {{ default .Values.global.restartPolicy .Values.filer.restartPolicy }}
@@ -67,14 +68,6 @@ spec:
       initContainers:
         {{ tpl .Values.filer.initContainers . | nindent 8 | trim }}
       {{- end }}
-      securityContext:
-        runAsUser: 1001
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop: [ "ALL" ]
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
       containers:
         - name: seaweedfs
           image: {{ template "filer.image" . }}

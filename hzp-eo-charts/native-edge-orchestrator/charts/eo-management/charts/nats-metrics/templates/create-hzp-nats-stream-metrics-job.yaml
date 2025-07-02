@@ -54,6 +54,9 @@ spec:
       - name: create-hzp-nats-stream-leafnode-container
         image: {{ include "manifest.image.name" (dict "data" (index .Values.components "hzp-util" ) "repo" .Values.global.repository) }}
         imagePullPolicy: {{ $createStreamJob.pullPolicy }}
+        env:
+          - name: USER
+            value: "nats"
         securityContext:
           runAsUser: 1001
           allowPrivilegeEscalation: false

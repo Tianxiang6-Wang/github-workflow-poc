@@ -42,9 +42,7 @@ spec:
     spec:
       securityContext:
         runAsUser: 1001
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop: [ "ALL" ]
+        fsGroup: 1001
         runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
@@ -68,14 +66,6 @@ spec:
       initContainers:
         {{ tpl .Values.master.initContainers . | nindent 8 | trim }}
       {{- end }}
-      securityContext:
-        runAsUser: 1001
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop: [ "ALL" ]
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
       containers:
         - name: seaweedfs
           image: {{ template "master.image" . }}

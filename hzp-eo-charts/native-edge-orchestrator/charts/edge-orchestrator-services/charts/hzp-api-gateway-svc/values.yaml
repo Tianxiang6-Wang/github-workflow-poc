@@ -32,7 +32,7 @@ svc:
     tag: latest
   resources:
     limits:
-      cpu: 400m
+      cpu: 100m
       memory: 600Mi
     requests:
       cpu: 50m

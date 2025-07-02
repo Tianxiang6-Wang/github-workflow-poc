@@ -22,7 +22,7 @@ svc:
   name: &serviceName fido-manufacturer
   resources:
     limits:
-      cpu: 100m
+      cpu: 50m
       memory: 400Mi
     requests:
       cpu: 5m

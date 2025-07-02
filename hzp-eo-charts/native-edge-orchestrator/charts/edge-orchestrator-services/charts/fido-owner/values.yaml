@@ -167,7 +167,7 @@ svc:
   name: fido-owner
   resources:
     limits:
-      cpu: 500m
+      cpu: 100m
       memory: 2048Mi
     requests:
       cpu: 10m

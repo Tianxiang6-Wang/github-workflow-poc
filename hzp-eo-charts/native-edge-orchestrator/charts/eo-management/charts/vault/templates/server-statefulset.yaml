@@ -55,7 +55,6 @@ spec:
       {{ if  .Values.server.shareProcessNamespace }}
       shareProcessNamespace: true
       {{ end }}
-      {{- template "server.statefulSet.securityContext.pod" . }}
       {{- if not .Values.global.openshift }}
       hostNetwork: {{ .Values.server.hostNetwork }}
       {{- end }}
@@ -63,6 +62,8 @@ spec:
         {{ template "vault.volumes" . }}
         - name: home
           emptyDir: {}
+      securityContext:
+        fsGroup: 1001
       containers:
         - image: {{ include "manifest.image.name" (dict "data" (index .Values.components $bootstrap.image.name ) "repo" .Values.global.repository) }}
           name: unseal-container
@@ -89,6 +90,14 @@ spec:
           name: vault
           {{ template "vault.resources" . }}
           imagePullPolicy: {{ .Values.server.image.pullPolicy }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           command:
           - "/bin/sh"
           - "-ec"
