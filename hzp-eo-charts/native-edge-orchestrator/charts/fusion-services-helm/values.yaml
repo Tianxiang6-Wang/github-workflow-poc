@@ -102,7 +102,7 @@ api_service:
   resources:
     limits:
       cpu: 0.3
-      memory: 1Gi
+      memory: 0.5Gi
     requests:
       cpu: 0.1
       ephemeral-storage: 100Mi
@@ -166,11 +166,11 @@ blueprint:
   resources:
     limits:
       cpu: 0.5
-      memory: 2Gi
+      memory: 1Gi
     requests:
       cpu: 0.3
       ephemeral-storage: 100Mi
-      memory: 1Gi
+      memory: 0.5Gi
 certs:
   ca_cert: ''
   ca_key: ''
@@ -388,7 +388,7 @@ deployments:
   resources:
     limits:
       cpu: 1
-      memory: 2Gi
+      memory: 1Gi
     requests:
       cpu: 0.5
       ephemeral-storage: 100Mi
@@ -438,7 +438,7 @@ drift:
   resources:
     limits:
       cpu: 0.5
-      memory: 2Gi
+      memory: 1Gi
     requests:
       cpu: 0.3
       ephemeral-storage: 50Mi
@@ -593,7 +593,7 @@ mgmtworker:
   resources:
     limits:
       cpu: 0.3
-      memory: 4Gi
+      memory: 1Gi
     requests:
       cpu: 0.1
       ephemeral-storage: 1Gi
@@ -742,7 +742,7 @@ plugins:
   resources:
     limits:
       cpu: 0.5
-      memory: 2Gi
+      memory: 1Gi
     requests:
       cpu: 0.2
       ephemeral-storage: 50Mi
@@ -969,10 +969,10 @@ rabbitmq:
     create: true
   resources:
     limits:
-      cpu: 0.5
-      memory: 1Gi
+      cpu: 4
+      memory: 4Gi
     requests:
-      cpu: 0.3
+      cpu: 0.5
       ephemeral-storage: 50Mi
       memory: 512Mi
   service:
@@ -1049,7 +1049,7 @@ rest_service:
   resources:
     limits:
       cpu: 0.5
-      memory: 4Gi
+      memory: 1Gi
     requests:
       cpu: 0.3
       ephemeral-storage: 512Mi
@@ -1159,7 +1159,7 @@ secrets:
   resources:
     limits:
       cpu: 0.5
-      memory: 2Gi
+      memory: 1Gi
     requests:
       cpu: 0.3
       ephemeral-storage: 10Mi

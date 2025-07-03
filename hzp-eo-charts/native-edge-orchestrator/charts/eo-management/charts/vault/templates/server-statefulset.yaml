@@ -102,7 +102,14 @@ spec:
           - "/bin/sh"
           - "-ec"
           args: {{ template "vault.args" . }}
-          {{- template "server.statefulSet.securityContext.container" . }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: HOST_IP
               valueFrom:

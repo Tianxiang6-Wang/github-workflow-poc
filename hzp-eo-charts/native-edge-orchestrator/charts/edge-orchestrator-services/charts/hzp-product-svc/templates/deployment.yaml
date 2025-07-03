@@ -52,10 +52,13 @@ spec:
           image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
           imagePullPolicy: {{ .Values.svc.image.pullPolicy }}
           securityContext:
-            runAsNonRoot: true
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: EO_INIT_HOST
               value: "{{ .Values.svc.dependency.eoInitSvc.service.fullname }}"
@@ -85,10 +88,13 @@ spec:
               value: "{{ .Values.global.product.backendconnectivityenvironment }}"
             {{- toYaml .Values.ese.env | nindent 12 }}
           securityContext:
-            runAsNonRoot: true
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           resources:
             {{- toYaml .Values.ese.resources | nindent 12 }}
           volumeMounts:
@@ -156,10 +162,13 @@ spec:
             {{- if .Values.global.s3.credentials }}{{- toYaml .Values.global.s3.credentials | nindent 12 }}{{ end }}
             {{- toYaml $svc.env | nindent 12 }}
           securityContext:
-            runAsNonRoot: true
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: {{ $svc.port }}
           readinessProbe:

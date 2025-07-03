@@ -129,10 +129,13 @@ spec:
                   key: CLIENT_ORG_ID
                   optional: true
           securityContext:
-            runAsNonRoot: true
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           readinessProbe:
             httpGet:
               path: /admin/health/readiness
@@ -158,10 +161,13 @@ spec:
         name: init-postgres
         imagePullPolicy: Always
         securityContext:
-          runAsNonRoot: true
-          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          runAsUser: 1001
           allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
         env:
           - name: NATS_HOST
             value: "jetstream.{{ .Release.Namespace }}.svc.cluster.local"
@@ -196,10 +202,13 @@ spec:
         name: init-vault
         imagePullPolicy: Always
         securityContext:
-          runAsNonRoot: true
-          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          runAsUser: 1001
           allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
         command:
           - sh
           - -c

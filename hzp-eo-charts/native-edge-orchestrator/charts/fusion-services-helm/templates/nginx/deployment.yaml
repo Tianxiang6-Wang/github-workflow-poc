@@ -25,7 +25,7 @@ spec:
       enableServiceLinks: false
       automountServiceAccountToken: false
       securityContext:
-        runAsNonRoot: false # NOTE: nginx image requires root
+        runAsNonRoot: true # NOTE: nginx image requires root
         seccompProfile:
           type: RuntimeDefault
       nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.nginx $ )| trim | nindent 8 }}

@@ -47,7 +47,7 @@ svc:
     hzp.iam.webhook/active: "{{ .Values.global.nginx_gw.enabled | quote }}"
   resources:
     limits:
-      cpu: 50m
+      cpu: 200m
       memory: 100Mi
     requests:
       cpu: 5m

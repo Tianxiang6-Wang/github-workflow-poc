@@ -208,7 +208,7 @@ spec:
               memory: 128Mi
               cpu: 0.1
             limits:
-              memory: 2Gi
+              memory: 0.5Gi
               cpu: 0.5
       {{- if .Values.s3.sidecars }}
       {{- include "common.tplvalues.render" (dict "value" .Values.s3.sidecars "context" $) | nindent 8 }}

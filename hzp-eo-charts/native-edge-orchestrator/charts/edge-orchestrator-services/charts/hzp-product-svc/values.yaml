@@ -81,7 +81,7 @@ svc:
   lockboxLookupIndex: 3650
   resources:
     limits:
-      cpu: 100m
+      cpu: 200m
       memory: 200Mi
     requests:
       cpu: 5m

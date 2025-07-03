@@ -259,7 +259,7 @@ eo-management:
           memory: 128Mi
           cpu: 0.1
         limits:
-          memory: 6Gi
+          memory: 2Gi
           cpu: 0.2
       data:
         type: "persistentVolumeClaim"
@@ -282,7 +282,7 @@ eo-management:
           memory: 128Mi
           cpu: 0.1
         limits:
-          memory: 2Gi
+          memory: 1Gi
           cpu: 0.3
       affinity: ""
       logs:
@@ -298,7 +298,7 @@ eo-management:
           memory: 256Mi
           cpu: 0.1
         limits:
-          memory: 4Gi
+          memory: 1Gi
           cpu: 0.3
       index: leveldb
       dataDirs:

@@ -82,19 +82,25 @@ spec:
               value: {{ .Values.global.instrumentation.enabled | quote }}
             {{- toYaml $svc.env | nindent 12 }}
           securityContext:
-            runAsNonRoot: true
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
       initContainers:
         - name: init-nats
           image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
           imagePullPolicy: Always
           securityContext:
-            runAsNonRoot: true
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: NATS_HOST
               value: "jetstream.{{ .Release.Namespace }}.svc.cluster.local"
@@ -124,8 +130,13 @@ spec:
           image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
           imagePullPolicy: Always
           securityContext:
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           command:
             - sh
             - -c
@@ -141,8 +152,13 @@ spec:
           image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
           imagePullPolicy: Always
           securityContext:
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           command:
             - sh
             - -c
@@ -156,10 +172,13 @@ spec:
           name: install-events-locales-container
           imagePullPolicy: {{ $svc.localization.image.pullPolicy }}
           securityContext:
-            runAsNonRoot: true
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           volumeMounts:
             - mountPath: /translation/EventLocale
               name: events-locales-0

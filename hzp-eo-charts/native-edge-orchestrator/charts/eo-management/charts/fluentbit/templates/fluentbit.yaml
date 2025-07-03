@@ -64,7 +64,7 @@ data:
       Systemd_Filter    _SYSTEMD_UNIT=registry.service
       Path              /var/log/journal
       Read_From_Tail    true
-    
+
     [INPUT]
       Name              tail
       Tag               {{ .Values.svc.s3.vaBucketName }}.calico-cni
@@ -74,17 +74,17 @@ data:
       Name              tail
       Tag               load-balancer.*
       Path              /var/log/pods/metallb-system_*/*/*.log
-    
+
     [INPUT]
       Name              tail
       Tag               {{ .Values.svc.s3.vaBucketName }}.os
       Path              /var/log/messages
-    
+
     [INPUT]
       Name              tail
       Tag               {{ .Values.svc.s3.portalBucketName }}.*
-      Path              /var/log/pods/{{ .Values.global.dsp.portal.namespace }}_*/*/*.log 
-    
+      Path              /var/log/pods/{{ .Values.global.dsp.portal.namespace }}_*/*/*.log
+
     [OUTPUT]
       Name              s3
       Match             kube.*
@@ -113,7 +113,7 @@ data:
       s3_key_format                /$TAG[1]/$TAG[1].log
       s3_key_format_tag_delimiters .
       send_content_md5  true
-    
+
     [OUTPUT]
       Name              s3
       Match             {{ .Values.svc.s3.portalBucketName }}.*
@@ -121,13 +121,13 @@ data:
       region            {{ .Values.global.s3.region }}
       {{- if .Values.global.s3.url }}
       endpoint          {{ tpl .Values.global.s3.url . }}
-      {{- end }}      
+      {{- end }}
       upload_timeout  10m
       use_put_object  true
       s3_key_format     /portal/$TAG[4]/$TAG[5]/$TAG[5].log
       s3_key_format_tag_delimiters .
       send_content_md5 true
-    
+
     [OUTPUT]
       Name              s3
       Match             load-balancer.*
@@ -135,7 +135,7 @@ data:
       region            {{ .Values.global.s3.region }}
       {{- if .Values.global.s3.url }}
       endpoint          {{ tpl .Values.global.s3.url . }}
-      {{- end }}    
+      {{- end }}
       upload_timeout  10m
       use_put_object  true
       s3_key_format     /load-balancer/$TAG[4]/$TAG[5]/$TAG[5].log
@@ -211,141 +211,145 @@ subjects:
     namespace: {{ .Release.Namespace }}
 
 ---
-apiVersion: apps/v1
-kind: DaemonSet
-metadata:
-  name: {{ .Values.svc.name }}
-  namespace: {{ .Release.Namespace }}
-  labels:
-    k8s-app: fluentbit-logging
-    version: v1
-spec:
-  selector:
-    matchLabels:
-      k8s-app: fluentbit-logging
-      version: v1
-  template:
-    metadata:
-      annotations:
-        hzp.iam.webhook/authentication-enabled: "false"
-        hzp.iam.webhook/authorization-enabled: "false"
-      labels:
-        k8s-app: fluentbit-logging
-        version: v1
-        sidecar.istio.io/inject: "false"
-        hzp-app: {{ .Values.svc.name }}
-        hzp-role: eo-service
-        hzp.iam.webhook/active: "{{ .Values.global.nginx_gw.enabled }}"
-    spec:
-      {{- include "images.pullSecrets" . | nindent 6 }}
-      serviceAccountName: {{ .Values.svc.name }}
-      securityContext:
-        fsGroup: 1001
-      tolerations:
-        - key: node-role.kubernetes.io/control-plane
-          effect: NoSchedule
-        - key: node-role.kubernetes.io/master
-          effect: NoSchedule
-      containers:
-        - name: {{ .Values.svc.name }}
-          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "fluent-bit" ) "repo" .Values.global.repository) }}
-          securityContext:
-            runAsUser: 1001
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: [ "ALL" ]
-            runAsNonRoot: true
-            seccompProfile:
-              type: RuntimeDefault
-          ports:
-            - containerPort: {{ .Values.svc.targetPort }}
-          env:
-            {{- if .Values.global.s3.credentials }}{{- toYaml .Values.global.s3.credentials | nindent 12 }}{{ end }}
-            - name: K8S_NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
-            - name: FLUENT_FOWARD_HOST
-              value: localhost
-            - name: FLUENT_FOWARD_PORT
-              value: "80"
-          resources:
-            {{- toYaml .Values.svc.resources | nindent 12 }}
-          volumeMounts:
-            - name: config-volume
-              mountPath: /fluent-bit/etc
-            - name: varlog
-              mountPath: /var/log
-            - name: dockercontainerlogdirectory
-              mountPath: /var/log/pods
-              readOnly: true
-            - name: dockercontainers
-              readOnly: true
-              mountPath: /var/log/containers
-      {{- if .Values.global.seaweedfs.enabled }}
-      initContainers:
-        - name: init-seaweedfs-s3
-          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
-          imagePullPolicy: Always
-          securityContext:
-            runAsUser: 1001
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: [ "ALL" ]
-            runAsNonRoot: true
-            seccompProfile:
-              type: RuntimeDefault
-          command:
-            - sh
-            - -c
-            - |
-              echo 'Waiting for Seaweedfs S3 to become ready...'
-              until [ "$response" = "200" ]; do
-                response=$(wget -S -O /dev/null {{ tpl .Values.global.s3.url . }}/status 2>&1 | awk '/HTTP\/1.1/ {print $2}')
-                printf "." && sleep 2
-              done
-              echo 'Seaweedfs S3 OK ✓'
-        - name: seaweed-create-bucket
-          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "seaweedfs" ) "repo" .Values.global.repository) }}
-          command:
-            - sh
-            - '-c'
-            - >
-              {{- if .Values.global.ova.enabled }}
-              echo "s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}eo-logs;s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.vaBucketName }};s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.dapoBucketName }};s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.portalBucketName }};s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.logBundleBucketName }}" | /usr/bin/weed
-              shell -filer=eo-management-seaweedfs-filer-client.{{ .Release.Namespace }}:8888
-              -master=eo-management-seaweedfs-master:9333 \
-              {{- else }}
-              echo "s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}eo-logs" | /usr/bin/weed
-              shell -filer=eo-management-seaweedfs-filer-client.{{ .Release.Namespace }}:8888
-              -master=eo-management-seaweedfs-master:9333 \
-              {{- end }}
-          imagePullPolicy: Always
-          securityContext:
-            runAsUser: 1001
-            allowPrivilegeEscalation: false
-            capabilities:
-              drop: [ "ALL" ]
-            runAsNonRoot: true
-            seccompProfile:
-              type: RuntimeDefault
-          env:
-            - name: AWS_ENDPOINT_URL_S3
-              value: {{ tpl .Values.global.s3.url . }}
-            {{- if .Values.global.s3.credentials }}{{- toYaml .Values.global.s3.credentials | nindent 12 }}{{ end }}
-      {{- end }}
-      terminationGracePeriodSeconds: 30
-      volumes:
-        - name: config-volume
-          configMap:
-            name: fluentbit-conf
-        - name: varlog
-          hostPath:
-            path: /var/log
-        - name: dockercontainerlogdirectory
-          hostPath:
-            path: /var/log/pods
-        - name: dockercontainers
-          hostPath:
-            path: /var/log/containers
+{{/*apiVersion: apps/v1*/}}
+{{/*kind: DaemonSet*/}}
+{{/*metadata:*/}}
+{{/*  name: {{ .Values.svc.name }}*/}}
+{{/*  namespace: {{ .Release.Namespace }}*/}}
+{{/*  labels:*/}}
+{{/*    k8s-app: fluentbit-logging*/}}
+{{/*    version: v1*/}}
+{{/*spec:*/}}
+{{/*  selector:*/}}
+{{/*    matchLabels:*/}}
+{{/*      k8s-app: fluentbit-logging*/}}
+{{/*      version: v1*/}}
+{{/*  template:*/}}
+{{/*    metadata:*/}}
+{{/*      annotations:*/}}
+{{/*        hzp.iam.webhook/authentication-enabled: "false"*/}}
+{{/*        hzp.iam.webhook/authorization-enabled: "false"*/}}
+{{/*      labels:*/}}
+{{/*        k8s-app: fluentbit-logging*/}}
+{{/*        version: v1*/}}
+{{/*        sidecar.istio.io/inject: "false"*/}}
+{{/*        hzp-app: {{ .Values.svc.name }}*/}}
+{{/*        hzp-role: eo-service*/}}
+{{/*        hzp.iam.webhook/active: "{{ .Values.global.nginx_gw.enabled }}"*/}}
+{{/*    spec:*/}}
+{{/*      {{- include "images.pullSecrets" . | nindent 6 }}*/}}
+{{/*      serviceAccountName: {{ .Values.svc.name }}*/}}
+{{/*      securityContext:*/}}
+{{/*        fsGroup: 1001*/}}
+{{/*      tolerations:*/}}
+{{/*        - key: node-role.kubernetes.io/control-plane*/}}
+{{/*          effect: NoSchedule*/}}
+{{/*        - key: node-role.kubernetes.io/master*/}}
+{{/*          effect: NoSchedule*/}}
+{{/*      containers:*/}}
+{{/*        - name: {{ .Values.svc.name }}*/}}
+{{/*          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "fluent-bit" ) "repo" .Values.global.repository) }}*/}}
+{{/*          securityContext:*/}}
+{{/*            runAsUser: 1001*/}}
+{{/*            allowPrivilegeEscalation: false*/}}
+{{/*            capabilities:*/}}
+{{/*              drop: [ "ALL" ]*/}}
+{{/*            runAsNonRoot: true*/}}
+{{/*            seccompProfile:*/}}
+{{/*              type: RuntimeDefault*/}}
+{{/*          ports:*/}}
+{{/*            - containerPort: {{ .Values.svc.targetPort }}*/}}
+{{/*          env:*/}}
+{{/*            {{- if .Values.global.s3.credentials }}{{- toYaml .Values.global.s3.credentials | nindent 12 }}{{ end }}*/}}
+{{/*            - name: K8S_NODE_NAME*/}}
+{{/*              valueFrom:*/}}
+{{/*                fieldRef:*/}}
+{{/*                  fieldPath: spec.nodeName*/}}
+{{/*            - name: FLUENT_FOWARD_HOST*/}}
+{{/*              value: localhost*/}}
+{{/*            - name: FLUENT_FOWARD_PORT*/}}
+{{/*              value: "80"*/}}
+{{/*          resources:*/}}
+{{/*            {{- toYaml .Values.svc.resources | nindent 12 }}*/}}
+{{/*          volumeMounts:*/}}
+{{/*            - name: config-volume*/}}
+{{/*              mountPath: /fluent-bit/etc*/}}
+{{/*            - name: varlog*/}}
+{{/*              mountPath: /var/log*/}}
+{{/*            - name: dockercontainerlogdirectory*/}}
+{{/*              mountPath: /var/log/pods*/}}
+{{/*              readOnly: true*/}}
+{{/*            - name: dockercontainers*/}}
+{{/*              readOnly: true*/}}
+{{/*              mountPath: /var/log/containers*/}}
+{{/*      {{- if .Values.global.seaweedfs.enabled }}*/}}
+{{/*      initContainers:*/}}
+{{/*        - name: init-seaweedfs-s3*/}}
+{{/*          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}*/}}
+{{/*          imagePullPolicy: Always*/}}
+{{/*          securityContext:*/}}
+{{/*            runAsUser: 1001*/}}
+{{/*            allowPrivilegeEscalation: false*/}}
+{{/*            capabilities:*/}}
+{{/*              drop: [ "ALL" ]*/}}
+{{/*            runAsNonRoot: true*/}}
+{{/*            seccompProfile:*/}}
+{{/*              type: RuntimeDefault*/}}
+{{/*          resources:*/}}
+{{/*            limits:*/}}
+{{/*              cpu: 200m*/}}
+{{/*              memory: 0.5Gi*/}}
+{{/*            requests:*/}}
+{{/*              cpu: 100m*/}}
+{{/*              memory: 256Mi*/}}
+{{/*          command:*/}}
+{{/*            - sh*/}}
+{{/*            - -c*/}}
+{{/*            - |*/}}
+{{/*              echo 'Waiting for Seaweedfs S3 to become ready...'*/}}
+{{/*              until [ "$response" = "200" ]; do*/}}
+{{/*                response=$(wget -S -O /dev/null {{ tpl .Values.global.s3.url . }}/status 2>&1 | awk '/HTTP\/1.1/ {print $2}')*/}}
+{{/*                printf "." && sleep 2*/}}
+{{/*              done*/}}
+{{/*              echo 'Seaweedfs S3 OK ✓'*/}}
+{{/*        - name: seaweed-create-bucket*/}}
+{{/*          image: {{ include "manifest.image.name" (dict "data" (index .Values.components "seaweedfs" ) "repo" .Values.global.repository) }}*/}}
+{{/*          command:*/}}
+{{/*            - sh*/}}
+{{/*            - '-c'*/}}
+{{/*            - >*/}}
+{{/*              {{- if .Values.global.ova.enabled }}*/}}
+{{/*              echo "s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}eo-logs;s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.vaBucketName }};s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.dapoBucketName }};s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.portalBucketName }};s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}{{ .Values.svc.s3.logBundleBucketName }}" | /usr/bin/weed*/}}
+{{/*              shell -filer=eo-management-seaweedfs-filer-client.{{ .Release.Namespace }}:8888*/}}
+{{/*              -master=eo-management-seaweedfs-master:9333 \*/}}
+{{/*              {{- else }}*/}}
+{{/*              echo "s3.bucket.create -name {{ .Values.global.s3.bucketPrefix }}eo-logs" | /usr/bin/weed*/}}
+{{/*              shell -filer=eo-management-seaweedfs-filer-client.{{ .Release.Namespace }}:8888*/}}
+{{/*              -master=eo-management-seaweedfs-master:9333 \*/}}
+{{/*              {{- end }}*/}}
+{{/*          imagePullPolicy: Always*/}}
+{{/*          securityContext:*/}}
+{{/*            runAsUser: 1001*/}}
+{{/*            allowPrivilegeEscalation: false*/}}
+{{/*            capabilities:*/}}
+{{/*              drop: [ "ALL" ]*/}}
+{{/*            runAsNonRoot: true*/}}
+{{/*            seccompProfile:*/}}
+{{/*              type: RuntimeDefault*/}}
+{{/*          env:*/}}
+{{/*            - name: AWS_ENDPOINT_URL_S3*/}}
+{{/*              value: {{ tpl .Values.global.s3.url . }}*/}}
+{{/*            {{- if .Values.global.s3.credentials }}{{- toYaml .Values.global.s3.credentials | nindent 12 }}{{ end }}*/}}
+{{/*      {{- end }}*/}}
+{{/*      terminationGracePeriodSeconds: 30*/}}
+{{/*      volumes:*/}}
+{{/*        - name: config-volume*/}}
+{{/*          configMap:*/}}
+{{/*            name: fluentbit-conf*/}}
+{{/*        - name: varlog*/}}
+{{/*          emptyDir: {}*/}}
+{{/*        - name: dockercontainerlogdirectory*/}}
+{{/*          emptyDir: {}*/}}
+{{/*        - name: dockercontainers*/}}
+{{/*          emptyDir: {}*/}}
 

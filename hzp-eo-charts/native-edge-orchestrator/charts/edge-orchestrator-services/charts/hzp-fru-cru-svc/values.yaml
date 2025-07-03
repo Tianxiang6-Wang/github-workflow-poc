@@ -56,8 +56,8 @@ svc:
       hzp-role: eo-service
   resources:
     limits:
-      cpu: 100m
-      memory: 4Gi
+      cpu: 200m
+      memory: 1Gi
     requests:
       cpu: 5m
       memory: 50Mi

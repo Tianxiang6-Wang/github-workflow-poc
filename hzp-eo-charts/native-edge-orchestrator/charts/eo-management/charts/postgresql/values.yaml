@@ -449,8 +449,8 @@ primary:
   ##
   resources:
     limits:
-      cpu: 3000m
-      memory: 3000Mi
+      cpu: 1000m
+      memory: 1000Mi
     requests:
       memory: 256Mi
       cpu: 10m
@@ -472,9 +472,14 @@ primary:
   ##
   containerSecurityContext:
     enabled: true
+    capabilities:
+      drop:
+        - ALL
     runAsUser: 1001
     runAsNonRoot: true
     allowPrivilegeEscalation: false
+    seccompProfile:
+      type: RuntimeDefault
   ## @param primary.hostAliases PostgreSQL primary pods host aliases
   ## https://kubernetes.io/docs/concepts/services-networking/add-entries-to-pod-etc-hosts-with-host-aliases/
   ##

@@ -130,19 +130,25 @@ spec:
               value: {{ .Values.global.dl.entitlementConsumptionPath }}
             {{- toYaml .Values.svc.env | nindent 12 }}
           securityContext:
-            runAsNonRoot: true
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
       initContainers:
         - name: init-hzp-eo-initialization-svc
           image: "{{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}"
           imagePullPolicy: {{ .Values.test.image.pullPolicy }}
           securityContext:
-            runAsNonRoot: true
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: ONBOARDING_HOST
               value: "{{ .Values.svc.dependency.fidoOnboarding.service.fullname }}"

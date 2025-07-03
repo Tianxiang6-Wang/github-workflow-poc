@@ -94,10 +94,13 @@ spec:
               value: {{ .Values.global.instrumentation.enabled | quote }}
             {{- toYaml $svc.env | nindent 12 }}
           securityContext:
+            capabilities:
+              drop:
+                - ALL
             runAsNonRoot: true
-            runAsUser: 1000
-            runAsGroup: 1000
             allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           readinessProbe:
             httpGet:
               path: /admin/health/dependency
@@ -110,9 +113,13 @@ spec:
           image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
           imagePullPolicy: {{ .Values.dbchecker.image.pullPolicy }}
           securityContext:
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
-        {{- toYaml .Values.dbchecker.securityContext | nindent 12 }}
+            capabilities:
+              drop:
+                - ALL
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           env:
             - name: DB_HOST
               valueFrom:

@@ -86,10 +86,13 @@ spec:
             - name: BROWNFIELD_HEALTH_CHECK
               value: {{ .Values.svc.brownfieldHealthCheckEnabled | quote }}
           securityContext:
-            runAsNonRoot: true
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           readinessProbe:
             httpGet:
               path: /admin/health/dependency
@@ -124,10 +127,13 @@ spec:
         image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
         imagePullPolicy: Always
         securityContext:
-          runAsNonRoot: true
-          runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-          runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+          runAsUser: 1001
           allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
         env:
           - name: waiting_for_postgres_to_be_initialized
             valueFrom:

@@ -98,7 +98,7 @@ svc:
     hzp.iam.webhook/exclude-outbound-ports: "443"
   resources:
     limits:
-      cpu: 100m
+      cpu: 200m
       memory: 1000Mi
     requests:
       cpu: 5m

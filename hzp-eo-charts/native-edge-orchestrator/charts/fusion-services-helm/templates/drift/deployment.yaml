@@ -63,7 +63,7 @@ spec:
               cpu: "0.1"
             limits:
               memory: 512Mi
-              cpu: "1"
+              cpu: "0.5"
       containers:
         - name: drift-svc
           image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "drift-svc" ) "repo" .Values.global.repository) }}

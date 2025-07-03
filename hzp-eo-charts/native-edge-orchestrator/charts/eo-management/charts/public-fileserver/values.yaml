@@ -64,7 +64,7 @@ front:
   nodeSelector: |
     kubernetes.io/arch: amd64
 
-filerFrontPort: &filerFrontPort 80
+filerFrontPort: &filerFrontPort 8080
 
 podAnnotations:
   hzp.iam.webhook/authentication-enabled: "false"

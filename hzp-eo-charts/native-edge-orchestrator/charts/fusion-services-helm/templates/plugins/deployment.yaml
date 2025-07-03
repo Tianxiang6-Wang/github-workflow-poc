@@ -38,8 +38,13 @@ spec:
           image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-restservice" ) "repo" .Values.global.repository) }}
           imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-restservice" ).pullPolicy }}
           securityContext:
-            runAsUser: {{ .Values.plugins.initContainerSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.plugins.initContainerSecurityContext.runAsGroup }}
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           env:
             {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.plugins "root" $) | nindent 12 }}
             {{- include "fusion-services.restservice_keys" . | nindent 12 }}
@@ -54,8 +59,13 @@ spec:
           image: {{ include "fusion-services.image.name" (dict "svc" ( index .Values.components "fusion-manager-plugins-service" ) "repo" .Values.global.repository) }}
           imagePullPolicy: {{ default .Values.global.image.pullPolicy ( index .Values.components "fusion-manager-plugins-service" ).pullPolicy }}
           securityContext:
-            runAsUser: {{ .Values.plugins.initContainerSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.plugins.initContainerSecurityContext.runAsGroup }}
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           env:
             {{- include "fusion-services.postgres_env_vars" (dict "dbRoot" .Values.plugins "root" $) | nindent 12 }}
           command:
@@ -127,13 +137,13 @@ spec:
             - configMapRef:
                 name: {{ template "fusion-services.name" . }}-plugins-envvars
           securityContext:
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
             runAsNonRoot: true
             seccompProfile:
               type: RuntimeDefault
-            capabilities:
-              drop:
-                - ALL
           resources: {{- toYaml .Values.plugins.resources | nindent 12 }}
           {{- if .Values.plugins.probes.liveness.enabled }}
           livenessProbe:

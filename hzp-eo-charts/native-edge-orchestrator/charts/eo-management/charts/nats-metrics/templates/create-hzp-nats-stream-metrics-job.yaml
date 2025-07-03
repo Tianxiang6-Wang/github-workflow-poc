@@ -57,6 +57,8 @@ spec:
         env:
           - name: USER
             value: "nats"
+          - name: HOME
+            value: /tmp/
         securityContext:
           runAsUser: 1001
           allowPrivilegeEscalation: false

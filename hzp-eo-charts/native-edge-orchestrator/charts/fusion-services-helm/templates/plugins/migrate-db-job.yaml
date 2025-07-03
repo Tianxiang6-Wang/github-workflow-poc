@@ -25,12 +25,6 @@ spec:
       {{- if .Values.rest_service.irsa_service_account }}
       serviceAccountName: {{ .Values.rest_service.irsa_service_account }}
       {{- end }}
-      securityContext:
-        runAsUser: {{ .Values.plugins.migrateDbJobSecurityContext.runAsUser }}
-        runAsGroup: {{ .Values.plugins.migrateDbJobSecurityContext.runAsGroup }}
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
       nodeSelector: {{- include "fusion-services.nodeSelector" ( list .Values.plugins $ )| trim | nindent 8 }}
       tolerations: {{- include "fusion-services.tolerations" ( list .Values.plugins $ ) | trim | nindent 8 }}
       affinity: {{- include "fusion-services.affinity" ( list .Values.plugins $ ) | trim | nindent 8 }}

@@ -51,8 +51,8 @@ svc:
   name: fluentbit
   resources:
     limits:
-      cpu: 200m
-      memory: 4Gi
+      cpu: 300m
+      memory: 0.5Gi
     requests:
       cpu: 100m
       memory: 200Mi

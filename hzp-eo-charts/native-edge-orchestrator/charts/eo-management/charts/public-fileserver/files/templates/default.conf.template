@@ -7,7 +7,7 @@ upstream fileserver {
 }
 
 server {
-  listen                      80;
+  listen                      8080;
   server_name                 _;
   resolver                    kube-dns.kube-system.svc.cluster.local;
   client_header_timeout       ${CLIENT_HEADER_TIMEOUT};

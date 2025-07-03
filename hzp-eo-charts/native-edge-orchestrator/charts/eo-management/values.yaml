@@ -87,7 +87,7 @@ global:
         cpu: 50m
       limits:
         memory: 1536Mi
-        cpu: 200m
+        cpu: 300m
       storageSize: 8Gi
   postgresql:
     primary:
@@ -314,9 +314,10 @@ global:
     enabled: true
     containerSecurityContext:
       securityContext:
+        capabilities:
+          drop:
+            - ALL
         runAsNonRoot: true
-        runAsUser: 1001
-        runAsGroup: 1001
         allowPrivilegeEscalation: false
         seccompProfile:
           type: RuntimeDefault

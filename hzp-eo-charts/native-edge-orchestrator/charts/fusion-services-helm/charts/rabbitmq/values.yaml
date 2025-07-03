@@ -757,9 +757,9 @@ containerSecurityContext:
 resources:
   ## Example:
   ## limits:
-  ##    cpu: 1000m
-  ##    memory: 2Gi
-  ##
+  #    cpu: 1000m
+  #    memory: 2Gi
+  #
   limits: {}
   ## Examples:
   ## requests:

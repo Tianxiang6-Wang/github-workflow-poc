@@ -116,10 +116,13 @@ spec:
             {{- end }}
             {{- toYaml $svc.env | nindent 12 }}
           securityContext:
-            runAsNonRoot: true
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
             allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           readinessProbe:
             httpGet:
               path: /admin/health/dependency
@@ -132,8 +135,13 @@ spec:
           image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
           imagePullPolicy: {{ .Values.dbchecker.image.pullPolicy }}
           securityContext:
-            runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
-            runAsGroup: {{ .Values.global.podSecurityContext.runAsGroup }}
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
         {{- toYaml .Values.dbchecker.securityContext | nindent 12 }}
           env:
             {{- toYaml $svc.env | nindent 12 }}

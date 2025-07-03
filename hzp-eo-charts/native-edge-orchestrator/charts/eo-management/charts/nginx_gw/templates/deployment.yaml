@@ -40,6 +40,8 @@ spec:
         hzp.iam.webhook/resources-limits-memory: "2500Mi"
     spec:
       {{- include "images.pullSecrets" . | nindent 6 }}
+      securityContext:
+        fsGroup: 1001
       volumes:
         - name: nginx-conf
           configMap:
@@ -91,6 +93,14 @@ spec:
       affinity: {{- include "pods.affinity" ( list .Values $ ) | trim | nindent 8 }}
       containers:
         - name: nginx
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           image: {{ include "manifest.image.name" (dict "data" (index .Values.components "nginx-lua" ) "repo" .Values.global.repository) }}
           imagePullPolicy: {{ .Values.image.imagePullPolicy }}
           ports:
@@ -136,14 +146,6 @@ spec:
       restartPolicy: Always
       terminationGracePeriodSeconds: 30
       dnsPolicy: ClusterFirst
-      securityContext:
-        runAsUser: 1001
-        allowPrivilegeEscalation: false
-        capabilities:
-          drop: [ "ALL" ]
-        runAsNonRoot: true
-        seccompProfile:
-          type: RuntimeDefault
       schedulerName: default-scheduler
   strategy:
     type: RollingUpdate

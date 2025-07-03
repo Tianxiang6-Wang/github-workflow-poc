@@ -30,7 +30,7 @@ nats:
     service:
       fullname: jetstream
       port: 4222
-    maxMemory: "8589934592"
+    maxMemory: "2Gi"
     maxStorage: "12884901888"
   job:
     createStream:

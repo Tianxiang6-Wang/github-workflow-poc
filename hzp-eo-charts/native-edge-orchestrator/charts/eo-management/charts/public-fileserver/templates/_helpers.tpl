@@ -89,6 +89,8 @@ Return volumeMounts for the filer font
   name: "{{ template "fileserver.name" . }}-dummy-dir"
 - mountPath: /data/nginx/cache
   name: "{{ template "fileserver.name" . }}-cache"
+- name: conf-d
+  mountPath: /etc/nginx/conf.d
 {{- end -}}
 
 {{/*
@@ -107,6 +109,8 @@ Return volumes for a pod
 - name: "{{ template "fileserver.name" . }}-dummy-dir"
   emptyDir: {}
 - name: "{{ template "fileserver.name" . }}-cache"
+  emptyDir: {}
+- name: "conf-d"
   emptyDir: {}
 {{- with .Values.extraVolumes }}
 {{ toYaml . }}
