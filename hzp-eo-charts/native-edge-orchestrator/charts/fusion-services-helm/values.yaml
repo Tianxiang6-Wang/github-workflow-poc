@@ -199,63 +199,63 @@ components:
     version: latest
   fusion-manager-agent-service:
     image: fusion-manager-agent-service
-    project: ''
+    project: 'fusion'
     version: latest
   fusion-manager-apiservice:
     image: fusion-manager-apiservice
-    project: ''
+    project: 'fusion'
     version: latest
   fusion-manager-blueprint-service:
     image: fusion-manager-blueprint-service
-    project: ''
+    project: 'fusion'
     version: latest
   fusion-manager-composer-backend:
     image: fusion-manager-composer-backend
-    project: ''
+    project: 'fusion'
     version: latest
   fusion-manager-composer-frontend:
     image: fusion-manager-composer-frontend
-    project: ''
+    project: 'fusion'
     version: latest
   fusion-manager-deployments-service:
     image: fusion-manager-deployments-service
-    project: ''
+    project: 'fusion'
     version: latest
   fusion-manager-execution-scheduler:
     image: fusion-manager-execution-scheduler
-    project: ''
+    project: 'fusion'
     version: latest
   fusion-manager-mgmtworker:
     image: fusion-manager-mgmtworker
-    project: ''
+    project: 'fusion'
     version: latest
   fusion-manager-plugins-service:
     image: fusion-manager-plugins-service
-    project: ''
+    project: 'fusion'
     version: latest
   fusion-manager-resource-uploader:
     image: fusion-manager-resource-uploader
-    project: ''
+    project: 'fusion'
     version: latest
   fusion-manager-restservice:
     image: fusion-manager-restservice
-    project: ''
+    project: 'fusion'
     version: latest
   fusion-manager-secrets-service:
     image: fusion-manager-secrets-service
-    project: ''
+    project: 'fusion'
     version: latest
   fusion-manager-stage-backend:
     image: fusion-manager-stage-backend
-    project: ''
+    project: 'fusion'
     version: latest
   fusion-manager-stage-frontend:
     image: fusion-manager-stage-frontend
-    project: ''
+    project: 'fusion'
     version: latest
   fusion-nginx:
     image: fusion-nginx
-    project: ''
+    project: 'fusion'
     version: '1.28'
   fusion-plugin-loader-svc:
     image: fusion-plugin-loader-svc
