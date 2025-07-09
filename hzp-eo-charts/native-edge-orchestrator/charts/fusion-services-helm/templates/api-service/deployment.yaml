@@ -80,6 +80,9 @@ spec:
             capabilities:
               drop:
                 - ALL
+          envFrom:
+            - secretRef:
+                name: dsp-iam-session-svc-client-credentials
           env:
             {{- include "fusion-services.postgres_env_vars" (dict "root" $) | nindent 12 }}
             {{- include "fusion-services.s3_env_vars" . | nindent 12 }}

@@ -94,6 +94,7 @@ spec:
               value: {{ .Values.global.instrumentation.enabled | quote }}
             {{- toYaml $svc.env | nindent 12 }}
           securityContext:
+            runAsUser: 1001
             capabilities:
               drop:
                 - ALL
@@ -113,6 +114,7 @@ spec:
           image: {{ include "manifest.image.name" (dict "data" (index .Values.components "busybox" ) "repo" .Values.global.repository) }}
           imagePullPolicy: {{ .Values.dbchecker.image.pullPolicy }}
           securityContext:
+            runAsUser: 1001
             capabilities:
               drop:
                 - ALL

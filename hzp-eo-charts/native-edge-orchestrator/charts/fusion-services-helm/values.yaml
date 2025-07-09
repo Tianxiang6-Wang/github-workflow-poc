@@ -194,68 +194,68 @@ components:
     version: 8.2.0
   drift-svc:
     image: drift-svc
-    project: eo-images/
+    project: hzp/
     repository: 702886132326.dkr.ecr.eu-west-1.amazonaws.com/
     version: latest
   fusion-manager-agent-service:
     image: fusion-manager-agent-service
-    project: 'fusion'
+    project: 'fusion/'
     version: latest
   fusion-manager-apiservice:
     image: fusion-manager-apiservice
-    project: 'fusion'
+    project: 'fusion/'
     version: latest
   fusion-manager-blueprint-service:
     image: fusion-manager-blueprint-service
-    project: 'fusion'
+    project: 'fusion/'
     version: latest
   fusion-manager-composer-backend:
     image: fusion-manager-composer-backend
-    project: 'fusion'
+    project: 'fusion/'
     version: latest
   fusion-manager-composer-frontend:
     image: fusion-manager-composer-frontend
-    project: 'fusion'
+    project: 'fusion/'
     version: latest
   fusion-manager-deployments-service:
     image: fusion-manager-deployments-service
-    project: 'fusion'
+    project: 'fusion/'
     version: latest
   fusion-manager-execution-scheduler:
     image: fusion-manager-execution-scheduler
-    project: 'fusion'
+    project: 'fusion/'
     version: latest
   fusion-manager-mgmtworker:
     image: fusion-manager-mgmtworker
-    project: 'fusion'
+    project: 'fusion/'
     version: latest
   fusion-manager-plugins-service:
     image: fusion-manager-plugins-service
-    project: 'fusion'
+    project: 'fusion/'
     version: latest
   fusion-manager-resource-uploader:
     image: fusion-manager-resource-uploader
-    project: 'fusion'
+    project: 'fusion/'
     version: latest
   fusion-manager-restservice:
     image: fusion-manager-restservice
-    project: 'fusion'
+    project: 'fusion/'
     version: latest
   fusion-manager-secrets-service:
     image: fusion-manager-secrets-service
-    project: 'fusion'
+    project: 'fusion/'
     version: latest
   fusion-manager-stage-backend:
     image: fusion-manager-stage-backend
-    project: 'fusion'
+    project: 'fusion/'
     version: latest
   fusion-manager-stage-frontend:
     image: fusion-manager-stage-frontend
-    project: 'fusion'
+    project: 'fusion/'
     version: latest
   fusion-nginx:
     image: fusion-nginx
-    project: 'fusion'
+    project: 'fusion/'
     version: '1.28'
   fusion-plugin-loader-svc:
     image: fusion-plugin-loader-svc
@@ -639,7 +639,7 @@ nats:
       retention: 3d
 nginx:
   enableNetworkPolicy: true
-  http_port: 80
+  http_port: 8080
   podAnnotations: {}
   podLabels: {}
   probes:

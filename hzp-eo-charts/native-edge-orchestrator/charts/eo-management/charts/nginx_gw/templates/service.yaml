@@ -11,11 +11,11 @@ spec:
   ports:
     - protocol: TCP
       port: 80
-      targetPort: 80
+      targetPort: 8080
       name: nginx-80-80
     - protocol: TCP
       port: 443
-      targetPort: 443
+      targetPort: 8043
       name: nginx-443-443
   selector:
     app: nginx-gw

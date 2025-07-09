@@ -160,7 +160,7 @@ podDistuptionBudget:
 
 resources:
   limits:
-    cpu: "50m"
+    cpu: "200m"
     memory: "200Mi"
   requests:
     cpu: "5m"

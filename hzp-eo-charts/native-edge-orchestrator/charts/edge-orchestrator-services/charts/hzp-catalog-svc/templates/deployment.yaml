@@ -135,6 +135,7 @@ spec:
             {{- if .Values.global.s3.credentials }}{{- toYaml .Values.global.s3.credentials | nindent 12 }}{{ end }}
             {{- toYaml .Values.svc.env | nindent 12 }}
           securityContext:
+            runAsUser: 1001
             capabilities:
               drop:
                 - ALL

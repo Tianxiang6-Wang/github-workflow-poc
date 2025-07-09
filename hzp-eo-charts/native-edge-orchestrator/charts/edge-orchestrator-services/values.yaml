@@ -1,7 +1,7 @@
 global:
   is-saas-env: false
   staticOnPremOrgId: "f47ac10b-58cc-4372-a567-0e02b2c3d479"
-  cookie_domain: "edge.sgp.delllabs.net"
+  cookie_domain: "kob.dell.com"
   clusterResourcesPrefix: ""
   istio:
     deploy: false

@@ -49,6 +49,14 @@ spec:
         - name: {{ include "microservice.fullname" . }}
           image: "{{ .Values.global.registry }}/{{ .Values.image.image }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            runAsUser: 1001
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ "ALL" ]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
 #          command: ["{{ .Values.entrypoint.cmd }}"]
 #          args: ["{{ .Values.entrypoint.arg }}"]
           {{- if .Values.entrypoint.workingDir }}

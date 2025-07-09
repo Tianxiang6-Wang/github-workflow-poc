@@ -17,6 +17,7 @@ data:
     allow 0.0.0.0/0;
   nginx.conf: |
     user nginx;
+    pid  /tmp/nginx.pid;
     worker_processes  3;
     error_log /dev/stderr warn;
     events {
@@ -53,7 +54,7 @@ data:
       large_client_header_buffers 4 8k;
 
       server {
-          listen       80;
+          listen       8080;
           server_name  _;
           resolver kube-dns.kube-system.svc.cluster.local;
           # location / {
@@ -70,7 +71,7 @@ data:
 
       # NOTE: replacement for istio gateway "ingress-gateway-tls", host "*", ALB endpoints should be routed to it
       server {
-          listen       443 default_server ssl;
+          listen       8043 default_server ssl;
           server_name  _;
           ssl_certificate /etc/nginx/tls-credentials/cert;
           ssl_certificate_key /etc/nginx/tls-credentials/key;
@@ -96,7 +97,7 @@ data:
 
       # NOTE: replacement for istio gateway "ingress-gateway-tls", fido hosts
       server {
-          listen       443 ssl;
+          listen       8043 ssl;
           server_name  {{ join " " .Values.tlsHostFidoRV }};
           ssl_certificate /etc/nginx/tls-credentials/cert;
           ssl_certificate_key /etc/nginx/tls-credentials/key;
@@ -116,7 +117,7 @@ data:
 
       # NOTE: replacement for istio gateway "ingress-gateway-mtls", MTLS hosts
       server {
-          listen       443 ssl;
+          listen       8043 ssl;
 
           server_name  {{ $mtlsHosts }};
 
@@ -144,7 +145,7 @@ data:
 
       # NOTE: replacement for istio gateway "ingress-gateway-mtls-recovery", MTLS hosts
       server {
-          listen       443 ssl;
+          listen       8043 ssl;
           server_name  {{ $mtlsHostsRecovery }};
 
           ssl_certificate /etc/nginx/mtls-credentials-recovery/cert;

@@ -41,6 +41,8 @@ spec:
           resources:
             {{- toYaml .Values.svc.resources | nindent 12 }}
           env:
+            - name: TOKEN_SVC_URL
+              value: http://dsp-iam-token-svc.dapp-kob-poc-at1
             - name: SIDECAR_INJECTED
               value: "{{ .Values.global.iamProxy.sidecarEnabled }}"
             - name: SERVICE_VERSION
@@ -57,6 +59,8 @@ spec:
               value: {{ .Values.global.ingress.fqdn }}
             - name: EO_NAME
               value: {{ .Values.global.eoName }}
+            - name: IAM_CA_DIRECTORIES_PATHS
+              value: "/etc/dap-iam-commons/certs"
             - name: COOKIE_ROOT_DOMAIN
               value: {{ .Values.global.cookie_domain }}
             - name: ENABLE_INSTRUMENTATION
@@ -129,6 +133,9 @@ spec:
               port: 14000
               scheme: HTTP
           volumeMounts:
+            - name: ca-cert-portal
+              mountPath: /etc/dap-iam-commons/certs
+              readOnly: true
             {{- include "logLevel.configMap.mount" $ | indent 12 }}
       initContainers:
         - name: dbchecker
@@ -157,4 +164,8 @@ spec:
 
               echo 'PostgreSQL OK ✓'
       volumes:
+        - name: ca-cert-portal
+          secret:
+            secretName: dapp-root-ca
+            optional: true
         {{- include "logLevel.configMap.volume" $ | indent 8 }}

@@ -108,7 +108,7 @@ webhookSvc:
     excludeOutboundCIDRList:
   image:
     name: /eo-images/iam-webhook-svc
-    tag: 3.2.0.0-84e313c-27be3ca9
+    tag: 3.2.0.0-44e3cd2-615aa255
     repository:
     pullPolicy: Always
   env:

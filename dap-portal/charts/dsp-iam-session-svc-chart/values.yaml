@@ -231,7 +231,7 @@ resources:
     cpu: "50m"
   limits:
     memory: "200Mi"
-    cpu: "100m"
+    cpu: "200m"
 
 # we should use only HPA OR Keda.
 # if keda is needed plz use keda as the cpu\mem scaler

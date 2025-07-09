@@ -301,6 +301,8 @@ spec:
           resources: {{- toYaml .Values.resources | nindent 12 }}
           {{- end }}
           volumeMounts:
+            - name: rabbitmq
+              mountPath: /var/lib/rabbitmq
             - name: configuration
               mountPath: /bitnami/rabbitmq/conf
             - name: data
@@ -340,6 +342,8 @@ spec:
         {{- include "common.tplvalues.render" (dict "value" .Values.sidecars "context" $) | nindent 8 }}
         {{- end }}
       volumes:
+        - name: rabbitmq
+          emptyDir: {}
         {{- if .Values.auth.tls.enabled }}
         - name: certs
           projected:

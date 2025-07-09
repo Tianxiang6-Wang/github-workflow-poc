@@ -75,7 +75,7 @@ externalsecrets:
 
 image:
   image: "eo-images/iam-mgmt-svc"
-  tag: 3.2.0.0-6e58e60-dfa40f29
+  tag: 3.2.0.0-0e1b751-c54e48ed
   pullPolicy: Always
   imagePullSecrets:
     - name: docker-secret
@@ -195,7 +195,7 @@ podDistuptionBudget:
 
 resources:
   limits:
-    cpu: "50m"
+    cpu: "200m"
     memory: "200Mi"
   requests:
     cpu: "5m"

@@ -95,7 +95,7 @@ initjob:
       cpu: "5m"
     limits:
       memory: "200Mi"
-      cpu: 100m
+      cpu: 200m
 
 dockerSecret:
   create: false
@@ -222,7 +222,7 @@ resources:
     cpu: "5m"
   limits:
     memory: "200Mi"
-    cpu: 100m
+    cpu: 200m
 
 
 # we should use only HPA OR Keda.

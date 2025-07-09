@@ -104,7 +104,7 @@ spec:
           image: {{ include "manifest.image.name" (dict "data" (index .Values.components "nginx-lua" ) "repo" .Values.global.repository) }}
           imagePullPolicy: {{ .Values.image.imagePullPolicy }}
           ports:
-            - containerPort: 80
+            - containerPort: 8080
               protocol: TCP
           resources: {{- toYaml .Values.nginx.resources | nindent 12 }}
           volumeMounts:

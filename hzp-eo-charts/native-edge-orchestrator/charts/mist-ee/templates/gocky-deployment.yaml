@@ -118,6 +118,7 @@ spec:
           imagePullPolicy: Always
           name: init-vminsert
           securityContext:
+            runAsUser: 1001
             capabilities:
               drop:
                 - ALL

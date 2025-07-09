@@ -195,6 +195,7 @@ resources:
     memory: "128Mi"
     cpu: "100m"
   limits:
+    cpu: "200"
     memory: "300Mi"
 
 

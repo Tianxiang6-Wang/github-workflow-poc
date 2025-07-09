@@ -188,6 +188,7 @@ resources:
     memory: "128Mi"
     cpu: "100m"
   limits:
+    cpu: "200m"
     memory: "300Mi"
 
 # we should use only HPA OR Keda.

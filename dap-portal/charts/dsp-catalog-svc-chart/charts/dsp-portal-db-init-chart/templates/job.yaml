@@ -20,6 +20,14 @@ spec:
       - name: "{{ include "microservice.jobname" . }}"
         image: "{{ .Values.global.registry }}/dsp-portal-db-init:{{ .Chart.AppVersion }}"
         command: ["/bin/bash", "-c"]
+        securityContext:
+          runAsUser: 1001
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop: [ "ALL" ]
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
         args:
           - |
             #!/bin/bash

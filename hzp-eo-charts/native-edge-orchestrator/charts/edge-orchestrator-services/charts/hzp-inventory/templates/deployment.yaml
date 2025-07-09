@@ -79,7 +79,12 @@ spec:
               port: {{ .Values.svc.port }}
             failureThreshold: 30
             periodSeconds: 3
+          envFrom:
+            - secretRef:
+                name: dsp-iam-session-svc-client-credentials
           env:
+            - name: TOKEN_SVC_URL
+              value: "http://dsp-iam-token-svc.{{ .Values.global.dsp.portal.namespace }}"
             - name: SIDECAR_INJECTED
               value: "{{ .Values.global.iamProxy.sidecarEnabled }}"
             - name: NATS_URL

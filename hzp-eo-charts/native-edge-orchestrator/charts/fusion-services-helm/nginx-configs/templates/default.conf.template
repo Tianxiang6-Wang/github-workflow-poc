@@ -72,7 +72,7 @@ map $http_upgrade $connection_upgrade {
 }
 
 server {
-  listen              80;
+  listen              8080;
   server_name         _;
 
   {{ if .Values.nginx.rateLimit.enabled }}

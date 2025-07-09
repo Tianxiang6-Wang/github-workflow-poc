@@ -53,6 +53,10 @@ spec:
               subPath: nginx.conf
             - mountPath: /etc/nginx/templates
               name: nginx-templates
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+            - name: nginx-cache
+              mountPath: /var/cache/nginx
           envFrom:
             - configMapRef:
                 name: {{ template "fusion-services.name" . }}-nginx-envvars
@@ -79,6 +83,10 @@ spec:
           {{- end }}
       restartPolicy: Always
       volumes:
+        - name: nginx-conf
+          emptyDir: {}
+        - name: nginx-cache
+          emptyDir: {}
         - name: nginx-master-config
           configMap:
             name: {{ template "fusion-services.name" . }}-nginx-master-config
